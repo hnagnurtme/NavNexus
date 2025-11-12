@@ -107,6 +107,12 @@ export const useNavigationStore = create<NavigationState>()(
       partialize: (state) => ({ 
         bookmarks: Array.from(state.bookmarks) 
       }),
+      // Rehydrate bookmarks array back to Set
+      onRehydrateStorage: () => (state) => {
+        if (state && Array.isArray(state.bookmarks)) {
+          state.bookmarks = new Set(state.bookmarks as unknown as string[]);
+        }
+      },
     }
   )
 );
