@@ -488,7 +488,7 @@ const mockDetailsMap: Record<string, NodeDetailsResponse> = {
 // 4. MOCK TREE SERVICE – SIÊU THÔNG MINH
 // ===========================================
 export const mockTreeService = {
-  getTreeRoot: async (): Promise<TreeRootResponse> => {
+  getTreeRoot: async (_workspaceId: string): Promise<TreeRootResponse> => {
     await delay(800);
     return { root: mockRoot, children: level1Chaos };
   },

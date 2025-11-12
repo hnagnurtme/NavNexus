@@ -8,7 +8,14 @@ import {
   AlertTriangle, 
   GitBranch,
   Network,
-  Target
+  Target,
+  Briefcase,
+  CircleAlert,
+  CheckCircle,
+  ClipboardList,
+  Bug,
+  TrendingUp,
+  Split
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
@@ -27,6 +34,14 @@ const iconMap: Record<NodeType, React.ComponentType<{ className?: string }>> = {
   challenge: AlertTriangle,
   feature: Lightbulb,
   concept: Network,
+  workspace: Briefcase,
+  problem: CircleAlert,
+  cause: AlertTriangle,
+  solution: CheckCircle,
+  requirement: ClipboardList,
+  bug: Bug,
+  improvement: TrendingUp,
+  subproblem: Split,
 };
 
 export const TreeNodeIcon: React.FC<TreeNodeIconProps> = ({ 
