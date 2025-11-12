@@ -33,7 +33,6 @@ export const WorkspacePage: React.FC = () => {
   const {
     view,
     viewMode,
-    tree,
     selectedNode,
     selectedNodeId,
     details,
@@ -85,9 +84,9 @@ export const WorkspacePage: React.FC = () => {
           </div>
 
           <WorkspaceCanvas
+            workspaceId={workspaceId}
             view={view}
             viewMode={viewMode}
-            tree={tree}
             isBuilding={isBuilding}
             isNodeLoading={isNodeLoading}
             selectedNodeId={selectedNodeId}

@@ -15,6 +15,7 @@
   "license": "ISC",
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
+    "@types/dagre": "^0.7.53",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
@@ -28,10 +29,12 @@
   "dependencies": {
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
     "lucide-react": "^0.553.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.5",
+    "reactflow": "^11.11.4",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.8"
   }
