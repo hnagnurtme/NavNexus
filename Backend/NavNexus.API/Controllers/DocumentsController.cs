@@ -54,7 +54,9 @@ public class DocumentsController : ControllerBase
     public async Task<IActionResult> GetDocument(string id)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "";
-        _logger.LogInformation("Getting document {DocumentId} for user: {UserId}", id, userId);
+        // Sanitize user input for logging to prevent log forging
+        var sanitizedId = id?.Replace("\n", "").Replace("\r", "") ?? "";
+        _logger.LogInformation("Getting document {DocumentId} for user: {UserId}", sanitizedId, userId);
 
         var query = new GetDocumentQuery(id, userId);
         var result = await _mediator.Send(query);

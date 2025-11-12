@@ -47,7 +47,9 @@ public class AuthController : ControllerBase
         var token = tokenHandler.CreateToken(tokenDescriptor);
         var tokenString = tokenHandler.WriteToken(token);
 
-        _logger.LogInformation("Token generated for user: {UserId}", request.UserId);
+        // Sanitize user input for logging to prevent log forging
+        var sanitizedUserId = request.UserId?.Replace("\n", "").Replace("\r", "") ?? "";
+        _logger.LogInformation("Token generated for user: {UserId}", sanitizedUserId);
 
         return Ok(ApiResponse<TokenResponse>.SuccessResponse(new TokenResponse
         {

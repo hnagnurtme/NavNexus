@@ -46,7 +46,9 @@ public class NodesController : ControllerBase
     public IActionResult GetNode(string id)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        _logger.LogInformation("Getting node {NodeId} for user: {UserId}", id, userId);
+        // Sanitize user input for logging to prevent log forging
+        var sanitizedId = id?.Replace("\n", "").Replace("\r", "") ?? "";
+        _logger.LogInformation("Getting node {NodeId} for user: {UserId}", sanitizedId, userId);
 
         // Mock response for demonstration
         var node = new NodeResponse
