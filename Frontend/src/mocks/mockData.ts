@@ -93,7 +93,7 @@ const mockChildrenMap: Record<string, TreeNodeShallow[]> = {
     {
       id: 'sub-resource-compute',
       name: 'Computing Resource Allocation',
-      type: 'sub-problem',
+      type: 'problem',
       isGap: true,
       isCrossroads: false,
       hasChildren: false,
@@ -103,7 +103,7 @@ const mockChildrenMap: Record<string, TreeNodeShallow[]> = {
     {
       id: 'sub-resource-bandwidth',
       name: 'Bandwidth & Subcarrier Allocation',
-      type: 'sub-problem',
+      type: 'problem',
       isGap: true,
       isCrossroads: false,
       hasChildren: false,
@@ -506,7 +506,7 @@ export const mockTreeService = {
           {
             id: 'solution-ppo-sagin',
             name: 'Hướng AI/DRL: Attention-enabled PPO',
-            type: 'solution-path',
+            type: 'problem',
             isGap: false,
             isCrossroads: false,
             hasChildren: true,
@@ -516,7 +516,7 @@ export const mockTreeService = {
           {
             id: 'solution-alt-opt',
             name: 'Hướng Toán học: Alternating Optimization',
-            type: 'solution-path',
+            type: 'problem',
             isGap: false,
             isCrossroads: false,
             hasChildren: true,
