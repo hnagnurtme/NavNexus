@@ -5,7 +5,16 @@ export type NodeType =
   | 'algorithm' 
   | 'challenge' 
   | 'feature' 
-  | 'concept';
+  | 'concept'
+  | 'workspace'
+  |  'problem'
+  | 'cause'
+    | 'solution'
+    | 'requirement'
+    | 'bug'
+    | 'improvement'
+    | 'subproblem'
+  ;
 
 export interface TreeNodeShallow {
   id: string;
