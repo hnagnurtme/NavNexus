@@ -51,8 +51,11 @@ public class FilesController : ControllerBase
     public async Task<IActionResult> ProcessFile([FromBody] ProcessFileRequest request)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "anonymous";
+        // Sanitize user input for logging to prevent log forging
+        var sanitizedWorkspaceId = request.WorkspaceId?.Replace("\n", "").Replace("\r", "") ?? "";
+        var sanitizedFileName = request.FileName?.Replace("\n", "").Replace("\r", "") ?? "";
         _logger.LogInformation("Processing file request for workspace {WorkspaceId}, file {FileName}", 
-            request.WorkspaceId, request.FileName);
+            sanitizedWorkspaceId, sanitizedFileName);
 
         // STEP 1: Cache check (Firestore)
         var existingFile = await _firestoreService.GetFileByHashAsync(request.WorkspaceId, request.FileHash);

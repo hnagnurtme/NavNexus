@@ -49,7 +49,10 @@ public class KnowledgeController : ControllerBase
             return BadRequest(ApiResponse.ErrorResponse("Query cannot be empty", "INVALID_QUERY"));
         }
 
-        _logger.LogInformation("Querying knowledge base for workspace {WorkspaceId}: {Query}", workspaceId, query);
+        // Sanitize user input for logging to prevent log forging
+        var sanitizedWorkspaceId = workspaceId?.Replace("\n", "").Replace("\r", "") ?? "";
+        var sanitizedQuery = query?.Replace("\n", "").Replace("\r", "") ?? "";
+        _logger.LogInformation("Querying knowledge base for workspace {WorkspaceId}: {Query}", sanitizedWorkspaceId, sanitizedQuery);
 
         var queryCommand = new QueryKnowledgeQuery(workspaceId, query, limit);
         var result = await _mediator.Send(queryCommand);
@@ -76,7 +79,9 @@ public class KnowledgeController : ControllerBase
     [SwaggerResponse(404, "Workspace not found", typeof(ApiResponse))]
     public async Task<IActionResult> GetGapAnalysis([FromRoute] string workspaceId)
     {
-        _logger.LogInformation("Getting gap analysis for workspace {WorkspaceId}", workspaceId);
+        // Sanitize user input for logging to prevent log forging
+        var sanitizedWorkspaceId = workspaceId?.Replace("\n", "").Replace("\r", "") ?? "";
+        _logger.LogInformation("Getting gap analysis for workspace {WorkspaceId}", sanitizedWorkspaceId);
 
         // TODO: Implement gap analysis query
         var result = new GapAnalysisResult
