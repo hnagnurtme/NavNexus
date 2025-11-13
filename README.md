@@ -29,9 +29,25 @@
 git clone https://github.com/hnagnurtme/NavNexus.git
 cd NavNexus
 
+# Configure environment variables
+cp .env.example .env
+# Edit .env with your API keys and credentials
+
 # Start all services with Docker Compose
-docker compose up --build
+docker compose up -d
+
+# View logs
+docker compose logs -f
 ```
+
+**What's included:**
+- Frontend (React + Vite) → http://localhost:3000
+- Backend (ASP.NET Core) → http://localhost:8080
+- Neo4j Graph Database → http://localhost:7474
+- Qdrant Vector Database → http://localhost:6333
+
+**📖 Full deployment guide:** See [DEPLOYMENT.md](./DEPLOYMENT.md)
+
 ---
 
 ## Key Features
@@ -79,9 +95,10 @@ allowing users to explore relationships, patterns, and knowledge “crossroads.�
 
 ## Documentation
 
-- [Setup Guide](./SETUP.md) - Complete installation and configuration
+- [Deployment Guide](./DEPLOYMENT.md) - Docker, Compose & CI/CD setup
 - [Backend Documentation](./Backend/README.md) - API details and architecture
 - [Frontend Documentation](./Frontend/README.md) - UI components and structure
+- [Flow Documentation](./docs/flow.md) - System architecture and data flow
 ---
 
 ## Team

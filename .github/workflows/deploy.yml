@@ -1,0 +1,198 @@
+name: 🚀 Build, Test & Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: docker.io
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/navnexus-frontend
+  BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/navnexus-backend
+
+jobs:
+  # ============================
+  # 🧪 Test Backend
+  # ============================
+  test-backend:
+    name: Test Backend (ASP.NET Core)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0'
+
+      - name: 📦 Restore dependencies
+        working-directory: ./Backend
+        run: dotnet restore
+
+      - name: 🏗️ Build
+        working-directory: ./Backend
+        run: dotnet build --configuration Release --no-restore
+
+      - name: 🧪 Run tests
+        working-directory: ./Backend
+        run: dotnet test --configuration Release --no-build --verbosity normal --collect:"XPlat Code Coverage"
+
+      - name: 📊 Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./Backend/**/coverage.cobertura.xml
+          flags: backend
+
+  # ============================
+  # 🧪 Test Frontend
+  # ============================
+  test-frontend:
+    name: Test Frontend (React + Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ./Frontend/package-lock.json
+
+      - name: 📦 Install dependencies
+        working-directory: ./Frontend
+        run: npm ci
+
+      - name: 🧹 Lint
+        working-directory: ./Frontend
+        run: npm run lint
+
+      - name: 🏗️ Build
+        working-directory: ./Frontend
+        run: npm run build
+
+  # ============================
+  # 🐳 Build & Push Docker Images
+  # ============================
+  build-and-push:
+    name: Build & Push Multi-arch Docker Images
+    needs: [test-backend, test-frontend]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    strategy:
+      matrix:
+        include:
+          - service: backend
+            context: ./Backend
+            dockerfile: ./Backend/Dockerfile
+            image: ${{ secrets.DOCKER_USERNAME }}/navnexus-backend
+          - service: frontend
+            context: ./Frontend
+            dockerfile: ./Frontend/Dockerfile
+            image: ${{ secrets.DOCKER_USERNAME }}/navnexus-frontend
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔧 Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 🔧 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: 🏷️ Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.image }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🐳 Build and push ${{ matrix.service }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ matrix.image }}:buildcache
+          cache-to: type=registry,ref=${{ matrix.image }}:buildcache,mode=max
+
+      - name: 📝 Image digest
+        run: echo "Image pushed with digest - ${{ steps.meta.outputs.tags }}"
+
+  # ============================
+  # 🚀 Deploy to Render (or other platforms)
+  # ============================
+  deploy:
+    name: Deploy to Production
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Deploy Backend to Render
+        if: ${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}
+        run: |
+          curl -X POST "${{ secrets.RENDER_BACKEND_DEPLOY_HOOK }}"
+
+      - name: 🚀 Deploy Frontend to Render
+        if: ${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}
+        run: |
+          curl -X POST "${{ secrets.RENDER_FRONTEND_DEPLOY_HOOK }}"
+
+      - name: 📢 Deployment notification
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "Backend: ${{ env.BACKEND_IMAGE }}:latest"
+          echo "Frontend: ${{ env.FRONTEND_IMAGE }}:latest"
+
+  # ============================
+  # 🔍 Security Scan
+  # ============================
+  security-scan:
+    name: Security Scan
+    needs: [build-and-push]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    strategy:
+      matrix:
+        image: 
+          - navnexus-backend
+          - navnexus-frontend
+    steps:
+      - name: 🔍 Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ matrix.image }}:latest
+          format: 'sarif'
+          output: 'trivy-results-${{ matrix.image }}.sarif'
+
+      - name: 📊 Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results-${{ matrix.image }}.sarif'
