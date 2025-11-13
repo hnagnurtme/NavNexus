@@ -1,6 +1,7 @@
 using System.Text;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
+using Hangfire;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using NavNexus.API.Filters;
@@ -18,7 +19,11 @@ builder.Services.AddControllers(options =>
 
 // Add API documentation
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "NavNexus API", Version = "v1" });
+    c.EnableAnnotations();
+});
 
 // Add AutoMapper
 builder.Services.AddAutoMapper(typeof(Program));
@@ -26,6 +31,17 @@ builder.Services.AddAutoMapper(typeof(Program));
 // Add Application and Infrastructure layers
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
+
+// Configure Hangfire with InMemory storage for development
+builder.Services.AddHangfire(config =>
+{
+    config.UseInMemoryStorage();
+    config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180);
+    config.UseSimpleAssemblyNameTypeSerializer();
+    config.UseRecommendedSerializerSettings();
+});
+
+builder.Services.AddHangfireServer();
 
 // Configure Firebase
 try
@@ -90,7 +106,18 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    
+    // Hangfire Dashboard (only in development)
+    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    {
+        Authorization = new[] { new HangfireAuthorizationFilter() }
+    });
 }
+
+app.UseHangfireDashboard("/hangfire", new DashboardOptions
+{
+    Authorization = new[] { new HangfireAuthorizationFilter() }
+});
 
 // Global exception handler
 app.UseMiddleware<GlobalExceptionHandler>();
