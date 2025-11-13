@@ -2,6 +2,7 @@ using System.Text;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
 using Hangfire;
+using Hangfire.InMemory;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using NavNexus.API.Filters;
