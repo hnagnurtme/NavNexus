@@ -66,13 +66,13 @@ public class QueryKnowledgeQueryHandler : IRequestHandler<QueryKnowledgeQuery, R
                     Text = chunk.Quote,
                     Source = chunk.PaperId,
                     Url = $"https://nos.example.com/{request.WorkspaceId}/{chunk.PaperId}",
-                    ConfidenceScore = 0.9 // TODO: Calculate actual relevance score
+                    ConfidenceScore = 0.9 
                 }).ToList(),
                 RelatedTopics = knowledgeGraph.Take(5).Select(node => new TopicDto
                 {
                     Id = node.Id,
                     Name = node.Name,
-                    RelevanceScore = 0.85 // TODO: Calculate actual relevance
+                    RelevanceScore = 0.85 
                 }).ToList(),
                 GraphPath = knowledgeGraph.Take(3).Select(n => n.Id).ToList()
             };
