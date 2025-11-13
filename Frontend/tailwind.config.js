@@ -20,6 +20,8 @@ export default {
           800: '#1e40af',
           900: '#1e3a8a',
         },
+        'naver-green': '#03C75A',
+        'cyber-blue': '#00BFFF',
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
