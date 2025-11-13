@@ -1,4 +1,4 @@
-@NavNexus.API_HostAddress = http://localhost:5067
+@NavNexus.API_HostAddress = http://localhost:5078
 
 GET {{NavNexus.API_HostAddress}}/weatherforecast/
 Accept: application/json
