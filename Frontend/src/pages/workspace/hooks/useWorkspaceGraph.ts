@@ -80,9 +80,9 @@ export const useWorkspaceGraph = (
 	const pendingNodeIds = useRef<Set<string>>(new Set());
 	const lastAddedIds = useRef<string[] | null>(null);
 
-const rebuildGalaxy = useCallback(() => {
-	const nodes = Array.from(visibleNodeIds.current).map((id) => {
-		const treeNode = nodeRegistry.current.get(id);
+	const rebuildGalaxy = useCallback(() => {
+		const nodes = Array.from(visibleNodeIds.current).map((id) => {
+			const treeNode = nodeRegistry.current.get(id);
 			if (!treeNode) {
 				throw new Error(`Missing node data for ${id}`);
 			}
@@ -94,14 +94,14 @@ const rebuildGalaxy = useCallback(() => {
 		});
 
 		const edges: Edge[] = [];
-	adjacencyMap.current.forEach((children, parentId) => {
-		if (!visibleNodeIds.current.has(parentId)) return;
+		adjacencyMap.current.forEach((children, parentId) => {
+			if (!visibleNodeIds.current.has(parentId)) return;
 
-		children.forEach((childId) => {
-			if (!visibleNodeIds.current.has(childId)) return;
-			edges.push(toEdge(parentId, childId));
+			children.forEach((childId) => {
+				if (!visibleNodeIds.current.has(childId)) return;
+				edges.push(toEdge(parentId, childId));
+			});
 		});
-	});
 
 		const { nodes: layoutNodes, edges: layoutEdges } = applyDagreLayout(
 			nodes,

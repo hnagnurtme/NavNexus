@@ -10,8 +10,8 @@ import ReactFlow, {
 	NodeTypes,
 } from "reactflow";
 import "reactflow/dist/style.css";
-import { NodeCard } from "./NodeCard";
 import { GraphToolbar } from "./GraphToolbar";
+import CustomNode from "./mindmap/CustomNode";
 
 interface GalaxyGraphInnerProps {
 	nodes: Node[];
@@ -25,7 +25,7 @@ interface GalaxyGraphInnerProps {
 }
 
 const nodeTypes: NodeTypes = {
-	workspaceNode: NodeCard,
+	workspaceNode: CustomNode,
 };
 
 const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
@@ -46,13 +46,13 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 		}
 	}, [fitView, nodes.length]);
 
-	// Memoize the node click handler
-	const handleNodeClick = useCallback(
-		(_: React.MouseEvent, node: Node) => {
-			onNodeSelect(node.id);
-		},
-		[onNodeSelect]
-	);
+	// Remove this handler since clicking is now handled inside CustomNode
+	// const handleNodeClick = useCallback(
+	// 	(_: React.MouseEvent, node: Node) => {
+	// 		onNodeSelect(node.id);
+	// 	},
+	// 	[onNodeSelect]
+	// );
 
 	const enrichedNodes = useMemo(
 		() =>
@@ -80,8 +80,9 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 				panOnDrag
 				nodesDraggable={false}
 				nodesConnectable={false}
+				elementsSelectable={true} // Allow selection
 				onPaneClick={onClearSelection}
-				onNodeClick={handleNodeClick}
+				// Remove onNodeClick since it's handled in CustomNode now
 				className="text-white"
 			>
 				<MiniMap className="!bg-slate-900/80" />

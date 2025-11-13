@@ -155,8 +155,8 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 			<div className="h-full overflow-hidden">
 				{viewMode === "galaxy" ? (
 					<GalaxyGraph
-						nodes={galaxyNodes}
-						edges={galaxyEdges}
+						nodes={galaxy.nodes}
+						edges={galaxy.edges}
 						isLoading={galaxy.loading}
 						error={galaxy.error}
 						selectedNodeId={galaxy.selectedNodeId}
