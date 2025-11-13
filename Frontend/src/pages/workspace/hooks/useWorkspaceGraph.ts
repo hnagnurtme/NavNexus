@@ -43,13 +43,15 @@ const toFlowNode = (
 	},
 });
 
+const DEFAULT_EDGE_STYLE = { strokeWidth: 2, stroke: "#059669" } as const;
+
 const toEdge = (source: string, target: string): Edge => ({
 	id: `${source}-${target}`,
 	source,
 	target,
 	type: "smoothstep",
-	animated: false,
-	style: { stroke: "#10b981" },
+	animated: true,
+	style: DEFAULT_EDGE_STYLE,
 });
 
 export const useWorkspaceGraph = (

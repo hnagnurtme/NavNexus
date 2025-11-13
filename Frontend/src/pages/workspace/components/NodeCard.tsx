@@ -1,5 +1,4 @@
 import clsx from 'clsx';
-import { Sparkles } from 'lucide-react';
 import type { NodeProps } from 'reactflow';
 
 interface NodeMeta {
@@ -57,25 +56,18 @@ export const NodeCard: React.FC<NodeProps<NodeMeta>> = ({ id, data }) => {
         aria-expanded={data.view === 'galaxy' ? !!data.isExpanded : undefined}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
-        className="flex w-full flex-col gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
+        className="w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400"
       >
-        <div className="flex items-center justify-between text-xs text-white/60">
-          <span className="uppercase tracking-[0.3em]">{data.type}</span>
-          {data.isGap && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
-              <Sparkles size={12} />
-              Gap
-            </span>
-          )}
-        </div>
-        <p className="text-sm font-semibold text-white">{data.name}</p>
+        <p className="text-sm font-semibold text-white truncate">{data.name}</p>
         {data.view === 'galaxy' && data.hasChildren && (
-          <div className="flex items-center justify-between text-xs text-white/50">
+          <div className="mt-1 flex items-center justify-between text-xs text-white/60">
             <span>{data.isExpanded ? 'Collapse branch' : 'Expand branch'}</span>
             {data.isLoading ? (
               <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-300" />
             ) : (
-              <span aria-hidden="true">{data.isExpanded ? '−' : '+'}</span>
+              <span aria-hidden="true" className="text-lg leading-none">
+                {data.isExpanded ? '−' : '+'}
+              </span>
             )}
           </div>
         )}

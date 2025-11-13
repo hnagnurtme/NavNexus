@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
+import type { Edge } from "reactflow";
 import { OnboardingPanel } from "./OnboardingPanel";
 import { GalaxyGraph } from "../../components/GalaxyGraph";
 import { QueryTreeGraph } from "../../components/QueryTreeGraph";
@@ -22,6 +23,26 @@ interface WorkspaceCanvasProps {
 	onSelectNode: NodeSelectHandler;
 	onBuildGraph: () => void;
 }
+
+const DEFAULT_EDGE_STYLE = { strokeWidth: 2, stroke: "#059669" } as const;
+const HIGHLIGHTED_EDGE_STYLE = { strokeWidth: 3, stroke: "#10b981" } as const;
+
+const applyJourneyStyling = (edges: Edge[], journeyPathIds: string[]) => {
+	if (edges.length === 0) return edges;
+	const indexMap = new Map<string, number>();
+	journeyPathIds.forEach((id, index) => indexMap.set(id, index));
+	return edges.map((edge) => {
+		const sourceIndex = indexMap.get(edge.source);
+		const targetIndex = indexMap.get(edge.target);
+		const isOnPath =
+			sourceIndex !== undefined && targetIndex === sourceIndex + 1;
+		return {
+			...edge,
+			animated: isOnPath ? true : edge.animated ?? true,
+			style: isOnPath ? HIGHLIGHTED_EDGE_STYLE : DEFAULT_EDGE_STYLE,
+		};
+	});
+};
 
 export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 	workspaceId,
@@ -88,6 +109,16 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 		[query.nodes, highlightedNodeIds, journeyPathIds]
 	);
 
+	const galaxyEdges = useMemo(
+		() => applyJourneyStyling(galaxy.edges, journeyPathIds),
+		[galaxy.edges, journeyPathIds]
+	);
+
+	const queryEdges = useMemo(
+		() => applyJourneyStyling(query.edges, journeyPathIds),
+		[query.edges, journeyPathIds]
+	);
+
 	const handleNodeSelect = useCallback(
 		(nodeId: string) => {
 			actions.selectNode(nodeId);
@@ -125,7 +156,7 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 				{viewMode === "galaxy" ? (
 					<GalaxyGraph
 						nodes={galaxyNodes}
-						edges={galaxy.edges}
+						edges={galaxyEdges}
 						isLoading={galaxy.loading}
 						error={galaxy.error}
 						selectedNodeId={galaxy.selectedNodeId}
@@ -136,7 +167,7 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 				) : (
 					<QueryTreeGraph
 						nodes={queryNodes}
-						edges={query.edges}
+						edges={queryEdges}
 						isLoading={query.loading}
 						error={query.error}
 						onSelect={handleNodeSelect}
