@@ -78,8 +78,8 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 				nodeTypes={nodeTypes}
 				fitView
 				panOnDrag
-				nodesDraggable={false}
-				nodesConnectable={false}
+				nodesDraggable={true}
+				nodesConnectable={true}
 				elementsSelectable={true} // Allow selection
 				onPaneClick={onClearSelection}
 				// Remove onNodeClick since it's handled in CustomNode now

@@ -138,7 +138,7 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 		<div
 			data-node-id={id}
 			className={`
-        w-56 rounded-lg shadow-lg transition-all duration-300 relative
+        w-64 rounded-lg shadow-lg transition-all duration-300 relative
         ${
 			selected || isCurrentJourneyNode || isSelected
 				? "border-2 border-green-400 scale-105"
