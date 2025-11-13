@@ -1,5 +1,5 @@
-import { useId, useState } from 'react';
-import { Bot, ChevronLeft, RotateCcw, Upload } from 'lucide-react';
+import { useId, useRef, useState, type ChangeEvent } from 'react';
+import { Bot, ChevronLeft, FileText, RotateCcw, Trash2, Upload } from 'lucide-react';
 
 interface ControlPanelProps {
   isBusy: boolean;
@@ -8,14 +8,45 @@ interface ControlPanelProps {
   onToggleVisibility: () => void;
 }
 
+interface UploadedFile {
+  id: string;
+  name: string;
+}
+
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   isBusy,
   onSynthesize,
   onReset,
   onToggleVisibility,
 }) => {
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const inputId = useId();
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const hasFiles = uploadedFiles.length > 0;
+
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    setUploadedFiles((prev) => [
+      ...prev,
+      ...files.map((file) => ({
+        id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${file.name}`,
+        name: file.name,
+      })),
+    ]);
+
+    // Allow re-uploading the same file name by clearing the input value
+    event.target.value = '';
+  };
+
+  const removeFile = (fileId: string) => {
+    setUploadedFiles((prev) => prev.filter((file) => file.id !== fileId));
+  };
+
+  const openFilePicker = () => {
+    inputRef.current?.click();
+  };
 
   return (
     <aside className="relative flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-white shadow-2xl backdrop-blur-xl">
@@ -38,26 +69,65 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       </header>
 
       <section className="flex flex-1 flex-col gap-4">
-        <label
-          htmlFor={inputId}
-          className="group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/20 bg-white/5 p-6 text-center transition hover:border-emerald-400/60 hover:bg-white/10"
-        >
-          <Upload size={28} className="mb-3 text-white/60 transition group-hover:text-emerald-300" />
-          <p className="text-sm text-white/70">
-            {fileName ?? 'Drop a research dossier or click to browse'}
-          </p>
-          <p className="mt-1 text-xs text-white/50">
-            Supported: PDF, DOCX, TXT — max 10MB per batch
-          </p>
-        </label>
+        {!hasFiles ? (
+          <label
+            htmlFor={inputId}
+            className="group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/20 bg-white/5 p-6 text-center transition hover:border-emerald-400/60 hover:bg-white/10"
+          >
+            <Upload size={28} className="mb-3 text-white/60 transition group-hover:text-emerald-300" />
+            <p className="text-sm text-white/70">
+              Drop a research dossier or click to browse
+            </p>
+            <p className="mt-1 text-xs text-white/50">
+              Supported: PDF, DOCX, TXT — max 10MB per batch
+            </p>
+          </label>
+        ) : (
+          <div className="flex flex-1 flex-col gap-4">
+            <div className="space-y-3">
+              {uploadedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="flex items-center justify-between rounded-2xl border border-white/15 bg-white/5 px-4 py-3"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-300">
+                      <FileText size={18} />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-white truncate max-w-[160px]" title={file.name}>
+                        {file.name}
+                      </p>
+                      <p className="text-xs text-white/50">Ready for synthesis</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(file.id)}
+                    className="rounded-full border border-white/20 p-2 text-white/60 transition hover:border-rose-400/60 hover:text-rose-300"
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={openFilePicker}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-emerald-400/60 hover:text-white"
+            >
+              <Upload size={16} />
+              Upload another file
+            </button>
+          </div>
+        )}
         <input
           id={inputId}
           type="file"
           className="sr-only"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            setFileName(file ? file.name : null);
-          }}
+          ref={inputRef}
+          onChange={handleFileSelect}
         />
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
