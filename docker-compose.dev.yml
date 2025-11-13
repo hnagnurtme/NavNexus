@@ -1,0 +1,62 @@
+version: '3.8'
+
+# Development docker-compose with hot-reload and debug features
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  # ============================
+  # 🔧 Backend API (Development)
+  # ============================
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+      target: build  # Use build stage for development
+    volumes:
+      # Mount source code for hot-reload
+      - ./Backend:/src:ro
+      - backend_nuget:/root/.nuget/packages
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - LOG_LEVEL=Debug
+    ports:
+      - "8080:8080"
+      - "5001:5001"  # HTTPS port
+    command: ["dotnet", "watch", "run", "--project", "/src/NavNexus.API"]
+
+  # ============================
+  # 🎨 Frontend (Development)
+  # ============================
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile.dev
+    volumes:
+      # Mount source code for hot-reload
+      - ./Frontend:/app:ro
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080/api
+      - NODE_ENV=development
+    ports:
+      - "3000:3000"
+      - "3001:3001"  # Vite HMR port
+    command: ["npm", "run", "dev", "--", "--host"]
+
+  # ============================
+  # 🗄️ Neo4j (Development)
+  # ============================
+  neo4j:
+    environment:
+      - NEO4J_dbms_logs_debug_level=DEBUG
+
+  # ============================
+  # 🔍 Qdrant (Development)
+  # ============================
+  qdrant:
+    environment:
+      - QDRANT__LOG_LEVEL=DEBUG
+
+volumes:
+  backend_nuget:
+    driver: local
