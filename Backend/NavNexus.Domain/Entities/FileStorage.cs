@@ -6,7 +6,7 @@ namespace NavNexus.Domain.Entities;
 public class FileStorage
 {
     [FirestoreProperty]
-    public String Id { get; private set; }
+    public string Id { get; private set; }
     [FirestoreProperty]
     public string FileName { get; private set; }
     [FirestoreProperty]
