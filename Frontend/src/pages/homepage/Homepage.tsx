@@ -1,88 +1,54 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   ArrowRight,
   LogIn,
   LogOut,
   Plus,
+  Loader2,
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWorkspaces } from '@/hooks/useWorkspaces';
 import AddWorkSpaceForm from './components/AddWorkSpaceForm';
 import { WorkSpaceCard } from './components/WorkSpaceCard';
-
-type WorkspacePreview = {
-  id: string;
-  name: string;
-  description: string;
-  documentCount: number;
-  documents: string[];
-  color: string;
-};
+import type { CreateWorkspaceRequest } from '@/types/workspace.types';
 
 export const Homepage = () => {
-  const [searchTerm, setSearchTerm] = useState('');
   const { user, isAuthenticated, signOutUser, isActionLoading } = useAuth();
+  const { workspaces, isLoading: isLoadingWorkspaces, createWorkspace } = useWorkspaces();
   const [openWorkSpace, setOpenWorkSpace] = useState(false);
-  const navigate = useNavigate();
-
-  const workspacePreviews = useMemo<WorkspacePreview[]>(
-    () => [
-      {
-        id: 'quantum',
-        name: 'Quantum Computing',
-        description: 'Research papers and quantum algorithms.',
-        documentCount: 4,
-        documents: [
-          'Quantum_Bit_Operations.pdf',
-          'Qubits_Entanglement_Notes.txt',
-          'Quantum_Algorithms_Overview.docx',
-          'Quantum_Error_Correction.md',
-        ],
-        color: 'from-[#03C75A]/40 to-[#03C75A]/10',
-      },
-      {
-        id: 'bioinformatics',
-        name: 'Bioinformatics Workshop',
-        description: 'Genomics analysis, protein structure insights.',
-        documentCount: 3,
-        documents: [
-          'Genome_Sequencing_Intro.pdf',
-          'Protein_Folding_Models.docx',
-          'DNA_Analysis_Pipeline.txt',
-        ],
-        color: 'from-[#03C75A]/40 to-[#00A84D]/10',
-      },
-      {
-        id: 'robotics',
-        name: 'Robotics Engineering',
-        description: 'Robot control systems and automation.',
-        documentCount: 5,
-        documents: [
-          'Robot_Kinematics_Guide.pdf',
-          'PID_Controller_Theory.docx',
-          'Automation_Notes.txt',
-          'Vision_System_Checklist.csv',
-          'Field_Test_Observations.pdf',
-        ],
-        color: 'from-[#00A84D]/40 to-[#03C75A]/10',
-      },
-    ],
-    [],
-  );
-
-  const filteredWorkspaces = useMemo(() => {
-    if (!searchTerm.trim()) return workspacePreviews;
-    const term = searchTerm.toLowerCase();
-    return workspacePreviews.filter(
-      (w) =>
-        w.name.toLowerCase().includes(term) ||
-        w.description.toLowerCase().includes(term) ||
-        w.documents.some((doc) => doc.toLowerCase().includes(term)),
-    );
-  }, [searchTerm, workspacePreviews]);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const handleCreateWorkspace = () => {
     setOpenWorkSpace(true);
+    setCreateError(null);
+  };
+
+  const handleWorkspaceCreate = async (payload: {
+    name: string;
+    description?: string;
+    visibility: 'private' | 'team' | 'public';
+    color: string;
+    documents: File[];
+  }) => {
+    try {
+      setCreateError(null);
+      
+      // Map the form payload to API request
+      const workspaceData: CreateWorkspaceRequest = {
+        name: payload.name,
+        description: payload.description,
+        // For now, we'll leave fileIds empty as file upload is not implemented yet
+        fileIds: [],
+      };
+
+      await createWorkspace(workspaceData);
+      setOpenWorkSpace(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to create workspace';
+      setCreateError(errorMessage);
+      throw err;
+    }
   };
 
   const handleLogout = async () => {
@@ -93,16 +59,23 @@ export const Homepage = () => {
     <div className="min-h-screen bg-[#0d0d0d] text-[#f5f5f5]">
       {openWorkSpace && (
         <div className='fixed inset-0 z-50 flex items-center justify-center w-full h-screen bg-black bg-opacity-50'>
-                  <AddWorkSpaceForm
-          onCreate={async (payload) => {
-            console.log('Creating workspace:', payload);
-            setOpenWorkSpace(false);
-          }}
-          onCancel={() => setOpenWorkSpace(false)}
-        />
+          <div className="max-w-4xl">
+            {createError && (
+              <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                {createError}
+              </div>
+            )}
+            <AddWorkSpaceForm
+              onCreate={handleWorkspaceCreate}
+              onCancel={() => {
+                setOpenWorkSpace(false);
+                setCreateError(null);
+              }}
+            />
+          </div>
         </div>
-
       )}
+      
       <div className="w-full px-6 py-12 mx-auto max-w-7xl">
         {/* Header */}
         <header className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
@@ -120,18 +93,20 @@ export const Homepage = () => {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button
-              onClick={handleCreateWorkspace}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-[#03C75A] px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-[#03C75A]/25 transition hover:scale-[1.03]"
-            >
-              <Plus className="w-4 h-4" />
-              Create Workspace
-            </button>
+            {isAuthenticated && (
+              <button
+                onClick={handleCreateWorkspace}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#03C75A] px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-[#03C75A]/25 transition hover:scale-[1.03]"
+              >
+                <Plus className="w-4 h-4" />
+                Create Workspace
+              </button>
+            )}
             {isAuthenticated && user ? (
               <button
                 onClick={handleLogout}
                 disabled={isActionLoading}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#2a2a2a] bg-[#1a1a1a] px-4 py-3 text-sm font-semibold text-[#f5f5f5] transition hover:border-[#03C75A] hover:bg-[#1f1f1f]"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#2a2a2a] bg-[#1a1a1a] px-4 py-3 text-sm font-semibold text-[#f5f5f5] transition hover:border-[#03C75A] hover:bg-[#1f1f1f] disabled:opacity-50"
               >
                 <LogOut className="w-4 h-4" />
                 Logout
@@ -153,31 +128,62 @@ export const Homepage = () => {
           <div className="flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-xl font-semibold text-[#f5f5f5]">
-                Featured Workspaces
+                {isAuthenticated ? 'Your Workspaces' : 'Featured Workspaces'}
               </h3>
               <p className="text-sm text-[#b3b3b3]">
-                Jump into curated demos showcasing different research domains.
+                {isAuthenticated 
+                  ? 'Manage your knowledge graphs and research workspaces.'
+                  : 'Login to create and manage your own workspaces.'}
               </p>
             </div>
-            <button
-              onClick={handleCreateWorkspace}
-              className="inline-flex items-center gap-2 rounded-full border border-[#03C75A]/60 px-4 py-2 text-sm font-semibold text-[#03C75A] transition hover:bg-[#03C75A]/10"
-            >
-              View all
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="grid gap-6 md:grid-cols-3">
-            {filteredWorkspaces.map((workspace) => (
-              <WorkSpaceCard  workspace={workspace} />
-            ))}
-            {filteredWorkspaces.length === 0 && (
-              <div className="col-span-full rounded-[1.75rem] border border-dashed border-[#2a2a2a] bg-[#121212] p-10 text-center text-sm text-[#b3b3b3]">
-                No workspaces match “{searchTerm}”.
-              </div>
+            {isAuthenticated && workspaces.length > 0 && (
+              <button
+                onClick={handleCreateWorkspace}
+                className="inline-flex items-center gap-2 rounded-full border border-[#03C75A]/60 px-4 py-2 text-sm font-semibold text-[#03C75A] transition hover:bg-[#03C75A]/10"
+              >
+                Add New
+                <ArrowRight className="w-4 h-4" />
+              </button>
             )}
           </div>
+
+          {isLoadingWorkspaces ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-[#03C75A]" />
+            </div>
+          ) : workspaces.length > 0 ? (
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {workspaces.map((workspace) => (
+                <WorkSpaceCard key={workspace.workspaceId} workspace={workspace} />
+              ))}
+            </div>
+          ) : isAuthenticated ? (
+            <div className="col-span-full rounded-[1.75rem] border border-dashed border-[#2a2a2a] bg-[#121212] p-10 text-center">
+              <p className="text-sm text-[#b3b3b3] mb-4">
+                You don't have any workspaces yet. Create your first one to get started!
+              </p>
+              <button
+                onClick={handleCreateWorkspace}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#03C75A] px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-[#03C75A]/25 transition hover:scale-[1.03]"
+              >
+                <Plus className="w-4 h-4" />
+                Create Your First Workspace
+              </button>
+            </div>
+          ) : (
+            <div className="col-span-full rounded-[1.75rem] border border-dashed border-[#2a2a2a] bg-[#121212] p-10 text-center">
+              <p className="text-sm text-[#b3b3b3] mb-4">
+                Please login to view and manage your workspaces.
+              </p>
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-[#03C75A] px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-[#03C75A]/25 transition hover:scale-[1.03]"
+              >
+                <LogIn className="w-4 h-4" />
+                Login to Continue
+              </Link>
+            </div>
+          )}
         </section>
 
         {/* Footer */}

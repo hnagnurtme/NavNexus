@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Lock, Mail, UserPlus } from 'lucide-react';
+import { Lock, Mail, UserPlus, User } from 'lucide-react';
 
 type RegisterFormValues = {
   name: string;
   email: string;
   password: string;
+  phoneNumber: string;
   confirmPassword: string;
 };
 
@@ -23,6 +24,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
     name: '',
     email: '',
     password: '',
+    phoneNumber: '',
     confirmPassword: '',
   });
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
         name: values.name,
         email: values.email,
         password: values.password,
+        phoneNumber: values.phoneNumber,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to create account right now.');
@@ -94,6 +97,23 @@ export const RegisterForm: React.FC<RegisterFormProps> = ({
             className="w-full rounded-xl border border-white/10 bg-white/5 px-12 py-3 text-sm text-white placeholder:text-gray-500 focus:border-cyber-blue focus:outline-none focus:ring-2 focus:ring-cyber-blue/30"
             value={values.email}
             onChange={(event) => updateValue('email', event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <label className="text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+          Phone Number
+        </label>
+        <div className="relative">
+          <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-cyber-blue" />
+          <input
+            type="tel"
+            required
+            placeholder="+1 234 567 8900"
+            className="w-full rounded-xl border border-white/10 bg-white/5 px-12 py-3 text-sm text-white placeholder:text-gray-500 focus:border-cyber-blue focus:outline-none focus:ring-2 focus:ring-cyber-blue/30"
+            value={values.phoneNumber}
+            onChange={(event) => updateValue('phoneNumber', event.target.value)}
           />
         </div>
       </div>
