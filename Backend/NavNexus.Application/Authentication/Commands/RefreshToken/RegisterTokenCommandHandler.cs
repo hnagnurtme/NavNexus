@@ -10,18 +10,29 @@ namespace NavNexus.Application.Authentication.Commands.RefreshToken
         : IRequestHandler<GenerateRefreshTokenCommand, ErrorOr<RefreshTokenResult>>
     {
         private readonly IRefreshTokenGenerator _refreshTokenGenerator;
+        private readonly ITokenRepository _tokenRepository;
 
         public GenerateRefreshTokenCommandHandler(
-            IRefreshTokenGenerator refreshTokenGenerator)
+            IRefreshTokenGenerator refreshTokenGenerator , ITokenRepository tokenRepository)
         {
             _refreshTokenGenerator = refreshTokenGenerator;
+            _tokenRepository = tokenRepository;
         }
 
         public async Task<ErrorOr<RefreshTokenResult>> Handle(
         GenerateRefreshTokenCommand request,
         CancellationToken cancellationToken)
         {
-            throw new NotImplementedException();
+            var refreshToken = _refreshTokenGenerator.Generate(
+            request.UserId,
+            request.IpAddress,
+            request.UserAgent,
+            request.DeviceFingerprint,
+            out var plainToken);
+
+        await _tokenRepository.AddAsync(refreshToken, cancellationToken);
+        
+        return new RefreshTokenResult(plainToken, refreshToken.ExpiresAt);
         }
     }
 }

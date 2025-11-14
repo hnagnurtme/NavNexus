@@ -14,5 +14,9 @@ namespace NavNexus.Application.Common.Interfaces.Repositories
         Task<RefreshToken?> GetLatestActiveTokenByUserIdAsync(Guid userId, CancellationToken cancellationToken = default);
         Task RevokeAllForUserAsync(Guid userId, CancellationToken cancellationToken = default);
         Task<RefreshToken?> GetValidTokenAsync(Guid userId, string userAgent, string deviceFingerprint,CancellationToken cancellationToken = default);
+
+        Task AddAsync(RefreshToken refreshToken, CancellationToken cancellationToken = default);
+
+        Task UpdateAsync(RefreshToken refreshToken, CancellationToken cancellationToken = default);
     }
 }

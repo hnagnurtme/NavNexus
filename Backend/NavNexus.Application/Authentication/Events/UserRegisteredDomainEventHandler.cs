@@ -38,7 +38,7 @@ public class UserRegisteredDomainEventHandler
         {
             new Claim(ClaimTypes.Email, notification.Email)
         };
-        var token = _jwtService.GenerateToken(claims, TimeSpan.FromMinutes(15));
+        var token = _jwtService.GenerateToken(claims, TimeSpan.FromDays(1));
         // xác định path cho link verification láy từ env
 
         var baseUrl = _configuration["App:BaseUrl"]
