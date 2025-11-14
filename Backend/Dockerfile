@@ -38,14 +38,9 @@ WORKDIR /app
 RUN addgroup -g 1000 appuser && \
     adduser -u 1000 -G appuser -s /bin/sh -D appuser
 
-# Copy publish output from build stage
-COPY --from=build --chown=appuser:appuser /app/publish .
-
-# Switch to non-root user
-USER appuser
-
-# Expose port
-EXPOSE 8080
+# Use environment variable PORT if available (Render, Heroku)
+ENV ASPNETCORE_URLS=http://*:${PORT:-8080}
+EXPOSE ${PORT:-8080}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
