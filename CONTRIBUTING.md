@@ -15,7 +15,7 @@ Thanks for your interest in contributing! 🎉
 
 ```bash
 # Clone the repo
-git clone https://github.com/hnagnurtme/TheElites
+git clone https://github.com/hnagnurtme/NavNexus
 
 # Install dependencies
 npm install

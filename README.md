@@ -86,6 +86,6 @@ allowing users to explore relationships, patterns, and knowledge “crossroads.�
 
 ## Team
 
-Built with ❤️ by **TheElites Hackathon Team**
+Built with ❤️ by **NavNexus Hackathon Team**
 
 **Questions?** Open an issue or check our [documentation](./SETUP.md).

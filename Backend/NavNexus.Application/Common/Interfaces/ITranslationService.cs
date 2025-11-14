@@ -1,17 +1,24 @@
+using NavNexus.Domain.Common.Enums;
+
 namespace NavNexus.Application.Common.Interfaces;
 
 /// <summary>
-/// Service for translation operations (Papago API)
+/// Service for translating text between languages
+/// Interface for external translation service (e.g., Naver Cloud Translation API)
 /// </summary>
 public interface ITranslationService
 {
-    /// <summary>
-    /// Detects the language of the text
-    /// </summary>
-    Task<string> DetectLanguageAsync(string text, CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Translates text to target language
-    /// </summary>
-    Task<string> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default);
+    Task<string> TranslateAsync(
+        string text, 
+        LanguageCode sourceLanguage, 
+        LanguageCode targetLanguage, 
+        CancellationToken cancellationToken = default);
+
+    Task<Dictionary<LanguageCode, string>> TranslateToMultipleAsync(
+        string text, 
+        LanguageCode sourceLanguage, 
+        List<LanguageCode> targetLanguages, 
+        CancellationToken cancellationToken = default);
+
+    Task<LanguageCode> DetectLanguageAsync(string text, CancellationToken cancellationToken = default);
 }

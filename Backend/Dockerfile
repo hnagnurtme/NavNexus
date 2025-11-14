@@ -26,8 +26,9 @@ WORKDIR /app
 # Copy publish output từ stage build
 COPY --from=build /app/publish .
 
-# Expose port (thay 8080 nếu bạn muốn map FE vào đó)
-EXPOSE 8080
+# Use environment variable PORT if available (Render, Heroku)
+ENV ASPNETCORE_URLS=http://*:${PORT:-8080}
+EXPOSE ${PORT:-8080}
 
 # Chạy ứng dụng
 ENTRYPOINT ["dotnet", "NavNexus.API.dll"]

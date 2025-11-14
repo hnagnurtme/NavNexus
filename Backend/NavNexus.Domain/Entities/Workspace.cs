@@ -1,39 +1,47 @@
-using System.Text.Json.Serialization;
-
+using Google.Cloud.Firestore;
+using NavNexus.Domain.Common.Events;
 namespace NavNexus.Domain.Entities;
 
-/// <summary>
-/// Lưu trong Firestore: workspaces/{workspace_id}
-/// </summary>
+
+[FirestoreData]
 public class Workspace
 {
-    [JsonPropertyName("workspace_id")]
-    public string WorkspaceId { get; set; } = string.Empty;
-    
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
-    
-    [JsonPropertyName("description")]
-    public string Description { get; set; } = string.Empty;
-    
-    [JsonPropertyName("owner_id")]
-    public string OwnerId { get; set; } = string.Empty;
-    
-    [JsonPropertyName("member_ids")]
-    public List<string> MemberIds { get; set; } = new();
-    
-    [JsonPropertyName("created_at")]
-    public DateTime CreatedAt { get; set; }
-    
-    [JsonPropertyName("updated_at")]
-    public DateTime UpdatedAt { get; set; }
-    
-    [JsonPropertyName("qdrant_collection_name")]
-    public string QdrantCollectionName { get; set; } = string.Empty; // "workspace_{workspace_id}"
-    
-    [JsonPropertyName("file_count")]
-    public int FileCount { get; set; }
-    
-    [JsonPropertyName("total_size_bytes")]
-    public long TotalSizeBytes { get; set; }
+    [FirestoreProperty]
+    public string Id { get;  set; }
+    [FirestoreProperty]
+    public string Name { get;  set; }
+
+    [FirestoreProperty]
+    public string? Description { get; set; }
+    [FirestoreProperty]
+    public string OwnerId { get;  set; }
+    [FirestoreProperty]
+    public User Owner { get;  set; } = null!;
+    [FirestoreProperty]
+    public ICollection<FileStorage> Files { get; set; } = new List<FileStorage>();
+
+    [FirestoreProperty]
+    public List<string> FileIds { get; set; } = new List<string>();
+
+    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
+
+    public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
+
+    private Workspace()
+    {
+        Name = string.Empty;
+        Id = Guid.NewGuid().ToString();
+        OwnerId = string.Empty;
+    }
+
+    public Workspace(string name, string ownerId, string  description , List<string>? fileIds)
+    {
+        Id = Guid.NewGuid().ToString();
+        Name = name;
+        OwnerId = ownerId;
+        Description = description;
+        FileIds = fileIds ?? new List<string>();
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
+    }
 }
