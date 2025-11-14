@@ -8,7 +8,7 @@ interface SuggestedDocumentsProps {
 export const SuggestedDocuments: React.FC<SuggestedDocumentsProps> = ({ documents }) => (
   <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
     <div className="mb-3 flex items-center gap-2 text-white">
-      <Download size={16} />
+      <Download width={16} height={16} />
       <h4 className="text-xs font-semibold uppercase tracking-widest">Suggested Uploads</h4>
     </div>
     <ul className="space-y-3">

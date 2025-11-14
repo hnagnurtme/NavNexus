@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, LogOut, RotateCw } from 'lucide-react';
+import { ArrowRight, Loader2, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginForm } from './LoginForm';
@@ -99,7 +99,7 @@ export const AuthPanel: React.FC = () => {
               className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-white/30 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isActionLoading ? (
-                <RotateCw className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <LogOut className="h-4 w-4" />
               )}

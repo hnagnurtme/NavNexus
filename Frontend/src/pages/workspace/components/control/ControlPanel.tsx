@@ -52,7 +52,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     <aside className="relative flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-white shadow-2xl backdrop-blur-xl">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Bot className="text-emerald-400" size={28} />
+          <Bot className="text-emerald-400" width={28} height={28} />
           <div>
             <p className="text-xs uppercase tracking-widest text-white/60">AI Controls</p>
             <h2 className="text-xl font-semibold text-white">Workspace Pilot</h2>
@@ -64,7 +64,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           onClick={onToggleVisibility}
           className="rounded-full border border-white/10 p-2 text-white/60 transition hover:border-white/40 hover:text-white"
         >
-          <ChevronLeft size={18} />
+          <ChevronLeft width={18} height={18} />
         </button>
       </header>
 
@@ -74,7 +74,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             htmlFor={inputId}
             className="group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/20 bg-white/5 p-6 text-center transition hover:border-emerald-400/60 hover:bg-white/10"
           >
-            <Upload size={28} className="mb-3 text-white/60 transition group-hover:text-emerald-300" />
+            <Upload width={28} height={28} className="mb-3 text-white/60 transition group-hover:text-emerald-300" />
             <p className="text-sm text-white/70">
               Drop a research dossier or click to browse
             </p>
@@ -92,7 +92,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 >
                   <div className="flex items-center gap-3">
                     <div className="rounded-full bg-emerald-500/10 p-2 text-emerald-300">
-                      <FileText size={18} />
+                      <FileText width={18} height={18} />
                     </div>
                     <div>
                       <p className="text-sm font-semibold text-white truncate max-w-[160px]" title={file.name}>
@@ -107,7 +107,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     className="rounded-full border border-white/20 p-2 text-white/60 transition hover:border-rose-400/60 hover:text-rose-300"
                     aria-label={`Remove ${file.name}`}
                   >
-                    <Trash2 size={16} />
+                    <Trash2 width={16} height={16} />
                   </button>
                 </div>
               ))}
@@ -117,7 +117,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               onClick={openFilePicker}
               className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-emerald-400/60 hover:text-white"
             >
-              <Upload size={16} />
+              <Upload width={16} height={16} />
               Upload another file
             </button>
           </div>
@@ -147,7 +147,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           disabled={isBusy}
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <Bot className="animate-pulse" size={18} />
+          <Bot className="animate-pulse" width={18} height={18} />
           {isBusy ? 'Synthesizing...' : 'Build Knowledge Graph'}
         </button>
         <button
@@ -155,7 +155,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           onClick={onReset}
           className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3 text-sm font-semibold text-white/70 transition hover:border-white/50 hover:text-white"
         >
-          <RotateCcw size={16} />
+          <RotateCcw width={16} height={16} />
           Reset Workspace
         </button>
       </footer>

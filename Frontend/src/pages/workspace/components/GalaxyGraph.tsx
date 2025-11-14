@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo } from "react";
 import ReactFlow, {
 	Background,
 	Controls,
@@ -45,14 +45,6 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 			fitView({ padding: 0.2, duration: 400 });
 		}
 	}, [fitView, nodes.length]);
-
-	// Remove this handler since clicking is now handled inside CustomNode
-	// const handleNodeClick = useCallback(
-	// 	(_: React.MouseEvent, node: Node) => {
-	// 		onNodeSelect(node.id);
-	// 	},
-	// 	[onNodeSelect]
-	// );
 
 	const enrichedNodes = useMemo(
 		() =>

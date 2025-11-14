@@ -58,14 +58,14 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 							onClick={onCancel}
 							className="rounded-full border border-white/10 p-2 text-white/60 transition hover:text-white"
 						>
-							<X size={18} />
+							<X width={18} height={18} />
 						</button>
 					</header>
 
 					<div className="mb-4">
 						<div className="flex items-center justify-between text-xs text-white/60">
 							<span className="flex items-center gap-2">
-								<MapPin size={12} />
+								<MapPin width={12} height={12} />
 								Step {journey.pathIds.length}
 							</span>
 							<span>{progress}% complete</span>
@@ -100,7 +100,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 							onClick={onBack}
 							className="flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-white/40"
 						>
-							<ArrowLeft size={16} />
+							<ArrowLeft width={16} height={16} />
 							Back
 						</button>
 						{!journey.completed ? (
@@ -110,7 +110,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 								className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 py-2 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
 							>
 								Next Step
-								<ArrowRight size={16} />
+								<ArrowRight width={16} height={16} />
 							</button>
 						) : (
 							<button
@@ -129,7 +129,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 				<div className="fixed inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
 					<div className="w-full max-w-3xl rounded-3xl border border-white/10 bg-slate-900/90 p-6 text-white shadow-2xl">
 						<div className="mb-4 flex items-center gap-2 text-cyan-300">
-							<GitBranch size={20} />
+							<GitBranch width={20} height={20} />
 							<h4 className="text-xl font-semibold">
 								Choose your branch
 							</h4>
