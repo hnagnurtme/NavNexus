@@ -25,5 +25,10 @@
     <ProjectReference Include="..\NavNexus.Application\NavNexus.Application.csproj" />
     <ProjectReference Include="..\NavNexus.Infrastructure\NavNexus.Infrastructure.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Keys\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 
 </Project>

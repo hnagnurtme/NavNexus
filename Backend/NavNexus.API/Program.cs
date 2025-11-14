@@ -45,7 +45,6 @@ var app = builder.Build();
 app.UseHttpsRedirection();
 
 // Swagger (after HTTPS redirect)
-if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Staging"))
 {
     app.UseSwagger(c =>
     {
