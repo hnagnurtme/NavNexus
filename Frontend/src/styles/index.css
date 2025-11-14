@@ -32,12 +32,26 @@
 
   body {
     color: rgb(var(--foreground-rgb));
-    background: linear-gradient(
-        to bottom,
-        transparent,
-        rgb(var(--background-end-rgb))
-      )
-      rgb(var(--background-start-rgb));
+    background: rgb(var(--background-start-rgb));
+  }
+
+  :root {
+    --surface-root: #040b11;
+    --surface-elevated: #091321;
+    --surface-panel: #0d1626;
+    --surface-muted: #111c2d;
+
+    --border-subtle: rgba(88, 118, 152, 0.24);
+    --border-strong: rgba(88, 118, 152, 0.4);
+
+    --text-primary: #e8f1ff;
+    --text-muted: #94a4c0;
+    --text-soft: #647089;
+
+    --accent-green: #03c75a;
+    --accent-green-strong: #02b353;
+    --accent-blue: #00bfff;
+    --accent-blue-soft: rgba(0, 191, 255, 0.16);
   }
 }
 
