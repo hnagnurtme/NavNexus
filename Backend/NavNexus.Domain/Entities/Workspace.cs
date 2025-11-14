@@ -20,6 +20,9 @@ public class Workspace
     [FirestoreProperty]
     public ICollection<FileStorage> Files { get; set; } = new List<FileStorage>();
 
+    [FirestoreProperty]
+    public List<string> FileIds { get; set; } = new List<string>();
+
     public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
@@ -31,10 +34,14 @@ public class Workspace
         OwnerId = string.Empty;
     }
 
-    public Workspace(string name, string ownerId)
+    public Workspace(string name, string ownerId, string  description , List<string>? fileIds)
     {
         Id = Guid.NewGuid().ToString();
         Name = name;
         OwnerId = ownerId;
+        Description = description;
+        FileIds = fileIds ?? new List<string>();
+        CreatedAt = DateTime.UtcNow;
+        UpdatedAt = DateTime.UtcNow;
     }
 }
