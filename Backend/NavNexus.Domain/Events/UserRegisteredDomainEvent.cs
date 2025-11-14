@@ -1,7 +1,7 @@
 using MediatR;
 namespace NavNexus.Domain.Common.Events;
 
-public record UserRegisteredDomainEvent(Guid UserId, string Email) 
+public record UserRegisteredDomainEvent(String UserId, string Email) 
     : IDomainEvent, INotification
 {
     public DateTime OccurredOn { get; } = DateTime.UtcNow;

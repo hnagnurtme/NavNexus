@@ -1,22 +1,37 @@
 using NavNexus.Domain.Common.Events;
 namespace NavNexus.Domain.Entities;
-
+using Google.Cloud.Firestore;
+[FirestoreData]
 public class User
 {
-    public Guid Id { get; private set; }
+    [FirestoreProperty]
+    public String Id { get; private set; }
+    [FirestoreProperty]
     public string Email { get; private set; }
+    [FirestoreProperty]
     public string PasswordHash { get; private set; }
+    [FirestoreProperty]
     public string FullName { get; private set; }
+    [FirestoreProperty]
     public string? PhoneNumber { get; private set; }
+    [FirestoreProperty]
     public UserRole Roles { get; private set; } = UserRole.USER;
-    public bool EmailVerified { get; private set; } = false;
+    [FirestoreProperty]
+    public bool EmailVerified { get; private set; } = true;
+    [FirestoreProperty]
     public bool IsActive { get; private set; } = true;
+    [FirestoreProperty]
     public DateTime? LastLoginAt { get; private set; }
+    [FirestoreProperty]
     public int LoginAttempts { get; private set; } = 0;
+    [FirestoreProperty]
     public DateTime? LockedUntil { get; private set; }
+    [FirestoreProperty]
     public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
+    [FirestoreProperty]
     public DateTime UpdatedAt { get; private set; } = DateTime.UtcNow;
-
+    [FirestoreProperty]
+    public ICollection<Workspace> Workspaces { get; set; } = new List<Workspace>();
     public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 
     private User()
@@ -24,13 +39,13 @@ public class User
         Email = string.Empty;
         PasswordHash = string.Empty;
         FullName = string.Empty;
-        Id = Guid.NewGuid();
+        Id = Guid.NewGuid().ToString();
     }
     public User? Organizer { get; private set; }
 
     public User(string email, string passwordHash, string fullName, string? phoneNumber, UserRole roles = UserRole.USER )
     {
-        Id = Guid.NewGuid();
+        Id = Guid.NewGuid().ToString();
         Email = email.Trim().ToLowerInvariant();
         PasswordHash = passwordHash;
         FullName = fullName;

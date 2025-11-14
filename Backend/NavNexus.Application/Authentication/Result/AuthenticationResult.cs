@@ -4,7 +4,7 @@ public record AuthenticationResult(string? AccessToken , RefreshTokenDTO? Refres
 
 public record UserDTO
 (
-    Guid Id,
+    String Id,
     string Email,
     string FullName,
     string PhoneNumber,

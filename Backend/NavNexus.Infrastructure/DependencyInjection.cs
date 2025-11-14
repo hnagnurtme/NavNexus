@@ -5,11 +5,13 @@ using Microsoft.IdentityModel.Tokens;
 using NavNexus.Application.Common.Interfaces;
 using NavNexus.Application.Common.Interfaces.Events;
 using NavNexus.Application.Common.Interfaces.ExternalServices;
+using NavNexus.Application.Common.Interfaces.Repositories;
 using NavNexus.Application.Common.Interfaces.Security;
 using NavNexus.Infrastructure.Events;
 using NavNexus.Infrastructure.ExternalServices;
 using NavNexus.Infrastructure.Identity;
 using NavNexus.Infrastructure.Persistence;
+using NavNexus.Infrastructure.Persistence.Repositories;
 using NavNexus.Infrastructure.Security;
 
 namespace NavNexus.Infrastructure;
@@ -19,6 +21,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         AddNeo4j(services, configuration);
+        AddFirebase(services, configuration);
         AddRepositories(services);
         AddDomainEvents(services);
         AddExternalServices(services);
@@ -46,13 +49,42 @@ public static class DependencyInjection
         });
     }
 
+    private static void AddFirebase(IServiceCollection services, IConfiguration configuration)
+{
+    var projectId = configuration["Firebase:ProjectId"];
+    // Tên biến của bạn là privateKeyPath, hoàn toàn ổn
+    var privateKeyPath = configuration["Firebase:PrivateKeyPath"]; 
+
+    if (string.IsNullOrWhiteSpace(projectId))
+        throw new ArgumentNullException(nameof(projectId), "Firebase:ProjectId is not configured.");
+    if (string.IsNullOrWhiteSpace(privateKeyPath))
+        throw new ArgumentNullException(nameof(privateKeyPath), "Firebase:PrivateKeyPath is not configured.");
+
+    // 1. Đăng ký FirebaseConnection như một Singleton
+    //    (Giống như bạn đã làm - BƯỚC NÀY ĐÚNG)
+    services.AddSingleton(new FirebaseConnection(projectId, privateKeyPath));
+
+    // 2. ĐĂNG KÝ THÊM: Đăng ký FirestoreDb như một Singleton,
+    //    sử dụng factory để lấy nó từ FirebaseConnection đã đăng ký ở trên.
+    services.AddSingleton(sp =>
+    {
+        // Lấy dịch vụ FirebaseConnection đã đăng ký
+        var firebaseConnection = sp.GetRequiredService<FirebaseConnection>();
+        
+        // Trả về đối tượng FirestoreDb
+        return firebaseConnection.GetFirestore();
+    });
+}
     // -------------------------
     // Repositories
     // -------------------------
     private static void AddRepositories(IServiceCollection services)
     {
         
+        services.AddScoped<IUserRepository, UserRepository>();
+        services.AddScoped<ITokenRepository, TokenRepository>();
     }
+
 
 
     // -------------------------

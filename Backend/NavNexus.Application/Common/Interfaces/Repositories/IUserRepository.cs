@@ -8,14 +8,14 @@ namespace NavNexus.Application.Common.Interfaces.Repositories
 {
     public interface IUserRepository 
     {
-        Task<User?> GetByEmailAsync(string email, IAsyncTransaction tx, CancellationToken cancellationToken = default);
+        Task<User?> GetByEmailAsync(string email,  CancellationToken cancellationToken = default);
 
-        Task<bool> ExistsByEmailAsync(string email, IAsyncTransaction tx, CancellationToken cancellationToken = default);
+        Task<bool> ExistsByEmailAsync(string email,CancellationToken cancellationToken = default);
 
-        Task<User?> GetWithTokensAsync(Guid userId, IAsyncTransaction tx, CancellationToken cancellationToken = default);
+        Task<User?> GetWithTokensAsync(Guid userId, CancellationToken cancellationToken = default);
         
-        Task AddAsync(User user, IAsyncTransaction tx, CancellationToken cancellationToken = default);
+        Task AddAsync(User user, CancellationToken cancellationToken = default);
         
-        Task UpdateAsync(User user, IAsyncTransaction tx, CancellationToken cancellationToken = default);
+        Task UpdateAsync(User user, CancellationToken cancellationToken = default);
     }
 }
