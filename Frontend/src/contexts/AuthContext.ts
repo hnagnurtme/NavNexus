@@ -1,9 +1,14 @@
-import { auth, googleProvider } from '@/config/firebase';
-import { signInWithPopup, signOut } from 'firebase/auth';
 import React, { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
+import { authService } from '@/services/auth.service';
+import type { AuthenticationResponse } from '@/types/auth.types';
 
-type StoredAccount = { email: string; name: string; password: string; };
-export type AuthUser = { id: string; name: string; email: string; };
+export type AuthUser = {
+  id: string;
+  name: string;
+  email: string;
+  phoneNumber: string;
+  emailVerified: boolean;
+};
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -11,20 +16,35 @@ type AuthContextValue = {
   isInitializing: boolean;
   isActionLoading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (name: string, email: string, password: string) => Promise<void>;
+  signUp: (fullName: string, email: string, password: string, phoneNumber: string) => Promise<void>;
   signOutUser: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
 };
 
-const STORAGE_KEY = 'navnexus.auth.user';
-const ACCOUNTS_KEY = 'navnexus.auth.accounts';
+const STORAGE_KEY = 'user_info';
 
 const readJson = <T,>(key: string): T | null => {
   if (typeof window === 'undefined') return null;
-  try { return JSON.parse(localStorage.getItem(key) || 'null') as T; } 
-  catch { localStorage.removeItem(key); return null; }
+  try {
+    return JSON.parse(localStorage.getItem(key) || 'null') as T;
+  } catch {
+    localStorage.removeItem(key);
+    return null;
+  }
 };
-const writeJson = (key: string, value: unknown) => { if (typeof window !== 'undefined') localStorage.setItem(key, JSON.stringify(value)); };
+
+const writeJson = (key: string, value: unknown) => {
+  if (typeof window !== 'undefined') localStorage.setItem(key, JSON.stringify(value));
+};
+
+const mapAuthResponseToUser = (authResponse: AuthenticationResponse): AuthUser => {
+  return {
+    id: authResponse.id,
+    name: authResponse.fullName || '',
+    email: authResponse.email || '',
+    phoneNumber: authResponse.phoneNumber || '',
+    emailVerified: authResponse.emailVerified,
+  };
+};
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
@@ -33,57 +53,70 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
 
-  useEffect(() => { setIsInitializing(false); }, []);
+  useEffect(() => {
+    setIsInitializing(false);
+  }, []);
 
   const signIn = async (email: string, password: string) => {
     setIsActionLoading(true);
     try {
-      const accounts = readJson<StoredAccount[]>(ACCOUNTS_KEY) || [];
-      const match = accounts.find(a => a.email === email.trim().toLowerCase());
-      if (!match || match.password !== password) throw new Error('Invalid credentials');
-      const nextUser: AuthUser = { id: match.email, email: match.email, name: match.name };
+      const response = await authService.login(email, password);
+      
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Login failed');
+      }
+
+      // Store the access token
+      if (response.data.accessToken) {
+        localStorage.setItem('auth_token', response.data.accessToken);
+      }
+
+      // Map and store user info
+      const nextUser = mapAuthResponseToUser(response.data);
       setUser(nextUser);
       writeJson(STORAGE_KEY, nextUser);
-    } finally { setIsActionLoading(false); }
-  };
-
-  const signUp = async (name: string, email: string, password: string) => {
-    setIsActionLoading(true);
-    try {
-      if (password.length < 6) throw new Error('Password should be at least 6 characters');
-      const trimmedEmail = email.trim().toLowerCase();
-      const trimmedName = name.trim();
-      const accounts = readJson<StoredAccount[]>(ACCOUNTS_KEY) || [];
-      if (accounts.some(a => a.email === trimmedEmail)) throw new Error('Email already in use');
-
-      const newAccount: StoredAccount = { email: trimmedEmail, name: trimmedName || trimmedEmail.split('@')[0], password };
-      writeJson(ACCOUNTS_KEY, [...accounts, newAccount]);
-
-      const nextUser: AuthUser = { id: trimmedEmail, email: trimmedEmail, name: newAccount.name };
-      setUser(nextUser);
-      writeJson(STORAGE_KEY, nextUser);
-    } finally { setIsActionLoading(false); }
-  };
-
-  const signOutUser = async () => {
-    setIsActionLoading(true);
-    try {
-      await signOut(auth);
-      setUser(null);
-      localStorage.removeItem(STORAGE_KEY);
     } finally {
       setIsActionLoading(false);
     }
   };
 
-  const signInWithGoogle = async () => {
+  const signUp = async (fullName: string, email: string, password: string, phoneNumber: string) => {
+    setIsActionLoading(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const gUser = result.user;
-      const nextUser: AuthUser = { id: gUser.uid, email: gUser.email || '', name: gUser.displayName || 'GoogleUser' };
+      const response = await authService.register({
+        email,
+        password,
+        fullName,
+        phoneNumber,
+      });
+
+      if (!response.success || !response.data) {
+        throw new Error(response.message || 'Registration failed');
+      }
+
+      // Store the access token
+      if (response.data.accessToken) {
+        localStorage.setItem('auth_token', response.data.accessToken);
+      }
+
+      // Map and store user info
+      const nextUser = mapAuthResponseToUser(response.data);
       setUser(nextUser);
       writeJson(STORAGE_KEY, nextUser);
-    } catch (error) { console.error('Google Sign-In Error:', error); }
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const signOutUser = async () => {
+    setIsActionLoading(true);
+    try {
+      authService.logout();
+      setUser(null);
+      localStorage.removeItem(STORAGE_KEY);
+    } finally {
+      setIsActionLoading(false);
+    }
   };
 
   const value: AuthContextValue = {
@@ -94,7 +127,6 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     signIn,
     signUp,
     signOutUser,
-    signInWithGoogle,
   };
 
   return React.createElement(AuthContext.Provider, { value }, children);

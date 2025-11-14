@@ -161,7 +161,7 @@ export const AuthPanel: React.FC = () => {
             ) : (
               <RegisterForm
                 onSubmit={async (values) => {
-                  await signUp(values.name, values.email, values.password);
+                  await signUp(values.name, values.email, values.password, values.phoneNumber);
                   handleNavigateWorkspace();
                 }}
                 isLoading={isActionLoading}

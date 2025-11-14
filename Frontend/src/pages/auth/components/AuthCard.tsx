@@ -7,11 +7,9 @@ import {
   User,
   Loader2,
   ArrowRight,
-
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { ChromeIcon } from 'lucide-react';
 
 export type AuthMode = 'login' | 'register';
 
@@ -49,9 +47,10 @@ export const AuthCard = ({
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  const { signIn, signUp, isActionLoading, isAuthenticated,signInWithGoogle,logOut } = useAuth();
+  const { signIn, signUp, isActionLoading, isAuthenticated } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -73,7 +72,7 @@ export const AuthCard = ({
       if (mode === 'login') {
         await signIn(email, password);
       } else {
-        await signUp(name, email, password);
+        await signUp(name, email, password, phoneNumber);
       }
       navigate(redirectPath);
     } catch (err) {
@@ -106,19 +105,36 @@ export const AuthCard = ({
 
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
         {mode === 'register' && (
-          <label className="block text-sm text-gray-300">
-            <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
-              <User className="w-4 h-4" />
-              Full name
-            </span>
-            <input
-              className="w-full px-4 py-3 text-sm text-white border rounded-xl border-white/10 bg-white/5 placeholder:text-gray-500 focus:border-naver-green focus:outline-none focus:ring-2 focus:ring-naver-green/30"
-              placeholder="Jane Doe"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              required
-            />
-          </label>
+          <>
+            <label className="block text-sm text-gray-300">
+              <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+                <User className="w-4 h-4" />
+                Full name
+              </span>
+              <input
+                className="w-full px-4 py-3 text-sm text-white border rounded-xl border-white/10 bg-white/5 placeholder:text-gray-500 focus:border-naver-green focus:outline-none focus:ring-2 focus:ring-naver-green/30"
+                placeholder="Jane Doe"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+              />
+            </label>
+
+            <label className="block text-sm text-gray-300">
+              <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
+                <User className="w-4 h-4" />
+                Phone number
+              </span>
+              <input
+                className="w-full px-4 py-3 text-sm text-white border rounded-xl border-white/10 bg-white/5 placeholder:text-gray-500 focus:border-naver-green focus:outline-none focus:ring-2 focus:ring-naver-green/30"
+                placeholder="+1 234 567 8900"
+                type="tel"
+                value={phoneNumber}
+                onChange={(event) => setPhoneNumber(event.target.value)}
+                required
+              />
+            </label>
+          </>
         )}
 
         <label className="block text-sm text-gray-300">
@@ -175,28 +191,6 @@ export const AuthCard = ({
           )}
         </button>
       </form>
-
-      {/* Divider */}
-      <div className="relative my-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-white/10" />
-        </div>
-        <div className="relative flex justify-center">
-          <span className="px-3 text-xs text-gray-400 bg-gray-900">
-            Or continue with
-          </span>
-        </div>
-      </div>
-
-      {/* Google Login */}
-      <button
-        type="button"
-        onClick={()=>{signInWithGoogle()}}
-        className="inline-flex items-center justify-center w-full gap-3 px-5 py-3 text-sm font-semibold text-white transition border rounded-full border-white/10 bg-white/10 hover:bg-white/20"
-      >
-        <ChromeIcon className="w-5 h-5 text-naver-green" />
-        <h1 className="text-sm font-semibold">Continue with Google</h1>
-      </button>
 
       {allowModeToggle && (
         <button
