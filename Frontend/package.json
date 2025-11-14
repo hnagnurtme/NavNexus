@@ -15,12 +15,14 @@
   "license": "ISC",
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.17",
+    "@types/dagre": "^0.7.53",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "autoprefixer": "^10.4.22",
     "postcss": "^8.5.6",
+    "reactflow": "^11.11.4",
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
     "vite": "^7.2.2"
@@ -28,6 +30,8 @@
   "dependencies": {
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
+    "dagre": "^0.8.5",
+    "firebase": "^12.5.0",
     "lucide-react": "^0.553.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
