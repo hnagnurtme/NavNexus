@@ -1,6 +1,7 @@
 using AutoMapper;
 
 using NavNexus.API.Contract.KnowledgeTree;
+using NavNexus.Application.KnowledgeTree.Commands;
 using NavNexus.Application.KnowledgeTree.Queries;
 using NavNexus.Application.KnowledgeTree.Results;
 
@@ -13,5 +14,10 @@ public class KnowledgeTreeProfile : Profile
         CreateMap<GetKnowledgeNodeRequest, GetKnowledgeNodeQuery>();
 
         CreateMap<GetKnowledgeNodeResult, GetKnowledgeNodeResponse>();
+
+
+        CreateMap<RabbitMqSendingResult, RabbitMqSendingResponse>();
+
+        CreateMap<CreatedKnowledgetreeRequest, CreateKnowledgeNodeCommand>();
     }
 }

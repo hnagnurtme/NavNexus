@@ -10,6 +10,7 @@ using NavNexus.API.Contract.KnowledgeTree;
 using Microsoft.AspNetCore.Authorization;
 using NavNexus.Application.KnowledgeTree.Queries;
 using NavNexus.Application.KnowledgeTree.Results;
+using NavNexus.Application.KnowledgeTree.Commands;
 
 namespace NavNexus.API.Controller;
 
@@ -36,5 +37,18 @@ public class KnowledgeNodeController : ControllerBase
         var result = await _mediator.Send(query);
         var response = result.MapTo<GetKnowledgeNodeResult, GetKnowledgeNodeResponse>(_mapper);
         return OK.HandleResult(response, "Knowledge node retrieved successfully");
+    }
+
+
+
+    [HttpPost("")]
+    [SwaggerOperation(Summary = "Create Knowledge Tree", Description = "Create a knowledge tree for a specified workspace using provided file paths.")]
+    [ProducesResponseType(typeof(ApiResponse<RabbitMqSendingResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> CreateKnowledgeTree([FromBody] CreatedKnowledgetreeRequest request)
+    {
+        var command = _mapper.Map<CreatedKnowledgetreeRequest, CreateKnowledgeNodeCommand>(request);
+        var result = await _mediator.Send(command);
+        var response = result.MapTo<RabbitMqSendingResult, RabbitMqSendingResponse>(_mapper);
+        return OK.HandleResult(response, "Knowledge tree creation initiated successfully");
     }
 }
