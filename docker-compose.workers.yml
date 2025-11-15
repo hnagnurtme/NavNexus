@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  # Worker instance 1
+  worker-1:
+    build:
+      context: ./RabbitMQ
+      dockerfile: Dockerfile
+    container_name: navnexus-worker-1
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-chameleon-01.lmq.cloudamqp.com}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-odgfvgev}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-odgfvgev}
+      - PAPAGO_CLIENT_ID=${PAPAGO_CLIENT_ID}
+      - PAPAGO_CLIENT_SECRET=${PAPAGO_CLIENT_SECRET}
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
+      - QDRANT_URL=${QDRANT_URL:-https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - NEO4J_URL=${NEO4J_URL:-neo4j+ssc://daa013e6.databases.neo4j.io}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL:-https://navnexus-default-rtdb.firebaseio.com/}
+    volumes:
+      - ./RabbitMQ/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    restart: unless-stopped
+    networks:
+      - navnexus-network
+
+  # Worker instance 2
+  worker-2:
+    build:
+      context: ./RabbitMQ
+      dockerfile: Dockerfile
+    container_name: navnexus-worker-2
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-chameleon-01.lmq.cloudamqp.com}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-odgfvgev}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-odgfvgev}
+      - PAPAGO_CLIENT_ID=${PAPAGO_CLIENT_ID}
+      - PAPAGO_CLIENT_SECRET=${PAPAGO_CLIENT_SECRET}
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
+      - QDRANT_URL=${QDRANT_URL:-https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - NEO4J_URL=${NEO4J_URL:-neo4j+ssc://daa013e6.databases.neo4j.io}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL:-https://navnexus-default-rtdb.firebaseio.com/}
+    volumes:
+      - ./RabbitMQ/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    restart: unless-stopped
+    networks:
+      - navnexus-network
+
+  # Worker instance 3
+  worker-3:
+    build:
+      context: ./RabbitMQ
+      dockerfile: Dockerfile
+    container_name: navnexus-worker-3
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-chameleon-01.lmq.cloudamqp.com}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-odgfvgev}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-odgfvgev}
+      - PAPAGO_CLIENT_ID=${PAPAGO_CLIENT_ID}
+      - PAPAGO_CLIENT_SECRET=${PAPAGO_CLIENT_SECRET}
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
+      - QDRANT_URL=${QDRANT_URL:-https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - NEO4J_URL=${NEO4J_URL:-neo4j+ssc://daa013e6.databases.neo4j.io}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL:-https://navnexus-default-rtdb.firebaseio.com/}
+    volumes:
+      - ./RabbitMQ/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    restart: unless-stopped
+    networks:
+      - navnexus-network
+
+  # Worker instance 4
+  worker-4:
+    build:
+      context: ./RabbitMQ
+      dockerfile: Dockerfile
+    container_name: navnexus-worker-4
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-chameleon-01.lmq.cloudamqp.com}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-odgfvgev}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-odgfvgev}
+      - PAPAGO_CLIENT_ID=${PAPAGO_CLIENT_ID}
+      - PAPAGO_CLIENT_SECRET=${PAPAGO_CLIENT_SECRET}
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
+      - QDRANT_URL=${QDRANT_URL:-https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - NEO4J_URL=${NEO4J_URL:-neo4j+ssc://daa013e6.databases.neo4j.io}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL:-https://navnexus-default-rtdb.firebaseio.com/}
+    volumes:
+      - ./RabbitMQ/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    restart: unless-stopped
+    networks:
+      - navnexus-network
+
+  # Worker instance 5
+  worker-5:
+    build:
+      context: ./RabbitMQ
+      dockerfile: Dockerfile
+    container_name: navnexus-worker-5
+    environment:
+      - RABBITMQ_HOST=${RABBITMQ_HOST:-chameleon-01.lmq.cloudamqp.com}
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME:-odgfvgev}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg}
+      - RABBITMQ_VHOST=${RABBITMQ_VHOST:-odgfvgev}
+      - PAPAGO_CLIENT_ID=${PAPAGO_CLIENT_ID}
+      - PAPAGO_CLIENT_SECRET=${PAPAGO_CLIENT_SECRET}
+      - CLOVA_API_KEY=${CLOVA_API_KEY}
+      - QDRANT_URL=${QDRANT_URL:-https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io}
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - NEO4J_URL=${NEO4J_URL:-neo4j+ssc://daa013e6.databases.neo4j.io}
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - FIREBASE_DATABASE_URL=${FIREBASE_DATABASE_URL:-https://navnexus-default-rtdb.firebaseio.com/}
+    volumes:
+      - ./RabbitMQ/serviceAccountKey.json:/app/serviceAccountKey.json:ro
+    restart: unless-stopped
+    networks:
+      - navnexus-network
+
+networks:
+  navnexus-network:
+    driver: bridge
