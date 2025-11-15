@@ -23,6 +23,8 @@ interface WorkspaceCanvasProps {
 	journeyPathIds: string[];
 	onSelectNode: NodeSelectHandler;
 	onBuildGraph: () => void;
+	pendingBranchNodeId: string | null;
+	onPendingBranchHandled?: () => void;
 }
 
 const DEFAULT_EDGE_STYLE = { strokeWidth: 2, stroke: "#059669" } as const;
@@ -57,6 +59,8 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 	journeyPathIds,
 	onSelectNode,
 	onBuildGraph,
+	pendingBranchNodeId,
+	onPendingBranchHandled,
 }) => {
 	const { galaxy, query, actions, initialized } =
 		useWorkspaceGraph(workspaceId);
@@ -82,6 +86,36 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 		actions.loadQueryTree();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [query.error, query.loading, query.nodes.length, view, viewMode]);
+
+	useEffect(() => {
+		if (
+			!pendingBranchNodeId ||
+			view !== "active" ||
+			viewMode !== "galaxy"
+		) {
+			return;
+		}
+		let cancelled = false;
+		const expand = async () => {
+			try {
+				await actions.expandNode(pendingBranchNodeId);
+			} finally {
+				if (!cancelled) {
+					onPendingBranchHandled?.();
+				}
+			}
+		};
+		expand();
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		actions,
+		pendingBranchNodeId,
+		view,
+		viewMode,
+		onPendingBranchHandled,
+	]);
 
 	const galaxyNodes = useMemo(
 		() =>

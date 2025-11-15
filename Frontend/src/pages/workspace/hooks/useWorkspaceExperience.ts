@@ -18,6 +18,7 @@ const initialJourneyState = {
   awaitingBranch: false,
   branchOptions: [] as WorkspaceNode[],
   completed: false,
+  pendingBranchNodeId: null as string | null,
 };
 
 export type JourneyState = typeof initialJourneyState;
@@ -205,6 +206,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
           branchOptions: children,
           awaitingBranch: false,
           completed: children.length === 0,
+          pendingBranchNodeId: null,
         };
       });
       highlightNodes([nodeId]);
@@ -238,6 +240,13 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
   const selectJourneyBranch = useCallback(
     async (nodeId: string) => {
       await travelToNode(nodeId);
+      setJourney((prev) => {
+        if (!prev.isActive) return prev;
+        return {
+          ...prev,
+          pendingBranchNodeId: nodeId,
+        };
+      });
     },
     [travelToNode],
   );
@@ -251,6 +260,13 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 
   const cancelJourney = useCallback(() => {
     setJourney(initialJourneyState);
+  }, []);
+
+  const clearPendingBranchNode = useCallback(() => {
+    setJourney((prev) => {
+      if (!prev.pendingBranchNodeId) return prev;
+      return { ...prev, pendingBranchNodeId: null };
+    });
   }, []);
 
   const restartJourney = useCallback(async () => {
@@ -297,6 +313,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
       cancelJourney,
       restartJourney,
       highlightNodes,
+      clearPendingBranchNode,
     },
   };
 };

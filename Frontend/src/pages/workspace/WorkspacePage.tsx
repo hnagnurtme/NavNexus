@@ -103,6 +103,8 @@ export const WorkspacePage: React.FC = () => {
             journeyPathIds={journey.pathIds}
             onSelectNode={actions.selectNode}
             onBuildGraph={actions.buildGraph}
+            pendingBranchNodeId={journey.pendingBranchNodeId}
+            onPendingBranchHandled={actions.clearPendingBranchNode}
           />
         </main>
 

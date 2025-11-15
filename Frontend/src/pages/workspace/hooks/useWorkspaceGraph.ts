@@ -22,6 +22,7 @@ interface UseWorkspaceGraphReturn {
 		toggleNode: (nodeId: string) => void;
 		selectNode: (nodeId: string | null) => void;
 		loadQueryTree: () => void;
+		expandNode: (nodeId: string) => Promise<void>;
 	};
 }
 
@@ -268,6 +269,34 @@ export const useWorkspaceGraph = (
 		[ensureChildren, rebuildGalaxy, collapseDescendants]
 	);
 
+	const expandNode = useCallback(
+		async (nodeId: string) => {
+			const treeNode = nodeRegistry.current.get(nodeId);
+			if (!treeNode || !treeNode.hasChildren) {
+				return;
+			}
+			if (expandedNodeIds.current.has(nodeId)) {
+				if (!visibleNodeIds.current.has(nodeId)) {
+					visibleNodeIds.current.add(nodeId);
+					rebuildGalaxy();
+				}
+				return;
+			}
+			expandedNodeIds.current.add(nodeId);
+			const children = await ensureChildren(nodeId);
+			adjacencyMap.current.set(
+				nodeId,
+				children.map((child) => child.id)
+			);
+			children.forEach((child) => {
+				visibleNodeIds.current.add(child.id);
+			});
+			lastAddedIds.current = children.map((child) => child.id);
+			rebuildGalaxy();
+		},
+		[ensureChildren, rebuildGalaxy]
+	);
+
 	const selectNode = useCallback((nodeId: string | null) => {
 		setSelectedNodeId(nodeId);
 		setGalaxyState((prev) => ({
@@ -383,8 +412,9 @@ export const useWorkspaceGraph = (
 			toggleNode,
 			selectNode,
 			loadQueryTree,
+			expandNode,
 		}),
-		[loadRoot, toggleNode, selectNode, loadQueryTree]
+		[loadRoot, toggleNode, selectNode, loadQueryTree, expandNode]
 	);
 
 	return {
