@@ -73,7 +73,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 								Select a branch to continue your journey:
 							</p>
 
-							<div className="flex gap-3 overflow-x-auto pb-2">
+							<div className="flex gap-3 overflow-x-auto p-2">
 								{journey.branchOptions.map((option) => (
 									<button
 										type="button"
@@ -81,22 +81,29 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 										onClick={() =>
 											onSelectBranch(option.id)
 										}
-										className="rounded-2xl border border-white/10 bg-white/5 p-4 text-left transition hover:border-emerald-400/60 hover:bg-emerald-500/10 hover:scale-[1.02] flex-shrink-0 min-w-[200px]"
+										className="
+                rounded-2xl border border-white/10 bg-white/5 p-3 text-left 
+                transition hover:border-emerald-400/60 hover:bg-emerald-500/10 
+                hover:scale-[1.02] 
+                flex-shrink-0 
+                min-w-[200px] max-w-[200px]     /* 👈 ADDED */
+                break-words                      /* 👈 prevents overflow */
+            "
 									>
-										<p className="text-xs uppercase tracking-[0.3em] text-white/50">
+										{/* <p className="text-xs uppercase tracking-[0.3em] text-white/50">
 											{option.type}
-										</p>
+										</p> */}
 										<h5 className="mt-1 text-base font-semibold">
 											{option.name}
 										</h5>
-										<p className="mt-2 text-xs text-white/60">
+										{/* <p className="mt-2 text-xs text-white/60">
 											{option.childrenLoaded
 												? `${
 														option.children
 															?.length ?? 0
 												  } further leads`
 												: "Expand this branch"}
-										</p>
+										</p> */}
 									</button>
 								))}
 							</div>
