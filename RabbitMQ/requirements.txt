@@ -1,0 +1,11 @@
+pydantic>=2.0
+pydantic-settings
+qdrant-client>=1.7
+neo4j>=5.15
+firebase-admin>=6.0
+requests
+numpy
+python-dotenv
+fastapi
+uvicorn
+pika
