@@ -16,5 +16,7 @@ public class WorkspaceProfile : Profile
         CreateMap<CreateWorkspaceRequest, CreateWorkspaceCommand>();
         CreateMap<GetUserWorkspaceResult, UserWorkspaceResponse>()
             .ForMember(dest => dest.Workspaces, opt => opt.MapFrom(src => src.Workspaces));
+        
+        
     }
 }
