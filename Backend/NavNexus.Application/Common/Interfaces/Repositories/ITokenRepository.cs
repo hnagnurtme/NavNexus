@@ -1,10 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Neo4j.Driver;
-using NavNexus.Domain.Entities;
-
 namespace NavNexus.Application.Common.Interfaces.Repositories
 {
     public interface ITokenRepository
