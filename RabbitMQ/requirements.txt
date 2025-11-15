@@ -1,6 +1,6 @@
 pydantic>=2.0
 pydantic-settings
-qdrant-client>=1.7
+qdrant-client>=1.9.0
 neo4j>=5.15
 firebase-admin>=6.0
 requests
@@ -9,3 +9,4 @@ python-dotenv
 fastapi
 uvicorn
 pika
+PyMuPDF
