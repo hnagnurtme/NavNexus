@@ -1,5 +1,7 @@
-namespace NavNexus.API.Contract.KnowledgeTree;
+using NavNexus.API.Contract.KnowledgeTree;
+using NavNexus.Domain.Entities;
 
+namespace NavNexus.API.Contract.KnowledgeTree;
 
 public class GetKnowledgeNodeResponse
 {
@@ -10,8 +12,13 @@ public class GetKnowledgeNodeResponse
 
     public required int Level { get; set; }
     public required int SourceCount { get; set; }
-    public required List<EvidenceResponse> Evidences { get; set; }
+
+    public required List<Evidence> Evidences { get; set; }
+
     public required DateTime CreatedAt { get; set; }
     public required DateTime UpdatedAt { get; set; }
-    public required List<GetKnowledgeNodeResponse> ChildNodes{ get; set; }
+
+    public required List<GetKnowledgeNodeResponse> ChildNodes { get; set; }
+
+    public List<GapSuggestion>? GapSuggestions { get; set; }
 }
