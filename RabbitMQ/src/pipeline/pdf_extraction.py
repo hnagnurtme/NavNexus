@@ -25,7 +25,7 @@ def extract_pdf_fast(pdf_url: str, max_pages: int = 25) -> Tuple[str, str]:
         
         for i in range(total_pages):
             page = doc[i]
-            text = page.get_text().strip()
+            text = str(page.get_text()).strip()
             if text:
                 full_text += f"\n\n=== PAGE {i+1} ===\n{text}"
         

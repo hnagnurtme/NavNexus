@@ -59,7 +59,7 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "DTG0IyhifivaD2GwRoyIz4VPapRF0JdjoVsMfT9ggiY")
 
 # Firebase
-FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT", "/app/serviceAccountKey.json")
+FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT", "serviceAccountKey.json")
 FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL", "https://navnexus-default-rtdb.firebaseio.com/")
 
 # CLOVA
@@ -77,6 +77,19 @@ BATCH_SIZE = 3
 # INITIALIZE CLIENTS
 # ================================
 print("🔧 Initializing clients...")
+
+# Check for Firebase service account key
+if not os.path.exists(FIREBASE_SERVICE_ACCOUNT):
+    print("="*80)
+    print("🔥 Firebase Service Account Key Not Found!")
+    print(f"Error: The file '{FIREBASE_SERVICE_ACCOUNT}' was not found.")
+    print("Please ensure that your 'serviceAccountKey.json' is placed in the root directory")
+    print("of the RabbitMQ project, or set the 'FIREBASE_SERVICE_ACCOUNT' environment")
+    print("variable to the correct path.")
+    print("You can obtain this file from your Firebase project settings.")
+    print("="*80)
+    sys.exit(1)
+
 qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
 neo4j_driver = GraphDatabase.driver(NEO4J_URL, auth=(NEO4J_USER, NEO4J_PASSWORD))
 firebase_client = FirebaseClient(FIREBASE_SERVICE_ACCOUNT, FIREBASE_DATABASE_URL)

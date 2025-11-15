@@ -1,6 +1,7 @@
 import firebase_admin
 from firebase_admin import credentials, db
 from typing import Any
+import time
 
 class FirebaseClient:
     def __init__(self, service_account_path: str, database_url: str):
@@ -25,6 +26,6 @@ class FirebaseClient:
         ref.set({
             "jobId": job_id,
             "result": result,
-            "updatedAt": getattr(db, "SERVER_TIMESTAMP")
+            "updatedAt": int(time.time() * 1000)
         })
         print(f"Pushed result for job {job_id} to Firebase under '{path}/{job_id}'")
