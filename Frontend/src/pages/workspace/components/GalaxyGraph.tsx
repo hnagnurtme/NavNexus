@@ -8,6 +8,7 @@ import ReactFlow, {
 	ReactFlowProvider,
 	useReactFlow,
 	NodeTypes,
+	Panel,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { GraphToolbar } from "./GraphToolbar";
@@ -93,9 +94,9 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 				<MiniMap className="!bg-slate-900/80" />
 				<Controls className="border border-white/10 bg-slate-900/70 text-white" />
 				<Background gap={24} color="#334155" />
-				<div className="pointer-events-none absolute right-4 top-4">
+				<Panel position="top-right" className="bg-transparent border-none p-0">
 					<GraphToolbar />
-				</div>
+				</Panel>
 			</ReactFlow>
 
 			{isLoading && (

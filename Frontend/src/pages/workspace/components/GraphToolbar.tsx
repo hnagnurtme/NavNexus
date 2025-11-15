@@ -5,7 +5,10 @@ export const GraphToolbar: React.FC = () => {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
   return (
-    <div className="pointer-events-auto flex gap-2 rounded-full border border-white/10 bg-slate-900/80 p-2 text-white shadow-2xl backdrop-blur">
+    <div
+      className="pointer-events-auto flex gap-2 rounded-full border border-white/10 bg-slate-900/80 p-2 text-white shadow-2xl backdrop-blur"
+      onMouseDown={(event) => event.stopPropagation()}
+    >
       <button
         type="button"
         aria-label="Fit view"
