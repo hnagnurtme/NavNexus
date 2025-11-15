@@ -17,6 +17,7 @@ interface WorkspaceCanvasProps {
 	viewMode: ViewMode;
 	isBuilding: boolean;
 	isNodeLoading: boolean;
+	loadingNodeName?: string | null;
 	selectedNodeId: string | null;
 	highlightedNodeIds: string[];
 	journeyPathIds: string[];
@@ -50,6 +51,7 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 	viewMode,
 	isBuilding,
 	isNodeLoading,
+	loadingNodeName,
 	selectedNodeId,
 	highlightedNodeIds,
 	journeyPathIds,
@@ -178,10 +180,17 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 			</div>
 
 			{isNodeLoading && (
-				<div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-					<div className="flex items-center gap-3 rounded-full border border-white/10 bg-black/60 px-5 py-2 text-sm font-medium text-white/80">
+				<div className="pointer-events-none absolute left-6 top-6">
+					<div
+						className="flex items-center gap-3 rounded-full border border-white/10 bg-black/70 px-5 py-2 text-xs font-medium text-white/80 shadow-lg"
+						aria-live="polite"
+					>
 						<Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-						Loading insights…
+						<span>
+							{loadingNodeName
+								? `Fetching insights for ${loadingNodeName}`
+								: "Fetching insights…"}
+						</span>
 					</div>
 				</div>
 			)}

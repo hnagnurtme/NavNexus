@@ -35,10 +35,22 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 }) => {
 	const { fitView } = useReactFlow();
 
+	// Fit view when nodes are loaded
 	useEffect(() => {
-		if (nodes.length > 0) {
-			fitView({ padding: 0.15, duration: 500 });
-		}
+		if (nodes.length === 0) return;
+
+		// Use a small timeout to ensure the layout has been applied
+		const timer = setTimeout(() => {
+			fitView({
+				padding: 0.1, // Increased padding to show more space around nodes
+				duration: 500,
+				maxZoom: 1, // Limit max zoom to prevent zooming in too much
+				minZoom: 0.1, // Allow zooming out very far
+			});
+			console.log("Fitting query tree view to", nodes.length, "nodes");
+		}, 50);
+
+		return () => clearTimeout(timer);
 	}, [fitView, nodes.length]);
 
 	const enrichedNodes = useMemo(
@@ -62,7 +74,7 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 				<button
 					type="button"
 					onClick={onRetry}
-					className="rounded-full border border-white/20 px-4 py-2 text-sm uppercase tracking-[0.3em]"
+					className="rounded-full border border-white/20 px-4 py-2 text-sm uppercase tracking-[0.3em] hover:bg-white/10 transition-colors"
 				>
 					Retry
 				</button>
@@ -85,7 +97,7 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 				<button
 					type="button"
 					onClick={onRetry}
-					className="rounded-full border border-white/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/70"
+					className="rounded-full border border-white/10 px-4 py-2 text-xs uppercase tracking-[0.3em] text-white/70 hover:bg-white/10 transition-colors"
 				>
 					Reload
 				</button>
@@ -99,11 +111,14 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 				nodes={enrichedNodes}
 				edges={edges}
 				nodeTypes={NODE_TYPES}
+				fitView // Initial fitView on mount
 				panOnDrag
 				nodesDraggable={false}
 				nodesConnectable={false}
 				onNodeClick={(_, node) => onSelect(node.id)}
 				className="text-white"
+				minZoom={0.1}
+				maxZoom={2}
 			>
 				<MiniMap className="!bg-slate-900/80" />
 				<Controls className="border border-white/10 bg-slate-900/70 text-white" />

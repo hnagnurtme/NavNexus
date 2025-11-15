@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo } from "react";
 import ReactFlow, {
 	Background,
 	Controls,
@@ -40,19 +40,23 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 }) => {
 	const { fitView } = useReactFlow();
 
+	// Fit view whenever nodes or edges change
 	useEffect(() => {
-		if (nodes.length > 0) {
-			fitView({ padding: 0.2, duration: 400 });
-		}
-	}, [fitView, nodes.length]);
+		if (nodes.length === 0) return;
 
-	// Remove this handler since clicking is now handled inside CustomNode
-	// const handleNodeClick = useCallback(
-	// 	(_: React.MouseEvent, node: Node) => {
-	// 		onNodeSelect(node.id);
-	// 	},
-	// 	[onNodeSelect]
-	// );
+		// Use a small timeout to ensure the layout has been applied
+		const timer = setTimeout(() => {
+			fitView({
+				padding: 0.2,
+				duration: 400,
+				maxZoom: 1.5, // Prevent zooming in too much
+				minZoom: 0.5, // Prevent zooming out too much
+			});
+			console.log("Fitting view to", nodes.length, "nodes");
+		}, 50); // Small delay to let React Flow update the DOM
+
+		return () => clearTimeout(timer);
+	}, [fitView, nodes.length, edges.length]); // Also trigger on edges.length change
 
 	const enrichedNodes = useMemo(
 		() =>
@@ -76,14 +80,15 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 				nodes={enrichedNodes}
 				edges={edges}
 				nodeTypes={nodeTypes}
-				fitView
+				fitView // Initial fitView on mount
 				panOnDrag
-				nodesDraggable={true}
-				nodesConnectable={true}
-				elementsSelectable={true} // Allow selection
+				nodesDraggable={false} // Set back to false since you don't want dragging
+				nodesConnectable={false} // Set back to false
+				elementsSelectable={true}
 				onPaneClick={onClearSelection}
-				// Remove onNodeClick since it's handled in CustomNode now
 				className="text-white"
+				minZoom={0.1}
+				maxZoom={2}
 			>
 				<MiniMap className="!bg-slate-900/80" />
 				<Controls className="border border-white/10 bg-slate-900/70 text-white" />

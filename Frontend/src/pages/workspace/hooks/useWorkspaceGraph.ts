@@ -9,6 +9,7 @@ interface GraphState {
 	edges: Edge[];
 	loading: boolean;
 	error: string | null;
+	viewportKey: number;
 }
 
 interface UseWorkspaceGraphReturn {
@@ -62,6 +63,7 @@ export const useWorkspaceGraph = (
 		edges: [],
 		loading: true,
 		error: null,
+		viewportKey: 0,
 	});
 	const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 	const [queryState, setQueryState] = useState<GraphState>({
@@ -69,6 +71,7 @@ export const useWorkspaceGraph = (
 		edges: [],
 		loading: false,
 		error: null,
+		viewportKey: 0,
 	});
 	const [initialized, setInitialized] = useState(false);
 
@@ -128,8 +131,15 @@ export const useWorkspaceGraph = (
 			edges: [],
 			loading: false,
 			error: null,
+			viewportKey: 0,
 		});
-		setQueryState({ nodes: [], edges: [], loading: false, error: null });
+		setQueryState({
+			nodes: [],
+			edges: [],
+			loading: false,
+			error: null,
+			viewportKey: 0,
+		});
 		setSelectedNodeId(null);
 		setInitialized(false);
 	}, [workspaceId]);
@@ -169,6 +179,10 @@ export const useWorkspaceGraph = (
 				(child) => child.id
 			);
 			rebuildGalaxy();
+			setGalaxyState((prev) => ({
+				...prev,
+				viewportKey: prev.viewportKey + 1,
+			}));
 			setInitialized(true);
 		} catch (error) {
 			setGalaxyState((prev) => ({
@@ -246,6 +260,10 @@ export const useWorkspaceGraph = (
 			});
 			lastAddedIds.current = children.map((child) => child.id);
 			rebuildGalaxy();
+			setGalaxyState((prev) => ({
+				...prev,
+				viewportKey: prev.viewportKey + 1,
+			}));
 		},
 		[ensureChildren, rebuildGalaxy, collapseDescendants]
 	);
@@ -272,7 +290,13 @@ export const useWorkspaceGraph = (
 			}));
 			return;
 		}
-		setQueryState({ nodes: [], edges: [], loading: true, error: null });
+		setQueryState((prev) => ({
+			...prev,
+			nodes: [],
+			edges: [],
+			loading: true,
+			error: null,
+		}));
 		try {
 			const rootResponse = await treeService.getTreeRoot(workspaceId);
 			const nodes: TreeNodeShallow[] = [rootResponse.root];
@@ -318,19 +342,22 @@ export const useWorkspaceGraph = (
 				edges,
 				"LR"
 			);
-			setQueryState({
+			setQueryState((prev) => ({
+				...prev,
 				nodes: layoutNodes,
 				edges: layoutEdges,
 				loading: false,
 				error: null,
-			});
+				viewportKey: prev.viewportKey + 1,
+			}));
 		} catch (error) {
-			setQueryState({
+			setQueryState((prev) => ({
+				...prev,
 				nodes: [],
 				edges: [],
 				loading: false,
 				error: "Unable to build the query tree right now.",
-			});
+			}));
 		}
 	}, [workspaceId]);
 
@@ -342,7 +369,8 @@ export const useWorkspaceGraph = (
 			const nodeElement = document.querySelector<HTMLElement>(
 				`[data-node-id="${firstAdded}"] button`
 			);
-			nodeElement?.focus();
+			// Keep focus management without shifting the canvas viewport
+			nodeElement?.focus({ preventScroll: true });
 			lastAddedIds.current = null;
 		}, 100);
 		return () => window.clearTimeout(timer);
