@@ -21,6 +21,8 @@ interface QueryTreeGraphInnerProps {
 	onSelect: (nodeId: string) => void;
 	selectedNodeId: string | null;
 	onRetry: () => void;
+	viewportKey: number;
+	focusedNodeId?: string | null;
 }
 
 const NODE_TYPES = { workspaceNode: CustomNode };
@@ -33,12 +35,14 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 	onSelect,
 	selectedNodeId,
 	onRetry,
+	viewportKey,
+	focusedNodeId,
 }) => {
-	const { fitView } = useReactFlow();
+	const { fitView, getNodes, setCenter } = useReactFlow();
 
 	// Fit view when nodes are loaded
 	useEffect(() => {
-		if (nodes.length === 0) return;
+		if (nodes.length === 0 && focusedNodeId) return; // Ignore if no nodes or focused node is set
 
 		// Use a small timeout to ensure the layout has been applied
 		const timer = setTimeout(() => {
@@ -52,7 +56,19 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 		}, 50);
 
 		return () => clearTimeout(timer);
-	}, [fitView, nodes.length]);
+	}, [fitView, nodes.length, viewportKey]);
+
+	useEffect(() => {
+		if (!focusedNodeId) return;
+		const node = getNodes().find((n) => n.id === focusedNodeId);
+		if (!node) return;
+		const targetX = node.position.x + (node.width ?? 0) / 2;
+		const targetY = node.position.y + (node.height ?? 0) / 2;
+		setCenter(targetX, targetY, {
+			zoom: 1.1,
+			duration: 500,
+		});
+	}, [focusedNodeId, getNodes, setCenter]);
 
 	const enrichedNodes = useMemo(
 		() =>
@@ -124,7 +140,10 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 				<MiniMap className="!bg-slate-900/80" />
 				<Controls className="border border-white/10 bg-slate-900/70 text-white" />
 				<Background gap={24} color="#334155" />
-				<Panel position="top-right" className="bg-transparent border-none p-0">
+				<Panel
+					position="top-right"
+					className="bg-transparent border-none p-0"
+				>
 					<GraphToolbar />
 				</Panel>
 			</ReactFlow>

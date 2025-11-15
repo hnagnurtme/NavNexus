@@ -25,6 +25,7 @@ interface WorkspaceCanvasProps {
 	onBuildGraph: () => void;
 	pendingBranchNodeId: string | null;
 	onPendingBranchHandled?: () => void;
+	focusedJourneyNodeId?: string | null;
 }
 
 const DEFAULT_EDGE_STYLE = { strokeWidth: 2, stroke: "#059669" } as const;
@@ -61,6 +62,7 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 	onBuildGraph,
 	pendingBranchNodeId,
 	onPendingBranchHandled,
+	focusedJourneyNodeId,
 }) => {
 	const { galaxy, query, actions, initialized } =
 		useWorkspaceGraph(workspaceId);
@@ -199,6 +201,8 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 						onNodeSelect={handleNodeSelect}
 						onToggleNode={handleToggleNode}
 						onClearSelection={handleClearSelection}
+						viewportKey={galaxy.viewportKey}
+						focusedNodeId={focusedJourneyNodeId}
 					/>
 				) : (
 					<QueryTreeGraph
@@ -209,6 +213,8 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 						onSelect={handleNodeSelect}
 						selectedNodeId={galaxy.selectedNodeId}
 						onRetry={actions.loadQueryTree}
+						viewportKey={query.viewportKey}
+						focusedNodeId={focusedJourneyNodeId}
 					/>
 				)}
 			</div>

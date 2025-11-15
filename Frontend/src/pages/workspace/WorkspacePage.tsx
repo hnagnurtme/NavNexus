@@ -105,6 +105,7 @@ export const WorkspacePage: React.FC = () => {
             onBuildGraph={actions.buildGraph}
             pendingBranchNodeId={journey.pendingBranchNodeId}
             onPendingBranchHandled={actions.clearPendingBranchNode}
+            focusedJourneyNodeId={journey.isActive ? journey.currentNodeId : null}
           />
         </main>
 
