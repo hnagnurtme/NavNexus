@@ -18,7 +18,7 @@ class KnowledgeNode:
     UpdatedAt: datetime = field(default_factory=datetime.utcnow)
     Children: List[KnowledgeNode] = field(default_factory=list)
     Evidences: List[Evidence] = field(default_factory=list)
-    GapSuggestions: List[str] = field(default_factory=list)  # tạm thời string nếu chưa có class GapSuggestion
+    GapSuggestions: List[str] = field(default_factory=list) 
 
     def is_leaf_node(self) -> bool:
         return len(self.Children) == 0

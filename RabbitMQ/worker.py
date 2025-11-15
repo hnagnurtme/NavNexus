@@ -23,7 +23,7 @@ from src.pipeline.chunking import create_smart_chunks
 from src.pipeline.embedding import create_embedding_via_clova, calculate_similarity
 from src.pipeline.translation import translate_batch
 from src.pipeline.llm_analysis import extract_hierarchical_structure, process_chunk_batch
-from src.pipeline.neo4j_graph import create_hierarchical_graph, find_or_merge_node, add_evidence_to_node, update_node_synthesis, now_iso
+from src.pipeline.neo4j_graph import create_hierarchical_graph, add_evidence_to_node, now_iso
 from src.pipeline.qdrant_storage import store_chunks_in_qdrant
 
 from src.model.Evidence import Evidence
@@ -113,52 +113,49 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
     print(f"{'='*80}\n")
     
     try:
+        # =================================================================
         # PHASE 1: Extract PDF
+        # =================================================================
         print(f"📄 Phase 1: Extracting PDF")
         full_text, lang = extract_pdf_fast(pdf_url, max_pages=25)
+        print(f"✓ Extracted {len(full_text)} chars, language: {lang}")
         
-        # PHASE 2: Extract hierarchical structure
-        print(f"\n📊 Phase 2: Extracting hierarchical structure (lang: {lang})")
+        # =================================================================
+        # PHASE 2: Extract + Translate Hierarchical Structure
+        # =================================================================
+        print(f"\n📊 Phase 2: Extracting hierarchical structure")
         structure = extract_hierarchical_structure(full_text, file_name, lang, CLOVA_API_KEY, CLOVA_API_URL)
         
-        # Translate structure to English if needed
+        # Translate entire structure to English if needed
         if lang != "en":
-            print(f"🌐 Translating structure to English...")
-            # Collect all text to translate
-            texts_to_translate = []
-            
-            domain = structure.get("domain", {})
-            texts_to_translate.extend([domain.get("name", ""), domain.get("synthesis", "")])
-            
-            for cat in structure.get("categories", []):
-                texts_to_translate.extend([cat.get("name", ""), cat.get("synthesis", "")])
-                for concept in cat.get("concepts", []):
-                    texts_to_translate.extend([concept.get("name", ""), concept.get("synthesis", "")])
-                    for sub in concept.get("subconcepts", []):
-                        texts_to_translate.extend([
-                            sub.get("name", ""), 
-                            sub.get("synthesis", ""),
-                            sub.get("evidence", "")
-                        ])
-            
-            # Translate in batch
-            translated = translate_batch([t for t in texts_to_translate if t], lang, "en", 
-                                        PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
+            print(f"🌐 Translating structure from {lang} to English...")
+            structure = translate_structure_to_english(structure, lang, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
+            print(f"✓ Structure translated")
         
-        # PHASE 3: Create Neo4j graph
-        print(f"\n🔗 Phase 3: Creating hierarchical knowledge graph")
+        # =================================================================
+        # PHASE 3: Create Neo4j Knowledge Graph with Semantic Merging
+        # =================================================================
+        print(f"\n🔗 Phase 3: Creating hierarchical knowledge graph with semantic merging")
+        
+        # Create embedding function for semantic matching
+        def create_concept_embedding(text: str):
+            return create_embedding_via_clova(text, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
+        
         with neo4j_driver.session() as session:
             node_ids = create_hierarchical_graph(
                 session, workspace_id, structure, file_id, file_name, lang,
-                CLOVA_API_KEY, CLOVA_API_URL
+                CLOVA_API_KEY, CLOVA_API_URL,
+                embedding_func=create_concept_embedding
             )
-            print(f"✓ Created/updated {len(node_ids)} nodes")
+            print(f"✓ Created/updated {len(node_ids)} nodes in Neo4j")
         
-        # PHASE 4: Process chunks
+        # =================================================================
+        # PHASE 4: Process Chunks for Qdrant
+        # =================================================================
         chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-        print(f"\n⚡ Phase 4: Processing {len(chunks)} chunks")
+        print(f"\n⚡ Phase 4: Processing {len(chunks)} chunks for Qdrant")
         
-        all_chunks = []
+        all_qdrant_chunks = []
         accumulated_concepts = []
         prev_embedding = None
         prev_chunk_id = ""
@@ -166,6 +163,8 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
         for batch_start in range(0, len(chunks), BATCH_SIZE):
             batch_end = min(batch_start + BATCH_SIZE, len(chunks))
             batch = chunks[batch_start:batch_end]
+            
+            print(f"  Processing batch {batch_start//BATCH_SIZE + 1}/{(len(chunks)-1)//BATCH_SIZE + 1}...")
             
             batch_result = process_chunk_batch(batch, lang, accumulated_concepts, 
                                               CLOVA_API_KEY, CLOVA_API_URL)
@@ -178,120 +177,123 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
                 original_chunk = chunks[chunk_idx]
                 chunk_id = str(uuid.uuid4())
                 
-                # Extract and translate if needed
+                # Extract chunk analysis
                 concepts_data = chunk_data.get("concepts", [])
                 summary = chunk_data.get("summary", "")
                 claims = chunk_data.get("key_claims", [])
+                questions = chunk_data.get("questions", [])
+                topic = chunk_data.get("topic", "General")
                 
+                # Translate chunk content if needed
                 if lang != "en":
-                    to_translate = [summary] + claims
+                    to_translate = [summary, topic] + claims + questions
                     to_translate.extend([c.get("name", "") for c in concepts_data])
-                    to_translate.extend([c.get("synthesis", "") for c in concepts_data])
-                    to_translate.extend([c.get("evidence", "") for c in concepts_data])
                     
-                    translated = translate_batch(to_translate, lang, "en", 
+                    translated = translate_batch([t for t in to_translate if t], lang, "en", 
                                                 PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
                     
-                    summary = translated[0] if translated else summary
-                    claims = translated[1:len(claims)+1] if len(translated) > 1 else claims
-                    
-                    # Update concepts
-                    offset = len(claims) + 1
-                    for i, c in enumerate(concepts_data):
-                        if offset + i*3 < len(translated):
-                            c["name"] = translated[offset + i*3]
-                            c["synthesis"] = translated[offset + i*3 + 1] if offset + i*3 + 1 < len(translated) else c.get("synthesis", "")
-                            c["evidence"] = translated[offset + i*3 + 2] if offset + i*3 + 2 < len(translated) else c.get("evidence", "")
+                    if translated:
+                        idx = 0
+                        summary = translated[idx] if idx < len(translated) else summary
+                        idx += 1
+                        topic = translated[idx] if idx < len(translated) else topic
+                        idx += 1
+                        
+                        claims = translated[idx:idx+len(claims)] if idx+len(claims) <= len(translated) else claims
+                        idx += len(claims)
+                        
+                        questions = translated[idx:idx+len(questions)] if idx+len(questions) <= len(translated) else questions
+                        idx += len(questions)
+                        
+                        # Translate concept names
+                        for i, c in enumerate(concepts_data):
+                            if idx + i < len(translated):
+                                c["name"] = translated[idx + i]
                 
-                # Link chunk concepts to graph nodes
-                with neo4j_driver.session() as session:
-                    for c in concepts_data:
-                        concept_name = c.get("name", "")
-                        if not concept_name:
-                            continue
-                        
-                        # Find matching node
-                        node_id = find_or_merge_node(
-                            session, workspace_id, concept_name, 
-                            c.get("type", "concept"), 
-                            c.get("level", 2)
-                        )
-                        
-                        # Add chunk as evidence
-                        evidence = Evidence(
-                            SourceId=file_id,
-                            SourceName=file_name,
-                            ChunkId=chunk_id,
-                            Text=c.get("evidence", c.get("synthesis", "")),
-                            Page=chunk_idx + 1,
-                            Confidence=0.8,
-                            CreatedAt=datetime.utcnow(),
-                            KeyClaims=claims
-                        )
-                        
-                        add_evidence_to_node(session, node_id, evidence)
-                        update_node_synthesis(session, node_id, c.get("synthesis", ""), 
-                                            CLOVA_API_KEY, CLOVA_API_URL)
-                        
-                        accumulated_concepts.append(concept_name)
+                # Update accumulated concepts
+                accumulated_concepts.extend([c.get("name", "") for c in concepts_data])
+                accumulated_concepts = list(set(accumulated_concepts))[-50:]  # Keep last 50 unique
                 
-                # Create embedding
+                # Create embedding from summary
                 embedding = create_embedding_via_clova(summary, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
                 
-                # Calculate similarity
+                # Calculate semantic similarity with previous chunk
                 semantic_sim = 0.0
                 if prev_embedding:
                     semantic_sim = calculate_similarity(prev_embedding, embedding)
                 
-                # Create Qdrant chunk
+                # Build hierarchy path
+                hierarchy_path = f"{file_name}"
+                if concepts_data:
+                    hierarchy_path += f" > {concepts_data[0].get('name', 'Chunk')}"
+                hierarchy_path += f" > Chunk {chunk_idx+1}"
+                
+                # Create Qdrant chunk with all fields
                 qdrant_chunk = QdrantChunk(
                     chunk_id=chunk_id,
                     paper_id=file_id,
                     page=chunk_idx + 1,
                     text=original_chunk["text"][:500],
                     summary=summary,
-                    concepts=[c.get("name", "") for c in concepts_data],
-                    topic=chunk_data.get("topic", "General"),
+                    concepts=[c.get("name", "") for c in concepts_data if c.get("name")],
+                    topic=topic,
                     workspace_id=workspace_id,
                     language="en",
                     source_language=lang,
                     created_at=now_iso(),
-                    hierarchy_path=f"{file_name} > Chunk {chunk_idx+1}",
+                    hierarchy_path=hierarchy_path,
                     chunk_index=chunk_idx,
                     prev_chunk_id=prev_chunk_id,
-                    next_chunk_id="",
+                    next_chunk_id="",  # Will be updated
                     semantic_similarity_prev=semantic_sim,
-                    overlap_with_prev=original_chunk["overlap_previous"][:200],
+                    overlap_with_prev=original_chunk.get("overlap_previous", "")[:200],
                     key_claims=claims,
-                    questions_raised=chunk_data.get("questions", []),
+                    questions_raised=questions,
                     evidence_strength=0.8
                 )
                 
-                all_chunks.append((qdrant_chunk, embedding))
+                all_qdrant_chunks.append((qdrant_chunk, embedding))
                 
-                # Update previous chunk
-                if prev_chunk_id and all_chunks:
-                    for i, (c, e) in enumerate(all_chunks):
-                        if c.chunk_id == prev_chunk_id:
-                            c.next_chunk_id = chunk_id
-                            break
+                # Update previous chunk's next_chunk_id
+                if prev_chunk_id and len(all_qdrant_chunks) > 1:
+                    all_qdrant_chunks[-2][0].next_chunk_id = chunk_id
                 
                 prev_chunk_id = chunk_id
                 prev_embedding = embedding
             
             gc.collect()
         
-        # PHASE 5: Store in Qdrant
-        print(f"\n💾 Phase 5: Storing {len(all_chunks)} chunks in Qdrant")
-        store_chunks_in_qdrant(qdrant_client, workspace_id, all_chunks)
+        print(f"✓ Processed {len(all_qdrant_chunks)} chunks")
         
+        # =================================================================
+        # PHASE 5: Store Chunks in Qdrant
+        # =================================================================
+        print(f"\n💾 Phase 5: Storing {len(all_qdrant_chunks)} chunks in Qdrant")
+        store_chunks_in_qdrant(qdrant_client, workspace_id, all_qdrant_chunks)
+        print(f"✓ Stored in Qdrant collection: {workspace_id}")
+        
+        # =================================================================
+        # PHASE 6: Gap Analysis & Suggestions
+        # =================================================================
+        print(f"\n🔍 Phase 6: Analyzing knowledge gaps")
+        with neo4j_driver.session() as session:
+            gap_count = analyze_and_add_gaps(
+                session, workspace_id, file_id, 
+                CLOVA_API_KEY, CLOVA_API_URL
+            )
+            print(f"✓ Added {gap_count} gap suggestions to leaf nodes")
+        
+        # =================================================================
+        # SUMMARY
+        # =================================================================
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
         
         print(f"\n{'='*80}")
         print(f"✅ COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
-        print(f"├─ Hierarchical nodes: {len(node_ids)}")
-        print(f"├─ Chunks processed: {len(all_chunks)}")
-        print(f"├─ Source language: {lang} → en")
+        print(f"├─ Neo4j Nodes: {len(node_ids)}")
+        print(f"├─ Qdrant Chunks: {len(all_qdrant_chunks)}")
+        print(f"├─ Gap Suggestions: {gap_count}")
+        print(f"├─ Language: {lang} → en")
         print(f"└─ File ID: {file_id}")
         print(f"{'='*80}\n")
         
@@ -299,9 +301,13 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
             "status": "completed",
             "jobId": job_id,
             "fileId": file_id,
+            "fileName": file_name,
+            "workspaceId": workspace_id,
             "nodes": len(node_ids),
-            "chunks": len(all_chunks),
+            "chunks": len(all_qdrant_chunks),
+            "gaps": gap_count,
             "sourceLanguage": lang,
+            "targetLanguage": "en",
             "processingTimeMs": processing_time
         }
     
@@ -313,10 +319,140 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
         return {
             "status": "failed",
             "jobId": job_id,
+            "fileId": file_id,
+            "fileName": file_name,
             "error": error_msg,
             "traceback": traceback.format_exc()
         }
 
+
+# =================================================================
+# HELPER FUNCTIONS
+# =================================================================
+
+def translate_structure_to_english(structure: Dict, source_lang: str, 
+                                   client_id: str, client_secret: str) -> Dict:
+    """Translate entire structure to English in one batch"""
+    texts_to_translate = []
+    
+    # Collect all texts
+    domain = structure.get("domain", {})
+    texts_to_translate.extend([
+        domain.get("name", ""),
+        domain.get("synthesis", "")
+    ])
+    
+    for cat in structure.get("categories", []):
+        texts_to_translate.extend([
+            cat.get("name", ""),
+            cat.get("synthesis", "")
+        ])
+        
+        for concept in cat.get("concepts", []):
+            texts_to_translate.extend([
+                concept.get("name", ""),
+                concept.get("synthesis", "")
+            ])
+            
+            for sub in concept.get("subconcepts", []):
+                texts_to_translate.extend([
+                    sub.get("name", ""),
+                    sub.get("synthesis", ""),
+                    sub.get("evidence", "")
+                ])
+    
+    # Translate batch
+    translated = translate_batch([t for t in texts_to_translate if t], 
+                                source_lang, "en", client_id, client_secret)
+    
+    if not translated:
+        return structure
+    
+    # Reassign translations
+    idx = 0
+    domain["name"] = translated[idx] if idx < len(translated) else domain.get("name", "")
+    idx += 1
+    domain["synthesis"] = translated[idx] if idx < len(translated) else domain.get("synthesis", "")
+    idx += 1
+    
+    for cat in structure.get("categories", []):
+        cat["name"] = translated[idx] if idx < len(translated) else cat.get("name", "")
+        idx += 1
+        cat["synthesis"] = translated[idx] if idx < len(translated) else cat.get("synthesis", "")
+        idx += 1
+        
+        for concept in cat.get("concepts", []):
+            concept["name"] = translated[idx] if idx < len(translated) else concept.get("name", "")
+            idx += 1
+            concept["synthesis"] = translated[idx] if idx < len(translated) else concept.get("synthesis", "")
+            idx += 1
+            
+            for sub in concept.get("subconcepts", []):
+                sub["name"] = translated[idx] if idx < len(translated) else sub.get("name", "")
+                idx += 1
+                sub["synthesis"] = translated[idx] if idx < len(translated) else sub.get("synthesis", "")
+                idx += 1
+                sub["evidence"] = translated[idx] if idx < len(translated) else sub.get("evidence", "")
+                idx += 1
+    
+    return structure
+
+
+def analyze_and_add_gaps(session, workspace_id: str, file_id: str,
+                         clova_api_key: str, clova_api_url: str) -> int:
+    """Analyze knowledge gaps and add suggestions to leaf nodes"""
+    from src.pipeline.llm_analysis import call_llm_compact
+    from src.pipeline.neo4j_graph import GapSuggestion, create_gap_suggestion_node
+    
+    # Find all leaf nodes
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $workspace_id})
+        WHERE NOT (n)-[:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->()
+        RETURN n.id as node_id, n.name as node_name, n.synthesis as synthesis
+        """,
+        workspace_id=workspace_id
+    )
+    
+    leaf_nodes = [dict(record) for record in result]
+    gap_count = 0
+    
+    for node in leaf_nodes:
+        node_id = node["node_id"]
+        node_name = node["node_name"]
+        synthesis = node["synthesis"]
+        
+        if not synthesis:
+            continue
+        
+        # Generate gap suggestions using LLM
+        gap_prompt = f"""Analyze this knowledge node and suggest 2-3 specific questions or topics that would deepen understanding:
+
+Node: {node_name}
+Content: {synthesis}
+
+Return JSON:
+{{"suggestions": ["question 1", "question 2", "question 3"]}}"""
+        
+        result = call_llm_compact(gap_prompt, max_tokens=200, 
+                                 clova_api_key=clova_api_key, 
+                                 clova_api_url=clova_api_url)
+        
+        suggestions = result.get("suggestions", [])
+        
+        # Create GapSuggestion nodes
+        for suggestion_text in suggestions[:3]:  # Max 3
+            gap = GapSuggestion(
+                SuggestionText=suggestion_text,
+                TargetNodeId=node_id,
+                TargetFileId=file_id,
+                SimilarityScore=0.0
+            )
+            
+            create_gap_suggestion_node(session, gap, node_id)
+            gap_count += 1
+    
+    return gap_count
 
 # ================================
 # MESSAGE HANDLER
