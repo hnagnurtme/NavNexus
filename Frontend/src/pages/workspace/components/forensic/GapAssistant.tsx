@@ -16,7 +16,7 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestion, topicNam
   return (
     <section className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
       <div className="mb-3 flex items-center gap-2 text-amber-200">
-        <Lightbulb size={18} />
+        <Lightbulb width={18} height={18} />
         <h4 className="font-semibold uppercase tracking-widest text-xs">Gap Assistant</h4>
       </div>
       <p className="mb-3 text-amber-50/80">{suggestion.reason}</p>
@@ -29,7 +29,7 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestion, topicNam
             onClick={() => navigator.clipboard.writeText(keyword)}
           >
             <span className="line-clamp-1 font-mono">{keyword}</span>
-            <Search size={14} />
+            <Search width={14} height={14} />
           </button>
         ))}
       </div>
@@ -41,7 +41,7 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestion, topicNam
           href={`https://scholar.google.com/scholar?q=${encodeURIComponent(keywords[0])}`}
         >
           Scholar
-          <ExternalLink size={12} />
+          <ExternalLink width={12} height={12} />
         </a>
         <a
           className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 px-3 py-1"
@@ -50,7 +50,7 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestion, topicNam
           href={`https://www.dbpia.co.kr/search/topSearch?searchOption=all&query=${encodeURIComponent(keywords[1])}`}
         >
           DBpia
-          <ExternalLink size={12} />
+          <ExternalLink width={12} height={12} />
         </a>
       </div>
     </section>

@@ -7,7 +7,7 @@ interface OnboardingPanelProps {
 
 export const OnboardingPanel: React.FC<OnboardingPanelProps> = ({ onStart, isBuilding }) => (
   <div className="flex h-full flex-col items-center justify-center text-center text-white">
-    <Rocket className="mb-6 text-emerald-400" size={72} />
+    <Rocket className="mb-6 text-emerald-400" width={72} height={72} />
     <h1 className="mb-4 text-4xl font-bold tracking-tight">Knowledge Graph Synthesizer</h1>
     <p className="max-w-2xl text-lg text-white/70">
       Upload your multilingual research dossiers and let NavNexus harmonize terminology, expose

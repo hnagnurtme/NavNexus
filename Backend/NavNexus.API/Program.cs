@@ -1,138 +1,76 @@
-using System.Text;
-using FirebaseAdmin;
-using Google.Apis.Auth.OAuth2;
-using Hangfire;
-using Hangfire.InMemory;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using NavNexus.API.Filters;
-using NavNexus.API.Middlewares;
+using FluentValidation;
+using Serilog;
+using NavNexus.Domain;
 using NavNexus.Application;
 using NavNexus.Infrastructure;
+using NavNexus.API;
+using NavNexus.API.Middleware;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container
-builder.Services.AddControllers(options =>
-{
-    options.Filters.Add<ValidationFilter>();
-});
+// =========================
+// Serilog
+// =========================
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .CreateLogger();
+builder.Host.UseSerilog();
 
-// Add API documentation
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new() { Title = "NavNexus API", Version = "v1" });
-    c.EnableAnnotations();
-});
-
-// Add AutoMapper
-builder.Services.AddAutoMapper(typeof(Program));
-
-// Add Application and Infrastructure layers
+// =========================
+// Services
+// =========================
+builder.Services.AddDomain();
 builder.Services.AddApplication();
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddApi();
 
-// Configure Hangfire with InMemory storage for development
-builder.Services.AddHangfire(config =>
-{
-    config.UseInMemoryStorage();
-    config.SetDataCompatibilityLevel(CompatibilityLevel.Version_180);
-    config.UseSimpleAssemblyNameTypeSerializer();
-    config.UseRecommendedSerializerSettings();
-});
+// FluentValidation
+builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 
-builder.Services.AddHangfireServer();
+// Controllers
+builder.Services.AddControllers();
 
-// Configure Firebase
-try
-{
-    if (FirebaseApp.DefaultInstance == null)
-    {
-        FirebaseApp.Create(new AppOptions
-        {
-            Credential = GoogleCredential.GetApplicationDefault()
-        });
-    }
-}
-catch (Exception ex)
-{
-    // Firebase initialization failed - will work in local dev mode
-    builder.Services.AddLogging(logging => 
-        logging.AddConsole().SetMinimumLevel(LogLevel.Warning));
-    Console.WriteLine($"Firebase initialization skipped: {ex.Message}");
-}
-
-// Configure JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "your-super-secret-key-that-is-at-least-32-characters-long";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "NavNexus";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "NavNexusUsers";
-
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
-.AddJwtBearer(options =>
-{
-    options.TokenValidationParameters = new TokenValidationParameters
-    {
-        ValidateIssuer = true,
-        ValidateAudience = true,
-        ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
-        ValidAudience = jwtAudience,
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
-    };
-});
-
-builder.Services.AddAuthorization();
-
-// Configure CORS
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
-
+// =========================
+// Build app
+// =========================
 var app = builder.Build();
 
-// Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+// =========================
+// Middleware pipeline
+// =========================
+
+// HTTPS redirect (must be early, before Swagger)
+app.UseHttpsRedirection();
+
+// Swagger (after HTTPS redirect)
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-    
-    // Hangfire Dashboard (only in development)
-    app.UseHangfireDashboard("/hangfire", new DashboardOptions
+    app.UseSwagger(c =>
     {
-        Authorization = new[] { new HangfireAuthorizationFilter() }
+        c.SerializeAsV2 = false; // Use OpenAPI 3.0
+    });
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "NavNexus API v1");
+        c.RoutePrefix = "swagger"; // /swagger
+        c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.None);
     });
 }
 
-app.UseHangfireDashboard("/hangfire", new DashboardOptions
-{
-    Authorization = new[] { new HangfireAuthorizationFilter() }
-});
+// Exception handling
+app.UseExceptionHandling();
 
-// Global exception handler
-app.UseMiddleware<GlobalExceptionHandler>();
+// CORS
+app.UseCors("AllowAll");
 
-// Firebase authentication middleware (optional, use JWT by default)
-// app.UseMiddleware<FirebaseAuthMiddleware>();
-
-app.UseHttpsRedirection();
-
-app.UseCors();
-
+// Auth
 app.UseAuthentication();
 app.UseAuthorization();
 
+// Controllers
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }

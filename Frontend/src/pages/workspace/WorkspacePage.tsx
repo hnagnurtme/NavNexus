@@ -76,7 +76,7 @@ export const WorkspacePage: React.FC = () => {
             className="flex h-full w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/60 transition hover:text-white"
             aria-label="Show control panel"
           >
-            <Menu size={20} />
+            <Menu width={20} height={20} />
           </button>
         )}
 

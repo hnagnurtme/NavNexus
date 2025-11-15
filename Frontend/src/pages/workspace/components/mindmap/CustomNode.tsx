@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from "react";
+import React, { memo } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import {
 	FileText,
@@ -55,18 +55,6 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 		onClearSelection,
 	} = data;
 
-	// DEBUG: Log when component renders
-	useEffect(() => {
-		console.log("CustomNode render:", {
-			id,
-			name,
-			hasChildren,
-			view,
-			hasOnToggle: !!onToggle,
-			hasOnSelect: !!onSelect,
-		});
-	}, [id, name, hasChildren, view, onToggle, onSelect]);
-
 	const isLeafNode = !children || children.length === 0;
 
 	const isMergedNode =
@@ -79,38 +67,21 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 	const targetPosition = Position.Left;
 	const sourcePosition = Position.Right;
 
-	const handleClick = (e: React.MouseEvent) => {
-		console.log("=== CustomNode handleClick ===");
-		console.log("Node ID:", id);
-		console.log("Node name:", name);
-		console.log("View:", view);
-		console.log("hasChildren:", hasChildren);
-		console.log("onToggle exists:", !!onToggle);
-		console.log("onSelect exists:", !!onSelect);
-
+	const handleClick = () => {
 		if (onSelect) {
-			console.log("Calling onSelect");
 			onSelect(id);
-		} else {
-			console.log("ERROR: onSelect is undefined!");
 		}
 
 		if (view === "galaxy" && hasChildren) {
-			console.log("Should toggle - calling onToggle");
 			if (onToggle) {
 				onToggle(id);
-			} else {
-				console.log("ERROR: onToggle is undefined!");
 			}
-		} else {
-			console.log("Not toggling because:", { view, hasChildren });
 		}
 	};
 
 	const handleKeyDown: React.KeyboardEventHandler<HTMLButtonElement> = (
 		event
 	) => {
-		console.log("=== CustomNode handleKeyDown ===", event.key);
 		if (event.key === "Enter") {
 			event.preventDefault();
 			onSelect?.(id);
@@ -126,12 +97,12 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 
 	const getNodeIcon = () => {
 		if (isGap || isLeafNode)
-			return <FlaskConical size={18} className="text-amber-400" />;
+			return <FlaskConical width={18} height={18} className="text-amber-400" />;
 		if (type === "document")
-			return <FileText size={18} className="text-green-300" />;
+			return <FileText width={18} height={18} className="text-green-300" />;
 		if (type === "topic")
-			return <BrainCircuit size={18} className="text-green-300" />;
-		return <Lightbulb size={18} className="text-green-300" />;
+			return <BrainCircuit width={18} height={18} className="text-green-300" />;
+		return <Lightbulb width={18} height={18} className="text-green-300" />;
 	};
 
 	return (
@@ -170,7 +141,7 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 
 			{isMergedNode && (
 				<div className="absolute -top-2 -right-2 z-10 bg-cyan-500 rounded-full p-1.5 shadow-lg border-2 border-gray-900">
-					<GitMerge size={12} className="text-white" />
+					<GitMerge width={12} height={12} className="text-white" />
 				</div>
 			)}
 

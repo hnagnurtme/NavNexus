@@ -35,7 +35,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
     return (
       <aside className="flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-center text-white/70 shadow-2xl backdrop-blur-xl">
         <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <FileText size={42} className="text-white/40" />
+          <FileText width={42} height={42} className="text-white/40" />
           <p>Select a node on the canvas to inspect AI synthesis, evidence, and travel options.</p>
         </div>
       </aside>
@@ -68,7 +68,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
         <div className="mb-3 flex items-center gap-2 text-white">
-          <BrainCircuit size={18} />
+          <BrainCircuit width={18} height={18} />
           <h3 className="text-xs font-semibold uppercase tracking-widest">AI Synthesis</h3>
         </div>
         <p className="leading-relaxed text-white/80">{details.synthesis}</p>
@@ -104,7 +104,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 
       <section className="mt-4 flex-1 space-y-3 overflow-y-auto pr-3">
         <div className="flex items-center gap-2 text-white">
-          <Sparkles size={16} />
+          <Sparkles width={16} height={16} />
           <h3 className="text-xs font-semibold uppercase tracking-widest">Evidence</h3>
         </div>
         <div className="space-y-3">

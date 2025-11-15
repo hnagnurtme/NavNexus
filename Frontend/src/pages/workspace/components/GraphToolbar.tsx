@@ -15,7 +15,7 @@ export const GraphToolbar: React.FC = () => {
         onClick={() => fitView({ padding: 0.2 })}
         className="rounded-full p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
       >
-        <Maximize size={16} />
+        <Maximize width={16} height={16} />
       </button>
       <button
         type="button"
@@ -23,7 +23,7 @@ export const GraphToolbar: React.FC = () => {
         onClick={() => zoomIn({ duration: 200 })}
         className="rounded-full p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
       >
-        <ZoomIn size={16} />
+        <ZoomIn width={16} height={16} />
       </button>
       <button
         type="button"
@@ -31,7 +31,7 @@ export const GraphToolbar: React.FC = () => {
         onClick={() => zoomOut({ duration: 200 })}
         className="rounded-full p-2 text-white/70 transition hover:bg-white/10 hover:text-white"
       >
-        <ZoomOut size={16} />
+        <ZoomOut width={16} height={16} />
       </button>
     </div>
   );

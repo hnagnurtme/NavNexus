@@ -372,7 +372,7 @@ const KnowledgeMindmapContent: React.FC<Omit<KnowledgeMindmapProps, 'view'>> = (
               className="mt-16 ml-4 w-80 max-w-sm rounded-2xl border border-emerald-500/30 bg-slate-950/80 p-4 text-white shadow-2xl backdrop-blur"
             >
               <div className="mb-3 flex items-center gap-3 text-emerald-300">
-                <BrainCircuit size={20} />
+                <BrainCircuit width={20} height={20} />
                 <h3 className="text-lg font-bold">AI Synthesis</h3>
               </div>
               <p className="text-sm text-white/80 leading-relaxed">

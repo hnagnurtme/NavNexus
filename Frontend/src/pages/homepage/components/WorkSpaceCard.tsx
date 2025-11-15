@@ -1,14 +1,27 @@
 import { ArrowRight, Briefcase } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-export const WorkSpaceCard = ({ workspace }:{workspace: any}) => {
+import type { WorkspaceDetailResponse } from "@/types/workspace.types";
+
+type WorkSpaceCardProps = {
+  workspace: WorkspaceDetailResponse;
+};
+
+export const WorkSpaceCard = ({ workspace }: WorkSpaceCardProps) => {
   const navigate = useNavigate();
+  
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+
   return (
     <div
-      key={workspace.id}
+      key={workspace.workspaceId}
       className="group relative overflow-hidden rounded-[1.75rem] border border-[#2a2a2a] bg-[#121212] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition hover:border-[#03C75A]/40 hover:shadow-[0_30px_70px_rgba(3,199,90,0.15)]"
     >
       <div
-        className={`absolute inset-0 bg-linear-to-br ${workspace.color} opacity-25`}
+        className="absolute inset-0 bg-linear-to-br from-[#03C75A]/40 to-[#03C75A]/10 opacity-25"
       />
       <div className="relative flex flex-col h-full gap-5">
         <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-1 text-[11px] font-medium uppercase tracking-[0.3em] text-[#b3b3b3]">
@@ -20,27 +33,33 @@ export const WorkSpaceCard = ({ workspace }:{workspace: any}) => {
           <h4 className="text-lg font-semibold text-[#f5f5f5]">
             {workspace.name}
           </h4>
-          <p className="mt-2 text-sm text-[#b3b3b3]">{workspace.description}</p>
+          <p className="mt-2 text-sm text-[#b3b3b3]">{workspace.description || 'No description'}</p>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-[#b3b3b3]">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#03C75A]/20 text-[11px] font-semibold text-[#03C75A]">
-            {workspace.documentCount}
+            {workspace.fileIds?.length || 0}
           </span>
           documents
         </div>
 
-        <ul className="space-y-2 text-xs text-[#b3b3b3]">
-          {workspace.documents.map((doc:any) => (
-            <li key={doc} className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#03C75A]" />
-              {doc}
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-1 text-xs text-[#b3b3b3]">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Owner:</span>
+            <span>{workspace.ownerName}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Created:</span>
+            <span>{formatDate(workspace.createdAt)}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="font-semibold">Updated:</span>
+            <span>{formatDate(workspace.updatedAt)}</span>
+          </div>
+        </div>
 
         <button
-          onClick={() => navigate(`/workspace/${workspace.id}`)}
+          onClick={() => navigate(`/workspace/${workspace.workspaceId}`)}
           className="mt-auto inline-flex items-center gap-2 self-start rounded-full border border-transparent bg-[#03C75A]/20 px-4 py-2 text-sm font-semibold text-[#03C75A] transition hover:bg-[#03C75A]/30"
         >
           Open Workspace
