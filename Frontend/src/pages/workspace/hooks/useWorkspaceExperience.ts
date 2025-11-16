@@ -33,11 +33,12 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
   const [isNodeLoading, setIsNodeLoading] = useState(false);
   const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isControlPanelVisible, setIsControlPanelVisible] = useState(true);
+  const [isControlPanelVisible, setIsControlPanelVisible] = useState(false); // Auto-hide sidebar
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
   const [journey, setJourney] = useState<JourneyState>(initialJourneyState);
   const highlightTimer = useRef<number | null>(null);
   const journeyRef = useRef<JourneyState>(journey);
+  const hasAutoLoaded = useRef(false);
 
   useEffect(() => {
     journeyRef.current = journey;
@@ -50,6 +51,14 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
       }
     };
   }, []);
+
+  // Auto-load MindMap when workspace is available
+  useEffect(() => {
+    if (workspaceId && !hasAutoLoaded.current && !tree && !isBuilding) {
+      hasAutoLoaded.current = true;
+      buildGraph();
+    }
+  }, [workspaceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const focusNode = useCallback(
     async (nodeId: string) => {

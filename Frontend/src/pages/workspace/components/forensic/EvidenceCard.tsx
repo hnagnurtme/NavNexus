@@ -23,20 +23,40 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
     )}
   >
     <p className="line-clamp-3 text-white/80">{evidence.text}</p>
-    <div className="mt-3 text-xs text-white/50">
+    <div className="mt-3 space-y-1.5 text-xs text-white/50">
       {evidence.hierarchyPath && (
         <p className="font-mono text-white/60">{evidence.hierarchyPath}</p>
       )}
       {evidence.sourceName && (
-        <p className="mt-1 inline-flex items-center gap-2 text-emerald-300">
+        <p className="inline-flex items-center gap-2 text-emerald-300">
           {evidence.sourceName}
           {evidence.page && ` (Page ${evidence.page})`}
         </p>
       )}
-      {evidence.confidence !== undefined && (
-        <p className="mt-1">
-          Confidence: {(evidence.confidence * 100).toFixed(0)}%
+      {evidence.sourceLanguage && (
+        <p className="text-white/60">
+          Language: <span className="text-cyan-300">{evidence.sourceLanguage}</span>
         </p>
+      )}
+      {evidence.keyClaims && evidence.keyClaims.length > 0 && (
+        <div className="mt-2">
+          <p className="font-semibold text-white/70">Key Claims:</p>
+          <ul className="ml-3 mt-1 list-disc space-y-0.5 text-white/60">
+            {evidence.keyClaims.slice(0, 3).map((claim, idx) => (
+              <li key={idx} className="line-clamp-2">{claim}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {evidence.questionsRaised && evidence.questionsRaised.length > 0 && (
+        <div className="mt-2">
+          <p className="font-semibold text-amber-300/80">Questions Raised:</p>
+          <ul className="ml-3 mt-1 list-disc space-y-0.5 text-amber-200/70">
+            {evidence.questionsRaised.slice(0, 2).map((question, idx) => (
+              <li key={idx} className="line-clamp-2">{question}</li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
 

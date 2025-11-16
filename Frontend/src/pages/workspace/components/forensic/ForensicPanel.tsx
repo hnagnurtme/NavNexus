@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BrainCircuit, FileText, Loader2, Sparkles } from 'lucide-react';
+import { FileText, Loader2, Sparkles } from 'lucide-react';
 import type { KnowledgeNodeUI } from '@/types';
 import type { WorkspaceNode } from '../../utils/treeUtils';
 import { EvidenceCard } from './EvidenceCard';
@@ -78,26 +78,21 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
         )}
       </header>
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-        <div className="mb-3 flex items-center gap-2 text-white">
-          <BrainCircuit width={18} height={18} />
-          <h3 className="text-xs font-semibold uppercase tracking-widest">AI Synthesis</h3>
-        </div>
-        <p className="leading-relaxed text-white/80">{details.description || 'No synthesis available.'}</p>
-      </section>
-
       <section className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          className="flex-1 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-200 transition hover:border-emerald-400/80"
+          className="group relative flex-1 overflow-hidden rounded-2xl border-2 border-emerald-500/60 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 px-4 py-3 text-sm font-bold uppercase tracking-wider text-emerald-200 shadow-lg transition-all duration-300 hover:border-emerald-400 hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!selectedNode || !selectedNode.hasChildren || journeyActive}
           onClick={() => selectedNode && onStartJourney(selectedNode.nodeId)}
         >
-          Start Journey
+          <span className="relative z-10 flex items-center justify-center gap-2">
+            🚀 Start Journey
+          </span>
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
         </button>
         <button
           type="button"
-          className="flex-1 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyan-200 transition hover:border-cyan-400/80"
+          className="flex-1 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm font-semibold uppercase tracking-wider text-cyan-200 transition hover:border-cyan-400/80 hover:bg-cyan-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
           disabled={!selectedNode || !(selectedNode.children?.length || 0)}
           onClick={() =>
             selectedNode?.children &&

@@ -28,6 +28,7 @@ export interface MindmapNodeData {
 	onToggle?: (nodeId: string) => void;
 	onSelect?: (nodeId: string) => void;
 	onClearSelection?: () => void;
+	childCount?: number; // Number of children for decision point visualization
 }
 
 const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
@@ -53,9 +54,11 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 		onToggle,
 		onSelect,
 		onClearSelection,
+		childCount = 0,
 	} = data;
 
 	const isLeafNode = !children || children.length === 0;
+	const isDecisionPoint = hasChildren && childCount > 1; // Decision point has multiple children
 
 	const isMergedNode =
 		evidence &&
@@ -115,6 +118,8 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 				? "border-2 border-green-400 scale-105"
 				: isLeafNode
 				? "border-2 border-amber-400"
+				: isDecisionPoint
+				? "border-2 border-purple-400 shadow-purple-500/50"
 				: "border border-white/20"
 		}
         ${isOnJourneyPath ? "ring-2 ring-green-500/50" : ""}
@@ -122,6 +127,8 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
         ${
 			isGap || isLeafNode
 				? "bg-gradient-to-br from-amber-800/50 to-black/70"
+				: isDecisionPoint
+				? "bg-gradient-to-br from-purple-800/50 to-black/70"
 				: "bg-gradient-to-br from-gray-800/50 to-black/70"
 		}
         ${isPulsing ? "animate-pulse ring-4 ring-cyan-400/50 scale-110" : ""}
@@ -142,6 +149,12 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 			{isMergedNode && (
 				<div className="absolute -top-2 -right-2 z-10 bg-cyan-500 rounded-full p-1.5 shadow-lg border-2 border-gray-900">
 					<GitMerge width={12} height={12} className="text-white" />
+				</div>
+			)}
+
+			{isDecisionPoint && !isCurrentJourneyNode && (
+				<div className="absolute -top-2 -left-2 z-10 bg-purple-500 rounded-full p-1.5 shadow-lg border-2 border-gray-900">
+					<span className="text-white text-xs font-bold">{childCount}</span>
 				</div>
 			)}
 
