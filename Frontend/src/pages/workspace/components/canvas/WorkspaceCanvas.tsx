@@ -17,11 +17,15 @@ interface WorkspaceCanvasProps {
 	viewMode: ViewMode;
 	isBuilding: boolean;
 	isNodeLoading: boolean;
+	loadingNodeName?: string | null;
 	selectedNodeId: string | null;
 	highlightedNodeIds: string[];
 	journeyPathIds: string[];
 	onSelectNode: NodeSelectHandler;
 	onBuildGraph: () => void;
+	pendingBranchNodeId: string | null;
+	onPendingBranchHandled?: () => void;
+	focusedJourneyNodeId?: string | null;
 }
 
 const DEFAULT_EDGE_STYLE = { strokeWidth: 2, stroke: "#059669" } as const;
@@ -50,11 +54,15 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 	viewMode,
 	isBuilding,
 	isNodeLoading,
+	loadingNodeName,
 	selectedNodeId,
 	highlightedNodeIds,
 	journeyPathIds,
 	onSelectNode,
 	onBuildGraph,
+	pendingBranchNodeId,
+	onPendingBranchHandled,
+	focusedJourneyNodeId,
 }) => {
 	const { galaxy, query, actions, initialized } =
 		useWorkspaceGraph(workspaceId);
@@ -80,6 +88,36 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 		actions.loadQueryTree();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [query.error, query.loading, query.nodes.length, view, viewMode]);
+
+	useEffect(() => {
+		if (
+			!pendingBranchNodeId ||
+			view !== "active" ||
+			viewMode !== "galaxy"
+		) {
+			return;
+		}
+		let cancelled = false;
+		const expand = async () => {
+			try {
+				await actions.expandNode(pendingBranchNodeId);
+			} finally {
+				if (!cancelled) {
+					onPendingBranchHandled?.();
+				}
+			}
+		};
+		expand();
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		actions,
+		pendingBranchNodeId,
+		view,
+		viewMode,
+		onPendingBranchHandled,
+	]);
 
 	const galaxyNodes = useMemo(
 		() =>
@@ -163,6 +201,8 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 						onNodeSelect={handleNodeSelect}
 						onToggleNode={handleToggleNode}
 						onClearSelection={handleClearSelection}
+						viewportKey={galaxy.viewportKey}
+						focusedNodeId={focusedJourneyNodeId}
 					/>
 				) : (
 					<QueryTreeGraph
@@ -173,15 +213,24 @@ export const WorkspaceCanvas: React.FC<WorkspaceCanvasProps> = ({
 						onSelect={handleNodeSelect}
 						selectedNodeId={galaxy.selectedNodeId}
 						onRetry={actions.loadQueryTree}
+						viewportKey={query.viewportKey}
+						focusedNodeId={focusedJourneyNodeId}
 					/>
 				)}
 			</div>
 
 			{isNodeLoading && (
-				<div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-					<div className="flex items-center gap-3 rounded-full border border-white/10 bg-black/60 px-5 py-2 text-sm font-medium text-white/80">
+				<div className="pointer-events-none absolute left-6 top-6">
+					<div
+						className="flex items-center gap-3 rounded-full border border-white/10 bg-black/70 px-5 py-2 text-xs font-medium text-white/80 shadow-lg"
+						aria-live="polite"
+					>
 						<Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
-						Loading insights…
+						<span>
+							{loadingNodeName
+								? `Fetching insights for ${loadingNodeName}`
+								: "Fetching insights…"}
+						</span>
 					</div>
 				</div>
 			)}
