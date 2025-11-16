@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
 using Serilog;
 using NavNexus.Domain;
 using NavNexus.Application;
@@ -32,6 +33,10 @@ builder.Services.AddValidatorsFromAssembly(typeof(Program).Assembly);
 // Controllers
 builder.Services.AddControllers();
 
+builder.Services.Configure<ApiBehaviorOptions>(options =>
+{
+    options.SuppressModelStateInvalidFilter = true;
+});
 // =========================
 // Build app
 // =========================
