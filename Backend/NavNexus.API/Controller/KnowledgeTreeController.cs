@@ -53,7 +53,7 @@ public class KnowledgeNodeController : ControllerBase
     }
 
 
-    [HttpGet("/node/{nodeId}")]
+    [HttpGet("node/{nodeId}")]
     [SwaggerOperation(Summary = "Get Knowledge Node by ID", Description = "Retrieve a knowledge node by its ID.")]
     [ProducesResponseType(typeof(ApiResponse<GetKnowledgeNodeResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetKnowledgeNodeById( [FromRoute] string nodeId)
