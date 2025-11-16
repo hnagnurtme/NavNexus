@@ -31,7 +31,7 @@ public class JwtService : IJwtService
         var issuer = _configuration["Jwt:Issuer"] ?? "NavNexus";
         var audience = _configuration["Jwt:Audience"] ?? "NavNexusClients";
 
-        var expires = DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromHours(1));
+        var expires = DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromDays(7));
 
         var token = new JwtSecurityToken(
             claims: claims,
