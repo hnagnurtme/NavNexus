@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { ControlPanel } from './components/control/ControlPanel';
@@ -6,12 +6,14 @@ import { WorkspaceCanvas } from './components/canvas/WorkspaceCanvas';
 import { ForensicPanel } from './components/forensic/ForensicPanel';
 import { ViewToggle } from './components/common/ViewToggle';
 import { JourneyOverlay } from './components/journey/JourneyOverlay';
+import { FloatingAISynthesis } from './components/common/FloatingAISynthesis';
 import { useWorkspaceExperience } from './hooks/useWorkspaceExperience';
 import { findWorkspaceNode } from './utils/treeUtils';
 
 export const WorkspacePage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const experience = useWorkspaceExperience(workspaceId);
+  const [showAISynthesis, setShowAISynthesis] = useState(true);
 
   const {
     view,
@@ -45,6 +47,13 @@ export const WorkspacePage: React.FC = () => {
     const node = findWorkspaceNode(tree, loadingNodeId);
     return node?.nodeName ?? null;
   }, [loadingNodeId, tree]);
+
+  // Auto-show AI Synthesis when a node is selected
+  useMemo(() => {
+    if (details) {
+      setShowAISynthesis(true);
+    }
+  }, [details]);
 
   if (!workspaceId) {
     return (
@@ -107,6 +116,11 @@ export const WorkspacePage: React.FC = () => {
             onPendingBranchHandled={actions.clearPendingBranchNode}
             focusedJourneyNodeId={journey.isActive ? journey.currentNodeId : null}
           />
+
+          {/* Floating AI Synthesis popup */}
+          {view === 'active' && details && showAISynthesis && (
+            <FloatingAISynthesis node={details} onClose={() => setShowAISynthesis(false)} />
+          )}
         </main>
 
         <ForensicPanel

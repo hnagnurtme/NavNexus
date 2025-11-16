@@ -41,6 +41,7 @@ const toFlowNode = (
 		level: treeNode.level,
 		isGap: (treeNode.gapSuggestions?.length ?? 0) > 0,
 		hasChildren: treeNode.hasChildren,
+		childCount: treeNode.children?.length ?? 0,
 		view: "galaxy" as const,
 		...options,
 	},
