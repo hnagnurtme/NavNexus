@@ -1,15 +1,13 @@
-import { NodeType } from './tree.types';
+import type { components } from './api.generated';
 
-export interface Evidence {
-  id: string;
-  text: string;
-  location: string;
-  sourceTitle: string;
-  sourceAuthor: string;
-  sourceYear: number;
-  sourceUrl: string;
-}
+// Use swagger-generated Evidence type
+export type Evidence = components['schemas']['Evidence'];
 
+// Use swagger-generated GapSuggestion type (renamed from old SuggestedDocument)
+export type GapSuggestion = components['schemas']['GapSuggestion'];
+
+// Keep legacy types for backward compatibility during migration
+// TODO: Remove these once all components are migrated to swagger types
 export interface SuggestedDocument {
   title: string;
   reason: string;
@@ -22,13 +20,4 @@ export interface AiSuggestion {
   isCrossroads: boolean;
   reason: string;
   suggestedDocuments?: SuggestedDocument[];
-}
-
-export interface NodeDetailsResponse {
-  id: string;
-  name: string;
-  type: NodeType;
-  synthesis: string;
-  evidence: Evidence[];
-  aiSuggestion: AiSuggestion;
 }

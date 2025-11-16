@@ -2,7 +2,10 @@ import { apiClient } from './api.service';
 import type { 
   TreeRootResponse, 
   NodeChildrenResponse, 
-  NodeDetailsResponse 
+  NodeDetailsResponse,
+  GetKnowledgeNodeResponseApiResponse,
+  CreatedKnowledgetreeRequest,
+  RabbitMqSendingResponseApiResponse
 } from '@/types';
 import { mockTreeService } from '@/mocks/mockData';
 
@@ -10,7 +13,42 @@ import { mockTreeService } from '@/mocks/mockData';
 const USE_MOCK = import.meta.env.DEV;
 
 export const treeService = {
-  // API 1: Load root + level 1 children
+  /**
+   * Get knowledge tree root node with children
+   * Endpoint: GET /api/knowledge-tree/{workspaceId}
+   */
+  async getKnowledgeTree(workspaceId: string): Promise<GetKnowledgeNodeResponseApiResponse> {
+    const { data } = await apiClient.get<GetKnowledgeNodeResponseApiResponse>(
+      `/knowledge-tree/${workspaceId}`
+    );
+    return data;
+  },
+
+  /**
+   * Get knowledge node by ID
+   * Endpoint: GET /api/knowledge-tree/node/{nodeId}
+   */
+  async getKnowledgeNodeById(nodeId: string): Promise<GetKnowledgeNodeResponseApiResponse> {
+    const { data } = await apiClient.get<GetKnowledgeNodeResponseApiResponse>(
+      `/knowledge-tree/node/${nodeId}`
+    );
+    return data;
+  },
+
+  /**
+   * Create knowledge tree for a workspace
+   * Endpoint: POST /api/knowledge-tree
+   */
+  async createKnowledgeTree(request: CreatedKnowledgetreeRequest): Promise<RabbitMqSendingResponseApiResponse> {
+    const { data } = await apiClient.post<RabbitMqSendingResponseApiResponse>(
+      '/knowledge-tree',
+      request
+    );
+    return data;
+  },
+
+  // Legacy methods - kept for backward compatibility with mock data
+  // TODO: Remove once all components migrate to new swagger endpoints
   async getTreeRoot(workspaceId: string): Promise<TreeRootResponse> {
     if (USE_MOCK) {
       return mockTreeService.getTreeRoot(workspaceId);
@@ -21,7 +59,6 @@ export const treeService = {
     return data;
   },
 
-  // API 2: Load children of a node
   async getNodeChildren(
     workspaceId: string, 
     nodeId: string
@@ -35,7 +72,6 @@ export const treeService = {
     return data;
   },
 
-  // API 3: Load node details (synthesis, evidence, suggestions)
   async getNodeDetails(
     workspaceId: string, 
     nodeId: string

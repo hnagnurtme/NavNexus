@@ -24,18 +24,20 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
   >
     <p className="line-clamp-3 text-white/80">{evidence.text}</p>
     <div className="mt-3 text-xs text-white/50">
-      <p className="font-mono text-white/60">{evidence.location}</p>
-      <a
-        href={evidence.sourceUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="mt-1 inline-flex items-center gap-2 text-emerald-300 hover:text-emerald-200"
-      >
-        {evidence.sourceTitle}
-      </a>
-      <p>
-        {evidence.sourceAuthor} • {evidence.sourceYear}
-      </p>
+      {evidence.hierarchyPath && (
+        <p className="font-mono text-white/60">{evidence.hierarchyPath}</p>
+      )}
+      {evidence.sourceName && (
+        <p className="mt-1 inline-flex items-center gap-2 text-emerald-300">
+          {evidence.sourceName}
+          {evidence.page && ` (Page ${evidence.page})`}
+        </p>
+      )}
+      {evidence.confidence !== undefined && (
+        <p className="mt-1">
+          Confidence: {(evidence.confidence * 100).toFixed(0)}%
+        </p>
+      )}
     </div>
 
     <button
