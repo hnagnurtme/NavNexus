@@ -7,6 +7,7 @@ import { ForensicPanel } from './components/forensic/ForensicPanel';
 import { ViewToggle } from './components/common/ViewToggle';
 import { JourneyOverlay } from './components/journey/JourneyOverlay';
 import { FloatingAISynthesis } from './components/common/FloatingAISynthesis';
+import { FloatingNodeInfo } from './components/common/FloatingNodeInfo';
 import { useWorkspaceExperience } from './hooks/useWorkspaceExperience';
 import { findWorkspaceNode } from './utils/treeUtils';
 
@@ -14,6 +15,7 @@ export const WorkspacePage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const experience = useWorkspaceExperience(workspaceId);
   const [showAISynthesis, setShowAISynthesis] = useState(true);
+  const [showNodeInfo, setShowNodeInfo] = useState(true);
 
   const {
     view,
@@ -52,6 +54,7 @@ export const WorkspacePage: React.FC = () => {
   useMemo(() => {
     if (details) {
       setShowAISynthesis(true);
+      setShowNodeInfo(true);
     }
   }, [details]);
 
@@ -120,6 +123,16 @@ export const WorkspacePage: React.FC = () => {
           {/* Floating AI Synthesis popup */}
           {view === 'active' && details && showAISynthesis && (
             <FloatingAISynthesis node={details} onClose={() => setShowAISynthesis(false)} />
+          )}
+
+          {/* Floating Node Info popup */}
+          {view === 'active' && details && showNodeInfo && (
+            <FloatingNodeInfo
+              node={details}
+              onClose={() => setShowNodeInfo(false)}
+              onStartJourney={actions.startJourney}
+              journeyActive={journey.isActive}
+            />
           )}
         </main>
 
