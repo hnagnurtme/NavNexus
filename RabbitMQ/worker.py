@@ -8,6 +8,7 @@ import json
 import uuid
 import gc
 import traceback
+import threading
 from datetime import datetime
 from typing import Dict, Any
 
@@ -32,6 +33,8 @@ from src.model.QdrantChunk import QdrantChunk
 # External dependencies
 from neo4j import GraphDatabase
 from qdrant_client import QdrantClient
+from fastapi import FastAPI
+import uvicorn
 
 # ================================
 # CONFIGURATION
@@ -73,6 +76,9 @@ CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "2000"))
 OVERLAP = int(os.getenv("OVERLAP", "400"))
 BATCH_SIZE = 3
 
+# Health check port
+HEALTH_CHECK_PORT = int(os.getenv("HEALTH_CHECK_PORT", "8000"))
+
 # ================================
 # INITIALIZE CLIENTS
 # ================================
@@ -95,6 +101,20 @@ neo4j_driver = GraphDatabase.driver(NEO4J_URL, auth=(NEO4J_USER, NEO4J_PASSWORD)
 firebase_client = FirebaseClient(FIREBASE_SERVICE_ACCOUNT, FIREBASE_DATABASE_URL)
 
 print("✓ Connected to Qdrant, Neo4j & Firebase")
+
+# ================================
+# FASTAPI HEALTH CHECK SERVER
+# ================================
+health_app = FastAPI()
+
+@health_app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+def start_health_check_server():
+    """Starts the FastAPI health check server."""
+    print(f"🩺 Starting health check server on port {HEALTH_CHECK_PORT}...")
+    uvicorn.run(health_app, host="0.0.0.0", port=HEALTH_CHECK_PORT, log_level="warning")
 
 
 # ================================
@@ -883,6 +903,10 @@ def main():
     print("🤖 RabbitMQ Worker Starting...")
     print("="*80)
     
+    # Start health check server in a separate thread
+    health_thread = threading.Thread(target=start_health_check_server, daemon=True)
+    health_thread.start()
+
     # Connect to RabbitMQ
     rabbitmq_client = RabbitMQClient(RABBITMQ_CONFIG)
     rabbitmq_client.connect()
