@@ -11,20 +11,23 @@ API Version: v1
 ## Authentication Endpoints
 
 ### POST /api/auth/register
+
 **Summary:** Register account  
 **Description:** Create a new user account with the provided registration information.
 
 **Request Body:**
+
 ```typescript
 {
-  email: string;           // User's email address
-  password: string;        // User's password
-  fullName: string;        // User's full name
-  phoneNumber: string;     // User's phone number
+  email: string; // User's email address
+  password: string; // User's password
+  fullName: string; // User's full name
+  phoneNumber: string; // User's phone number
 }
 ```
 
 **Response 201 (Created):**
+
 ```typescript
 {
   success: boolean;
@@ -32,12 +35,12 @@ API Version: v1
   data: {
     refreshToken: string | null;
     accessToken: string | null;
-    id: string;              // UUID format
+    id: string; // UUID format
     email: string | null;
     fullName: string | null;
     phoneNumber: string | null;
     emailVerified: boolean;
-  };
+  }
   statusCode: number;
   meta: unknown;
   errorCode: string | null;
@@ -47,10 +50,12 @@ API Version: v1
 ---
 
 ### POST /api/auth/login
+
 **Summary:** Login  
 **Description:** Authenticate user and return a JWT token.
 
 **Request Body:**
+
 ```typescript
 {
   email: string;              // User's email address
@@ -62,6 +67,7 @@ API Version: v1
 ```
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -69,12 +75,12 @@ API Version: v1
   data: {
     refreshToken: string | null;
     accessToken: string | null;
-    id: string;              // UUID format
+    id: string; // UUID format
     email: string | null;
     fullName: string | null;
     phoneNumber: string | null;
     emailVerified: boolean;
-  };
+  }
   statusCode: number;
   meta: unknown;
   errorCode: string | null;
@@ -84,10 +90,12 @@ API Version: v1
 ---
 
 ### POST /api/auth/refresh-token
+
 **Summary:** Generate refresh token  
 **Description:** Generate a new refresh token for the authenticated user.
 
 **Request Body:**
+
 ```typescript
 {
   userId: string;             // UUID format
@@ -99,14 +107,15 @@ API Version: v1
 ```
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
   message: string | null;
   data: {
     token: string | null;
-    expiresAt: string;       // ISO 8601 date-time format
-  };
+    expiresAt: string; // ISO 8601 date-time format
+  }
   statusCode: number;
   meta: unknown;
   errorCode: string | null;
@@ -116,14 +125,17 @@ API Version: v1
 ---
 
 ### GET /api/auth/verify-email
+
 **Summary:** Verify email  
 **Description:** Verify user's email using the provided token.
 
 **Query Parameters:**
+
 - `Email` (string, optional)
 - `Token` (string, optional)
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -136,7 +148,7 @@ API Version: v1
     fullName: string | null;
     phoneNumber: string | null;
     emailVerified: boolean;
-  };
+  }
   statusCode: number;
   meta: unknown;
   errorCode: string | null;
@@ -148,10 +160,12 @@ API Version: v1
 ## Workspace Endpoints
 
 ### GET /api/workspace
+
 **Summary:** Get workspace details by user ID  
 **Description:** Retrieve details of a specific workspace by its ID.
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -175,10 +189,12 @@ API Version: v1
 ---
 
 ### POST /api/workspace
+
 **Summary:** Create a new workspace  
 **Description:** Create a new workspace with the provided details.
 
 **Request Body:**
+
 ```typescript
 {
   name: string;              // Required
@@ -188,6 +204,7 @@ API Version: v1
 ```
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -211,16 +228,20 @@ API Version: v1
 ---
 
 ### GET /api/workspace/{userId}
+
 **Summary:** Get workspace details  
 **Description:** Retrieve details of a specific workspace by its ID.
 
 **Path Parameters:**
+
 - `userId` (string, required)
 
 **Query Parameters:**
+
 - `workspaceId` (string, optional)
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -246,13 +267,16 @@ API Version: v1
 ## Knowledge Tree Endpoints
 
 ### GET /api/knowledge-tree/{workspaceId}
+
 **Summary:** Get Knowledge Node  
 **Description:** Retrieve a knowledge node by its ID within a specified workspace.
 
 **Path Parameters:**
+
 - `workspaceId` (string, required)
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -279,13 +303,16 @@ API Version: v1
 ---
 
 ### GET /api/knowledge-tree/node/{nodeId}
+
 **Summary:** Get Knowledge Node by ID  
 **Description:** Retrieve a knowledge node by its ID.
 
 **Path Parameters:**
+
 - `nodeId` (string, required)
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
@@ -312,10 +339,12 @@ API Version: v1
 ---
 
 ### POST /api/knowledge-tree
+
 **Summary:** Create Knowledge Tree  
 **Description:** Create a knowledge tree for a specified workspace using provided file paths.
 
 **Request Body:**
+
 ```typescript
 {
   workspaceId: string;       // Required
@@ -324,14 +353,15 @@ API Version: v1
 ```
 
 **Response 200 (OK):**
+
 ```typescript
 {
   success: boolean;
   message: string | null;
   data: {
     messageId: string;
-    sentAt: string;          // ISO 8601 date-time
-  };
+    sentAt: string; // ISO 8601 date-time
+  }
   statusCode: number;
   meta: unknown;
   errorCode: string | null;
@@ -343,10 +373,12 @@ API Version: v1
 ## Health Check Endpoint
 
 ### GET /api/health
+
 **Summary:** Health check  
 **Description:** Check if the API is running.
 
 **Response 200 (OK):**
+
 - No content
 
 ---
@@ -354,6 +386,7 @@ API Version: v1
 ## Schema Definitions
 
 ### Evidence
+
 ```typescript
 {
   id?: string;
@@ -375,6 +408,7 @@ API Version: v1
 ```
 
 ### GapSuggestion
+
 ```typescript
 {
   id?: string;
@@ -401,6 +435,7 @@ The access token is obtained from the login or register response and should be i
 ## Field Mapping Summary
 
 ### Login/Register Response → Frontend Usage
+
 - `accessToken` → Store in `localStorage` as `auth_token`
 - `refreshToken` → **Not stored** (access token is long-lived)
 - `id` → User ID (UUID)
@@ -410,6 +445,7 @@ The access token is obtained from the login or register response and should be i
 - `emailVerified` → Email verification status
 
 ### Workspace Response → UI Display
+
 - `workspaceId` → Unique identifier
 - `name` → Workspace title
 - `description` → Workspace description
@@ -420,6 +456,7 @@ The access token is obtained from the login or register response and should be i
 - `updatedAt` → **Display formatted** (e.g., "Updated: 2 days ago")
 
 ### Knowledge Node Response → UI Display
+
 - `nodeId` → Unique identifier
 - `nodeName` → Node title
 - `description` → Node description/synthesis
@@ -433,6 +470,7 @@ The access token is obtained from the login or register response and should be i
 - `gapSuggestions` → **Display AI suggestions for gaps**
 
 ### Evidence Fields → UI Display
+
 - `sourceName` → Document title
 - `text` → Evidence text content
 - `hierarchyPath` → Location in document (e.g., "Page 3, Section 2.1")
