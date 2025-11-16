@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   LogIn,
   UserPlus,
@@ -7,11 +7,11 @@ import {
   User,
   Loader2,
   ArrowRight,
-} from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
-export type AuthMode = 'login' | 'register';
+export type AuthMode = "login" | "register";
 
 type AuthCardProps = {
   initialMode?: AuthMode;
@@ -20,17 +20,19 @@ type AuthCardProps = {
 };
 
 const errorMessages: Record<string, string> = {
-  'auth/invalid-credential': 'The email or password you entered is incorrect.',
-  'auth/user-disabled': 'This account has been disabled. Contact support for assistance.',
-  'auth/user-not-found': 'No account found. Try registering instead.',
-  'auth/wrong-password': 'Incorrect password. Please try again.',
-  'auth/email-already-in-use': 'This email is already registered. Try logging in instead.',
-  'auth/weak-password': 'Password should be at least 6 characters.',
-  default: 'Something went wrong. Please try again.',
+  "auth/invalid-credential": "The email or password you entered is incorrect.",
+  "auth/user-disabled":
+    "This account has been disabled. Contact support for assistance.",
+  "auth/user-not-found": "No account found. Try registering instead.",
+  "auth/wrong-password": "Incorrect password. Please try again.",
+  "auth/email-already-in-use":
+    "This email is already registered. Try logging in instead.",
+  "auth/weak-password": "Password should be at least 6 characters.",
+  default: "Something went wrong. Please try again.",
 };
 
 const getErrorMessage = (error: unknown) => {
-  if (error && typeof error === 'object' && 'code' in error) {
+  if (error && typeof error === "object" && "code" in error) {
     const code = String(error.code);
     return errorMessages[code] ?? errorMessages.default;
   }
@@ -39,15 +41,15 @@ const getErrorMessage = (error: unknown) => {
 };
 
 export const AuthCard = ({
-  initialMode = 'login',
+  initialMode = "login",
   allowModeToggle = true,
-  redirectPath = '/workspace/demo',
+  redirectPath = '/',
 }: AuthCardProps) => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const { signIn, signUp, isActionLoading, isAuthenticated } = useAuth();
@@ -60,7 +62,7 @@ export const AuthCard = ({
 
   const toggleMode = () => {
     if (!allowModeToggle) return;
-    setMode((prev) => (prev === 'login' ? 'register' : 'login'));
+    setMode((prev) => (prev === "login" ? "register" : "login"));
     setError(null);
   };
 
@@ -69,7 +71,7 @@ export const AuthCard = ({
 
     try {
       setError(null);
-      if (mode === 'login') {
+      if (mode === "login") {
         await signIn(email, password);
       } else {
         await signUp(name, email, password, phoneNumber);
@@ -80,31 +82,36 @@ export const AuthCard = ({
     }
   };
 
-
-  const primaryActionLabel = mode === 'login' ? 'Login' : 'Create account';
+  const primaryActionLabel = mode === "login" ? "Login" : "Create account";
   const secondaryActionLabel =
-    mode === 'login' ? 'Need an account? Register' : 'Already have an account? Login';
+    mode === "login"
+      ? "Need an account? Register"
+      : "Already have an account? Login";
 
   return (
     <div className="p-10 border shadow-2xl rounded-3xl border-white/10 bg-white/5 shadow-naver-green/20 backdrop-blur">
       <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.35em] text-naver-green">
         <span className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-linear-to-br from-naver-green to-emerald-500 text-gray-950">
-          {mode === 'login' ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
+          {mode === "login" ? (
+            <LogIn className="w-5 h-5" />
+          ) : (
+            <UserPlus className="w-5 h-5" />
+          )}
         </span>
-        {mode === 'login' ? 'Welcome back' : 'Create your account'}
+        {mode === "login" ? "Welcome back" : "Create your account"}
       </div>
 
       <h2 className="mt-6 text-3xl font-semibold text-white">
-        {mode === 'login' ? 'Sign in to continue' : 'Join NavNexus today'}
+        {mode === "login" ? "Sign in to continue" : "Join NavNexus today"}
       </h2>
       <p className="mt-2 text-sm text-gray-400">
-        {mode === 'login'
-          ? 'Access your knowledge graphs and collaborate with your team.'
-          : 'Unlock AI-assisted synthesis and build interactive knowledge graphs.'}
+        {mode === "login"
+          ? "Access your knowledge graphs and collaborate with your team."
+          : "Unlock AI-assisted synthesis and build interactive knowledge graphs."}
       </p>
 
       <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
-        {mode === 'register' && (
+        {mode === "register" && (
           <>
             <label className="block text-sm text-gray-300">
               <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
@@ -136,7 +143,6 @@ export const AuthCard = ({
             </label>
           </>
         )}
-
         <label className="block text-sm text-gray-300">
           <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
             <Mail className="w-4 h-4" />
@@ -151,7 +157,6 @@ export const AuthCard = ({
             required
           />
         </label>
-
         <label className="block text-sm text-gray-300">
           <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
             <Lock className="w-4 h-4" />
@@ -204,7 +209,7 @@ export const AuthCard = ({
 
       {isAuthenticated && (
         <p className="mt-4 text-xs text-center text-gray-500">
-          You are already signed in.{' '}
+          You are already signed in.{" "}
           <button
             type="button"
             onClick={() => navigate(redirectPath)}

@@ -1,9 +1,12 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useMemo, type PropsWithChildren } from 'react';
-import { Homepage } from './pages/homepage/Homepage';
-import { WorkspacePage } from './pages/workspace/WorkspacePage';
-import { AuthPage } from './pages/auth/AuthPage';
-import { useAuth } from './contexts/AuthContext';
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useMemo, type PropsWithChildren } from "react";
+
+import { WorkspacePage } from "./pages/workspace/WorkspacePage";
+import { AuthPage } from "./pages/auth/AuthPage";
+import { useAuth } from "./contexts/AuthContext";
+import Homepage from "./pages/homepage/Homepage";
+import { NaverToaster } from "./pages/homepage/components/HomePageComponent/ToastNaver";
+
 
 const PrivateRoute = ({ children }: PropsWithChildren) => {
   const { isAuthenticated, isInitializing } = useAuth();
@@ -23,7 +26,7 @@ const PrivateRoute = ({ children }: PropsWithChildren) => {
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
@@ -31,30 +34,43 @@ const PrivateRoute = ({ children }: PropsWithChildren) => {
 
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Homepage />} />
-        <Route path="/auth" element={<AuthPage />} />
-        <Route path="/login" element={<AuthPage initialMode="login" />} />
-        <Route path="/register" element={<AuthPage initialMode="register" />} />
-        <Route
-          path="/workspace/:workspaceId"
-          element={(
-            <PrivateRoute>
-              <WorkspacePage />
-            </PrivateRoute>
-          )}
-        />
-        <Route path="*" element={
-          <div className="flex items-center justify-center h-screen">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">404</h1>
-              <p className="text-gray-600 dark:text-gray-400">Page not found</p>
-            </div>
-          </div>
-        } />
-      </Routes>
-    </BrowserRouter>
+    <>
+    <NaverToaster />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Homepage />} />
+          <Route path="/auth" element={<AuthPage />} />
+          <Route path="/login" element={<AuthPage initialMode="login" />} />
+          <Route
+            path="/register"
+            element={<AuthPage initialMode="register" />}
+          />
+          <Route
+            path="/workspace/:workspaceId"
+            element={
+              <PrivateRoute>
+                <WorkspacePage />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="*"
+            element={
+              <div className="flex items-center justify-center h-screen">
+                <div className="text-center">
+                  <h1 className="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+                    404
+                  </h1>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Page not found
+                  </p>
+                </div>
+              </div>
+            }
+          />
+        </Routes>
+      </BrowserRouter>
+    </>
   );
 }
 

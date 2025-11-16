@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 import { authService } from '@/services/auth.service';
 import type { AuthenticationResponse } from '@/types/auth.types';
+import { ToastNaver } from '@/pages/homepage/components/HomePageComponent/ToastNaver';
+
 
 export type AuthUser = {
   id: string;
@@ -54,7 +56,14 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
+    const handleAuthError = () => {
+      signOutUser();
+    };
+    window.addEventListener('auth-error', handleAuthError);
     setIsInitializing(false);
+    return () => {
+      window.removeEventListener('auth-error', handleAuthError);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -75,7 +84,8 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
       const nextUser = mapAuthResponseToUser(response.data);
       setUser(nextUser);
       writeJson(STORAGE_KEY, nextUser);
-    } finally {
+      ToastNaver.success('Successfully signed in!');
+        } finally {
       setIsActionLoading(false);
     }
   };
@@ -103,6 +113,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
       const nextUser = mapAuthResponseToUser(response.data);
       setUser(nextUser);
       writeJson(STORAGE_KEY, nextUser);
+      ToastNaver.success('Successfully signed up!');
     } finally {
       setIsActionLoading(false);
     }
@@ -113,7 +124,7 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     try {
       authService.logout();
       setUser(null);
-      localStorage.removeItem(STORAGE_KEY);
+      ToastNaver.success('Successfully signed out!');
     } finally {
       setIsActionLoading(false);
     }

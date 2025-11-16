@@ -6,24 +6,24 @@ using NavNexus.Domain.Entities;
 
 namespace NavNexus.Application.KnowledgeTree.Queries
 {
-    public class GetKnowledgeNodeQueryHandler : IRequestHandler<GetKnowledgeNodeQuery, ErrorOr<GetKnowledgeNodeResult>>
+    public class GetKnowledgeNodeByIdQueryHandler : IRequestHandler<GetKnowledgeNodeByIdQuery, ErrorOr<GetKnowledgeNodeResult>>
     {
         private readonly IKnowledgetreeRepository _knowledgeTreeRepository;
 
-        public GetKnowledgeNodeQueryHandler(IKnowledgetreeRepository knowledgeTreeRepository)
+        public GetKnowledgeNodeByIdQueryHandler(IKnowledgetreeRepository knowledgeTreeRepository)
         {
             _knowledgeTreeRepository = knowledgeTreeRepository;
         }
 
-        public async Task<ErrorOr<GetKnowledgeNodeResult>> Handle(GetKnowledgeNodeQuery request, CancellationToken cancellationToken)
+        public async Task<ErrorOr<GetKnowledgeNodeResult>> Handle(GetKnowledgeNodeByIdQuery request, CancellationToken cancellationToken)
         {
-            var workspaceId = request.WorkspaceId;
-            var node = await _knowledgeTreeRepository.GetRootNodeByWorkspaceIdAsync(workspaceId);
+            var nodeId = request.NodeId;
+            var node = await _knowledgeTreeRepository.GetNodeByIdAsync(nodeId);
             if (node == null)
             {
                 return Error.NotFound(
                     code: "KNOWLEDGE_NODE_NOT_FOUND",
-                    description: $"Knowledge node not found for Workspace ID: {workspaceId}"
+                    description: $"Knowledge node not found with ID: {nodeId}"
                 );
             }
 

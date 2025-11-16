@@ -27,8 +27,8 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('auth_token');
-      window.location.href = '/login';
+      // Instead of hard redirect, dispatch a custom event
+      window.dispatchEvent(new Event('auth-error'));
     }
     return Promise.reject(error);
   }

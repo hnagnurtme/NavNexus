@@ -13,14 +13,38 @@ export const WorkspacePage: React.FC = () => {
   const { workspaceId } = useParams<{ workspaceId: string }>();
   const experience = useWorkspaceExperience(workspaceId);
 
+  const {
+    view,
+    viewMode,
+    tree,
+    selectedNode,
+    selectedNodeId,
+    details,
+    isBuilding,
+    isNodeLoading,
+    loadingNodeId,
+    error,
+    highlightedNodeIds,
+    isControlPanelVisible,
+    journey,
+    currentJourneyNode,
+    actions,
+  } = experience;
+
   const pathNodes = useMemo(
     () =>
-      experience.journey.pathIds.map((nodeId) => {
-        const node = findWorkspaceNode(experience.tree, nodeId);
+      journey.pathIds.map((nodeId) => {
+        const node = findWorkspaceNode(tree, nodeId);
         return { id: nodeId, name: node?.name ?? nodeId };
       }),
-    [experience.journey.pathIds, experience.tree],
+    [journey.pathIds, tree],
   );
+
+  const loadingNodeName = useMemo(() => {
+    if (!tree || !loadingNodeId) return null;
+    const node = findWorkspaceNode(tree, loadingNodeId);
+    return node?.name ?? null;
+  }, [loadingNodeId, tree]);
 
   if (!workspaceId) {
     return (
@@ -29,22 +53,6 @@ export const WorkspacePage: React.FC = () => {
       </div>
     );
   }
-
-  const {
-    view,
-    viewMode,
-    selectedNode,
-    selectedNodeId,
-    details,
-    isBuilding,
-    isNodeLoading,
-    error,
-    highlightedNodeIds,
-    isControlPanelVisible,
-    journey,
-    currentJourneyNode,
-    actions,
-  } = experience;
 
   return (
     <div className="h-screen w-screen bg-slate-950 text-white">
@@ -89,11 +97,15 @@ export const WorkspacePage: React.FC = () => {
             viewMode={viewMode}
             isBuilding={isBuilding}
             isNodeLoading={isNodeLoading}
+            loadingNodeName={loadingNodeName}
             selectedNodeId={selectedNodeId}
             highlightedNodeIds={highlightedNodeIds}
             journeyPathIds={journey.pathIds}
             onSelectNode={actions.selectNode}
             onBuildGraph={actions.buildGraph}
+            pendingBranchNodeId={journey.pendingBranchNodeId}
+            onPendingBranchHandled={actions.clearPendingBranchNode}
+            focusedJourneyNodeId={journey.isActive ? journey.currentNodeId : null}
           />
         </main>
 

@@ -18,6 +18,7 @@ const initialJourneyState = {
   awaitingBranch: false,
   branchOptions: [] as WorkspaceNode[],
   completed: false,
+  pendingBranchNodeId: null as string | null,
 };
 
 export type JourneyState = typeof initialJourneyState;
@@ -33,6 +34,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
   const [details, setDetails] = useState<NodeDetailsResponse | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
   const [isNodeLoading, setIsNodeLoading] = useState(false);
+  const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isControlPanelVisible, setIsControlPanelVisible] = useState(true);
   const [highlightedNodeIds, setHighlightedNodeIds] = useState<string[]>([]);
@@ -56,6 +58,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
     async (nodeId: string) => {
       if (!workspaceId) return;
       setIsNodeLoading(true);
+      setLoadingNodeId(nodeId);
       try {
         const data = await treeService.getNodeDetails(workspaceId, nodeId);
         setDetails(data);
@@ -66,6 +69,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
         setError('Unable to load insights for this topic.');
       } finally {
         setIsNodeLoading(false);
+        setLoadingNodeId(null);
       }
     },
     [workspaceId],
@@ -202,6 +206,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
           branchOptions: children,
           awaitingBranch: false,
           completed: children.length === 0,
+          pendingBranchNodeId: null,
         };
       });
       highlightNodes([nodeId]);
@@ -235,6 +240,13 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
   const selectJourneyBranch = useCallback(
     async (nodeId: string) => {
       await travelToNode(nodeId);
+      setJourney((prev) => {
+        if (!prev.isActive) return prev;
+        return {
+          ...prev,
+          pendingBranchNodeId: nodeId,
+        };
+      });
     },
     [travelToNode],
   );
@@ -248,6 +260,13 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 
   const cancelJourney = useCallback(() => {
     setJourney(initialJourneyState);
+  }, []);
+
+  const clearPendingBranchNode = useCallback(() => {
+    setJourney((prev) => {
+      if (!prev.pendingBranchNodeId) return prev;
+      return { ...prev, pendingBranchNodeId: null };
+    });
   }, []);
 
   const restartJourney = useCallback(async () => {
@@ -275,6 +294,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
     details,
     isBuilding,
     isNodeLoading,
+    loadingNodeId,
     error,
     highlightedNodeIds,
     isControlPanelVisible,
@@ -293,6 +313,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
       cancelJourney,
       restartJourney,
       highlightNodes,
+      clearPendingBranchNode,
     },
   };
 };
