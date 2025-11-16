@@ -144,8 +144,16 @@ def extract_json_from_text(text: str) -> Dict[str, Any]:
     
     return {}
 
-def normalize_concept_name(name: str) -> str:
+def normalize_concept_name(name: Any) -> str:
     """Normalize concept name for matching across PDFs"""
+    if isinstance(name, list):
+        name = name[0] if name else ""
+    elif isinstance(name, dict):
+        name = name.get("name", "")
+
+    if not isinstance(name, str):
+        name = str(name)
+        
     return name.lower().strip().replace("  ", " ")
 
 # ================================
@@ -999,7 +1007,7 @@ def query_knowledge_graph(workspace_id: str, query: str, depth: int = 2) -> Dict
     for hit in results.points:
         p = hit.payload
         
-        if p.get("workspace_id") != workspace_id:
+        if not p or p.get("workspace_id") != workspace_id:
             continue
         
         # Get concepts from chunk
@@ -1041,6 +1049,8 @@ def query_knowledge_graph(workspace_id: str, query: str, depth: int = 2) -> Dict
                     for ev_json in evidences_json:
                         try:
                             ev = json.loads(ev_json)
+                            if not ev:
+                                continue
                             source_name = ev.get("source_name", "Unknown")
                             text = ev.get("text", "")
                             page = ev.get("page", 0)
