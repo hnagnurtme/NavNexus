@@ -1,67 +1,13 @@
-import  { useContext, useMemo, useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
-import { motion } from 'framer-motion';
+import  { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import AddWorkSpaceForm from './components/AddWorkSpaceForm';
-import { WorkSpaceCard } from './components/WorkSpaceCard';
 
-import { WorkSpaceContext } from '@/contexts/WorkSpaceContext';
-import { WorkspaceDetailResponse } from '@/types';
 import { Header } from './components/HomePageComponent/Header';
 import { LandingHero } from './components/HomePageComponent/LandingHero';
 import { FeaturesSection } from './components/HomePageComponent/FeaturesSection';
 import { BenefitsSection } from './components/HomePageComponent/BenefitsSection';
 
-
-function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="flex-1">
-      <label htmlFor="workspace-search" className="sr-only">
-        Search workspaces
-      </label>
-      <div className="relative">
-        <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center">
-          <Search className="h-4 w-4 text-[#9a9a9a]" aria-hidden="true" />
-        </span>
-        <input
-          id="workspace-search"
-          type="search"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Search workspaces, descriptions, file ids..."
-          className="w-full rounded-full border border-[#1f1f1f] bg-[#0f0f0f] py-3 pl-11 pr-4 text-sm text-white placeholder:text-[#7e7e7e] focus:outline-none focus:ring-2 focus:ring-[#03C75A]/30"
-        />
-      </div>
-    </div>
-  );
-}
-
-function WorkspaceGrid({ workspaces }: { workspaces: WorkspaceDetailResponse[] }) {
-  if (!workspaces || workspaces.length === 0) {
-    return (
-      <div className="mt-10 rounded-xl border border-[#1f1f1f] bg-[#080808] p-8 text-center text-sm text-[#bdbdbd]">
-        No workspaces yet — create one to get started.
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-      {workspaces?.map((workspace) => (
-        <motion.div
-          key={workspace.workspaceId}
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          whileHover={{ scale: 1.02 }}
-          transition={{ duration: 0.2 }}
-        >
-          <WorkSpaceCard workspace={workspace} />
-        </motion.div>
-      ))}
-    </div>
-  );
-}
 
 function Footer() {
   const currentYear = new Date().getFullYear();
@@ -88,9 +34,7 @@ function Footer() {
 export default function Homepage() {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
   const [openWorkSpace, setOpenWorkSpace] = useState(false);
-  const { WorkSpaceData } = useContext(WorkSpaceContext);
 
   // Redirect authenticated users to /workspaces
   useEffect(() => {
@@ -98,21 +42,6 @@ export default function Homepage() {
       navigate('/workspaces');
     }
   }, [isAuthenticated, navigate]);
-
-  const filteredWorkspaces = useMemo(() => {
-    if (!searchTerm.trim()) return WorkSpaceData;
-
-    const term = searchTerm.toLowerCase();
-    return WorkSpaceData.filter((workspace: WorkspaceDetailResponse) => {
-      const matchesName = workspace.name?.toLowerCase().includes(term);
-      const matchesDescription = workspace.description?.toLowerCase().includes(term);
-      const matchesFileIds = workspace.fileIds?.some((fileId: string) =>
-        fileId.toLowerCase().includes(term)
-      );
-
-      return matchesName || matchesDescription || matchesFileIds;
-    });
-  }, [searchTerm, WorkSpaceData]);
 
   const handleCreateWorkspace = (data: any) => {
     console.log('Create workspace:', data);
@@ -140,32 +69,10 @@ export default function Homepage() {
       <div className="mx-auto max-w-7xl px-6 py-12">
         <Header isAuthenticated={isAuthenticated} onCreate={() => setOpenWorkSpace(true)} />
 
-        {/* Show landing page when NOT authenticated */}
-        {!isAuthenticated ? (
-          <>
-            <LandingHero />
-            <FeaturesSection />
-            <BenefitsSection />
-          </>
-        ) : (
-
-          <section className="mt-10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Your Workspaces</h2>
-                <p className="text-sm text-[#bdbdbd]">
-                  Organize documents and explore relationships.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <SearchBar value={searchTerm} onChange={setSearchTerm} />
-              </div>
-            </div>
-
-            <WorkspaceGrid workspaces={filteredWorkspaces} />
-          </section>
-        )}
+        {/* Show landing page for unauthenticated users */}
+        <LandingHero />
+        <FeaturesSection />
+        <BenefitsSection />
 
         <Footer />
       </div>
