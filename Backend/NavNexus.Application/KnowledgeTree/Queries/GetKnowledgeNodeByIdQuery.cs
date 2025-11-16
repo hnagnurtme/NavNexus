@@ -4,6 +4,6 @@ using ErrorOr;
 
 namespace NavNexus.Application.KnowledgeTree.Queries;
 
-public record GetKnowledgeNodeQuery(
-    string WorkspaceId
+public record GetKnowledgeNodeByIdQuery(
+    string NodeId
 ) : IRequest<ErrorOr<GetKnowledgeNodeResult>>;

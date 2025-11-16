@@ -182,6 +182,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
         branchOptions: resolvedNode.children ?? [],
         awaitingBranch: false,
         completed: (resolvedNode.children?.length ?? 0) === 0,
+        pendingBranchNodeId: null,
       });
       highlightNodes([nodeId]);
     },
