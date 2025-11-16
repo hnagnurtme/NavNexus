@@ -1,5 +1,5 @@
 import { workspaceService } from "@/services/workspace.service";
-import { WorkspaceDetailResponseApiResponse } from "@/types";
+import { WorkspaceDetailResponse } from "@/types";
 import { createContext, useEffect, useState } from "react";
 import { useAuth } from "./AuthContext";
 import { ToastNaver } from "@/pages/homepage/components/HomePageComponent/ToastNaver";
@@ -10,9 +10,9 @@ import { ToastNaver } from "@/pages/homepage/components/HomePageComponent/ToastN
 export interface WorkSpaceContextType {
   isClicked: boolean;
   setIsClicked: React.Dispatch<React.SetStateAction<boolean>>;
-  WorkSpaceData: WorkspaceDetailResponseApiResponse[];
+  WorkSpaceData: WorkspaceDetailResponse[];
   setWorkSpaceData: React.Dispatch<
-    React.SetStateAction<WorkspaceDetailResponseApiResponse[]>
+    React.SetStateAction<WorkspaceDetailResponse[]>
   >;
   handleCreateWorkSpace: (
     name: string,
@@ -35,7 +35,7 @@ export const WorkSpaceProvider = ({
   const [isClicked, setIsClicked] = useState(false);
   const {user} = useAuth();
   const [WorkSpaceData, setWorkSpaceData] = useState<
-    WorkspaceDetailResponseApiResponse[]
+    WorkspaceDetailResponse[]
   >([]);
 
   useEffect(() => {
@@ -43,8 +43,8 @@ export const WorkSpaceProvider = ({
       if(!user) return;
       try {
         let response = await workspaceService.getUserWorkspaces();
-        if (response.success && response.data) {
-          setWorkSpaceData([response]);
+        if (response.success && response.data && response.data.workspaces) {
+          setWorkSpaceData(response.data.workspaces);
         } else {
           setWorkSpaceData([]);
           console.warn('Workspace fetch returned no data:', response.message);
@@ -70,7 +70,9 @@ export const WorkSpaceProvider = ({
         fileIds: files,
       });
       setIsClicked(prev => !prev);
-      setWorkSpaceData((prev) => [...prev, newWorkSpace]);
+      if (newWorkSpace.success && newWorkSpace.data) {
+        setWorkSpaceData((prev) => [...prev, newWorkSpace.data]);
+      }
       ToastNaver.success("Workspace created successfully.");
     } catch (error) {
       ToastNaver.error("Failed to create workspace. Please try again.");

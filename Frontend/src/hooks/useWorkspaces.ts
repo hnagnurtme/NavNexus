@@ -12,9 +12,8 @@ export const useWorkspaces = () => {
     setError(null);
     try {
       const response = await workspaceService.getUserWorkspaces();
-      if (response.success && response.data) {
-        // The API returns a single workspace, but we'll handle it as an array
-        setWorkspaces([response.data]);
+      if (response.success && response.data && response.data.workspaces) {
+        setWorkspaces(response.data.workspaces);
       } else {
         setWorkspaces([]);
       }

@@ -18,4 +18,10 @@ export type WorkspaceDetailResponse = {
   updatedAt: string;
 };
 
+export type UserWorkspaceResponse = {
+  totalWorkspaces: number;
+  workspaces: WorkspaceDetailResponse[];
+};
+
 export type WorkspaceDetailResponseApiResponse = ApiResponse<WorkspaceDetailResponse>;
+export type UserWorkspaceResponseApiResponse = ApiResponse<UserWorkspaceResponse>;

@@ -1,18 +1,11 @@
-import  { useContext, useMemo, useState, useEffect } from 'react';
+import { useContext, useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import AddWorkSpaceForm from './components/AddWorkSpaceForm';
-import { WorkSpaceCard } from './components/WorkSpaceCard';
-
 import { WorkSpaceContext } from '@/contexts/WorkSpaceContext';
 import { WorkspaceDetailResponse } from '@/types';
-import { Header } from './components/HomePageComponent/Header';
-import { LandingHero } from './components/HomePageComponent/LandingHero';
-import { FeaturesSection } from './components/HomePageComponent/FeaturesSection';
-import { BenefitsSection } from './components/HomePageComponent/BenefitsSection';
-
+import { WorkSpaceCard } from '../homepage/components/WorkSpaceCard';
+import AddWorkSpaceForm from '../homepage/components/AddWorkSpaceForm';
+import { Header } from '../homepage/components/HomePageComponent/Header';
 
 function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   return (
@@ -84,20 +77,10 @@ function Footer() {
   );
 }
 
-// Main component
-export default function Homepage() {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+export default function WorkspaceListPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openWorkSpace, setOpenWorkSpace] = useState(false);
   const { WorkSpaceData } = useContext(WorkSpaceContext);
-
-  // Redirect authenticated users to /workspaces
-  useEffect(() => {
-    if (isAuthenticated) {
-      navigate('/workspaces');
-    }
-  }, [isAuthenticated, navigate]);
 
   const filteredWorkspaces = useMemo(() => {
     if (!searchTerm.trim()) return WorkSpaceData;
@@ -138,34 +121,24 @@ export default function Homepage() {
       )}
 
       <div className="mx-auto max-w-7xl px-6 py-12">
-        <Header isAuthenticated={isAuthenticated} onCreate={() => setOpenWorkSpace(true)} />
+        <Header isAuthenticated={true} onCreate={() => setOpenWorkSpace(true)} />
 
-        {/* Show landing page when NOT authenticated */}
-        {!isAuthenticated ? (
-          <>
-            <LandingHero />
-            <FeaturesSection />
-            <BenefitsSection />
-          </>
-        ) : (
-
-          <section className="mt-10">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Your Workspaces</h2>
-                <p className="text-sm text-[#bdbdbd]">
-                  Organize documents and explore relationships.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <SearchBar value={searchTerm} onChange={setSearchTerm} />
-              </div>
+        <section className="mt-10">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white">Your Workspaces</h2>
+              <p className="text-sm text-[#bdbdbd]">
+                Organize documents and explore relationships.
+              </p>
             </div>
 
-            <WorkspaceGrid workspaces={filteredWorkspaces} />
-          </section>
-        )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <SearchBar value={searchTerm} onChange={setSearchTerm} />
+            </div>
+          </div>
+
+          <WorkspaceGrid workspaces={filteredWorkspaces} />
+        </section>
 
         <Footer />
       </div>
