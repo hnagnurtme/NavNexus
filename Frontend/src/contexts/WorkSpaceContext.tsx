@@ -42,13 +42,18 @@ export const WorkSpaceProvider = ({
     const fetchWorkSpaces = async () => {
       if(!user) return;
       try {
-        let workspacese = await workspaceService.getUserWorkspaces();
-        setWorkSpaceData([workspacese]);
-        ToastNaver.success("Workspaces loaded successfully.");
-
+        let response = await workspaceService.getUserWorkspaces();
+        if (response.success && response.data) {
+          setWorkSpaceData([response]);
+        } else {
+          setWorkSpaceData([]);
+          console.warn('Workspace fetch returned no data:', response.message);
+        }
       }
       catch (error) {
+        console.error('Failed to fetch workspaces:', error);
         ToastNaver.error("Failed to fetch workspaces. Please try again.");
+        setWorkSpaceData([]);
       }
     };
     fetchWorkSpaces();

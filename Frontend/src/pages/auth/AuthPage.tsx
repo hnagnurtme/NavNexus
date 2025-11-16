@@ -46,7 +46,7 @@ export const AuthPage = ({ initialMode = 'login' }: AuthPageProps) => {
   );
 
   if (!isInitializing && isAuthenticated) {
-    return <Navigate to="/workspace/demo" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (
