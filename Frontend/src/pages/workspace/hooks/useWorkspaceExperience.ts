@@ -100,11 +100,12 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
       if (!workspaceId) return null;
       const currentNode = findWorkspaceNode(tree, nodeId);
       if (!currentNode) return null;
-      if (currentNode.childrenLoaded) {
+      if (currentNode.childrenLoaded && (currentNode.children?.length ?? 0) > 0) {
         return currentNode;
       }
 
       try {
+        console.log('[WorkspaceExperience] Fetching children for node', nodeId);
         // Fetch node with children from API
         const response = await treeService.getKnowledgeNodeById(nodeId);
         if (response.data) {
@@ -112,6 +113,12 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
             isExpanded: true,
             childrenLoaded: true 
           });
+          console.log(
+            '[WorkspaceExperience] Loaded',
+            updatedNodeUI.children?.length ?? 0,
+            'children for node',
+            nodeId,
+          );
           
           setTree((prev) => {
             if (!prev) return prev;
