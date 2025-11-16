@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrainCircuit, X } from 'lucide-react';
+import { BrainCircuit, X, ChevronDown, ChevronUp } from 'lucide-react';
 import type { KnowledgeNodeUI } from '@/types';
 
 interface FloatingAISynthesisProps {
@@ -8,6 +9,8 @@ interface FloatingAISynthesisProps {
 }
 
 export const FloatingAISynthesis: React.FC<FloatingAISynthesisProps> = ({ node, onClose }) => {
+  const [isMinimized, setIsMinimized] = useState(false);
+
   if (!node) return null;
 
   return (
@@ -17,47 +20,59 @@ export const FloatingAISynthesis: React.FC<FloatingAISynthesisProps> = ({ node, 
         animate={{ opacity: 1, x: 0, y: 0 }}
         exit={{ opacity: 0, x: -30, y: 0 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
-        className="pointer-events-auto absolute left-6 top-24 z-20 w-96 max-w-md rounded-2xl border border-emerald-500/30 bg-slate-950/95 p-5 text-white shadow-2xl backdrop-blur-lg"
+        className="pointer-events-auto absolute left-6 top-24 z-20 w-96 max-w-md rounded-2xl border border-emerald-500/30 bg-slate-950/95 text-white shadow-2xl backdrop-blur-lg"
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-white/10 p-4">
           <div className="flex items-center gap-3 text-emerald-300">
-            <BrainCircuit width={22} height={22} />
-            <h3 className="text-lg font-bold">AI Synthesis</h3>
+            <BrainCircuit width={20} height={20} />
+            <h3 className="text-base font-bold">AI Synthesis</h3>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
-            aria-label="Close AI Synthesis"
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setIsMinimized(!isMinimized)}
+              className="rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
+              aria-label={isMinimized ? "Expand panel" : "Minimize panel"}
+            >
+              {isMinimized ? <ChevronDown width={16} height={16} /> : <ChevronUp width={16} height={16} />}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white"
+              aria-label="Close AI Synthesis"
+            >
+              <X width={16} height={16} />
+            </button>
+          </div>
+        </div>
+
+        {!isMinimized && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="p-4 space-y-3"
           >
-            <X width={18} height={18} />
-          </button>
-        </div>
-        <div className="space-y-3">
-          <div>
-            <h4 className="mb-2 text-base font-semibold text-white">{node.nodeName}</h4>
-            {node.tags && node.tags.length > 0 && (
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {node.tags.map((tag, idx) => (
-                  <span
-                    key={idx}
-                    className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-200"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
+            {/* Node name for context */}
+            <h4 className="text-base font-semibold text-white">{node.nodeName}</h4>
+            
+            {/* AI-generated description only */}
+            <div className="rounded-lg bg-emerald-500/5 border border-emerald-500/20 p-3">
+              <p className="leading-relaxed text-sm text-white/90">
+                {node.description || 'No AI synthesis available for this node yet.'}
+              </p>
+            </div>
+            
+            {/* Source information */}
+            {node.sourceCount > 0 && (
+              <p className="text-xs text-white/60">
+                Synthesized from {node.sourceCount} {node.sourceCount === 1 ? 'source' : 'sources'}
+              </p>
             )}
-          </div>
-          <p className="leading-relaxed text-sm text-white/90">
-            {node.description || 'No synthesis available.'}
-          </p>
-          {node.sourceCount > 0 && (
-            <p className="mt-3 text-xs text-white/60">
-              Based on {node.sourceCount} {node.sourceCount === 1 ? 'source' : 'sources'}
-            </p>
-          )}
-        </div>
+          </motion.div>
+        )}
       </motion.div>
     </AnimatePresence>
   );
