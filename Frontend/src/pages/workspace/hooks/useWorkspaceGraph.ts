@@ -175,26 +175,28 @@ export const useWorkspaceGraph = (
 			const registerDescendants = (node: KnowledgeNodeUI) => {
 				nodeRegistry.current.set(node.nodeId, node);
 				if (node.children) {
-					node.children.forEach((child) => registerDescendants(child));
+					node.children.forEach((child) =>
+						registerDescendants(child)
+					);
 				}
 			};
-			
+
 			// Register root and all its descendants
 			registerDescendants(rootNode);
-			
+
 			// Set up visible nodes (root + immediate children)
-			const childIds = rootNode.children?.map(c => c.nodeId) ?? [];
+			const childIds = rootNode.children?.map((c) => c.nodeId) ?? [];
 			visibleNodeIds.current = new Set([rootNode.nodeId, ...childIds]);
-			
+
 			// Set up adjacency
 			adjacencyMap.current.set(rootNode.nodeId, childIds);
-			
+
 			// Cache children
 			childrenCache.current.set(rootNode.nodeId, rootNode.children ?? []);
-			
+
 			expandedNodeIds.current.add(rootNode.nodeId);
 			lastAddedIds.current = childIds;
-			
+
 			rebuildGalaxy();
 			setGalaxyState((prev) => ({
 				...prev,
@@ -222,7 +224,7 @@ export const useWorkspaceGraph = (
 			}
 			pendingNodeIds.current.add(nodeId);
 			rebuildGalaxy();
-			
+
 			// Fetch node with its children from API
 			const response = await treeService.getKnowledgeNodeById(nodeId);
 			if (!response.data) {
@@ -236,17 +238,19 @@ export const useWorkspaceGraph = (
 
 			const children = nodeUI.children ?? [];
 			childrenCache.current.set(nodeId, children);
-			
+
 			// Recursively register all descendants in the node registry
 			const registerDescendants = (node: KnowledgeNodeUI) => {
 				nodeRegistry.current.set(node.nodeId, node);
 				if (node.children) {
-					node.children.forEach((child) => registerDescendants(child));
+					node.children.forEach((child) =>
+						registerDescendants(child)
+					);
 				}
 			};
-			
+
 			children.forEach((child) => registerDescendants(child));
-			
+
 			pendingNodeIds.current.delete(nodeId);
 			return children;
 		},
@@ -271,7 +275,7 @@ export const useWorkspaceGraph = (
 	const toggleNode = useCallback(
 		async (nodeId: string) => {
 			const treeNode = nodeRegistry.current.get(nodeId);
-			if (!treeNode || !treeNode.hasChildren) {
+			if (!treeNode) {
 				setSelectedNodeId(nodeId);
 				rebuildGalaxy();
 				return;
@@ -306,7 +310,7 @@ export const useWorkspaceGraph = (
 	const expandNode = useCallback(
 		async (nodeId: string) => {
 			const treeNode = nodeRegistry.current.get(nodeId);
-			if (!treeNode || !treeNode.hasChildren) {
+			if (!treeNode) {
 				return;
 			}
 			if (expandedNodeIds.current.has(nodeId)) {
@@ -376,7 +380,10 @@ export const useWorkspaceGraph = (
 			const nodes: KnowledgeNodeUI[] = [];
 			const edges: Edge[] = [];
 
-			const collectNodesAndEdges = (node: KnowledgeNodeUI, parentId?: string) => {
+			const collectNodesAndEdges = (
+				node: KnowledgeNodeUI,
+				parentId?: string
+			) => {
 				nodes.push(node);
 				if (parentId) {
 					edges.push(toEdge(parentId, node.nodeId));

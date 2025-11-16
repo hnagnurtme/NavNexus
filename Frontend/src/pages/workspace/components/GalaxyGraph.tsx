@@ -57,7 +57,6 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 				maxZoom: 1.5, // Prevent zooming in too much
 				minZoom: 0.5, // Prevent zooming out too much
 			});
-			console.log("Fitting view to", nodes.length, "nodes");
 		}, 50); // Small delay to let React Flow update the DOM
 
 		return () => clearTimeout(timer);
