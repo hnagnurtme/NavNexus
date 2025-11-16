@@ -1,12 +1,12 @@
 import { ExternalLink, Lightbulb, Search } from 'lucide-react';
-import type { AiSuggestion } from '@/types';
+import type { GapSuggestion } from '@/types';
 
 interface GapAssistantProps {
-  suggestion: AiSuggestion;
+  suggestions: GapSuggestion[];
   topicName: string;
 }
 
-export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestion, topicName }) => {
+export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestions, topicName }) => {
   const keywords = [
     `"${topicName}" reinforcement learning gap`,
     `"${topicName}" 네트워크 최적화`,
@@ -19,7 +19,20 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestion, topicNam
         <Lightbulb width={18} height={18} />
         <h4 className="font-semibold uppercase tracking-widest text-xs">Gap Assistant</h4>
       </div>
-      <p className="mb-3 text-amber-50/80">{suggestion.reason}</p>
+      
+      <div className="space-y-3 mb-3">
+        {suggestions.map((suggestion, idx) => (
+          <div key={suggestion.id || idx} className="rounded-xl border border-amber-500/20 bg-black/10 p-3">
+            <p className="text-amber-50/80">{suggestion.suggestionText || 'Gap detected'}</p>
+            {suggestion.similarityScore !== undefined && (
+              <p className="mt-1 text-xs text-amber-200/70">
+                Confidence: {(suggestion.similarityScore * 100).toFixed(0)}%
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+
       <div className="space-y-2">
         {keywords.map((keyword) => (
           <button

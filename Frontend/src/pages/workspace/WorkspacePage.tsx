@@ -35,7 +35,7 @@ export const WorkspacePage: React.FC = () => {
     () =>
       journey.pathIds.map((nodeId) => {
         const node = findWorkspaceNode(tree, nodeId);
-        return { id: nodeId, name: node?.name ?? nodeId };
+        return { id: nodeId, name: node?.nodeName ?? nodeId };
       }),
     [journey.pathIds, tree],
   );
@@ -43,7 +43,7 @@ export const WorkspacePage: React.FC = () => {
   const loadingNodeName = useMemo(() => {
     if (!tree || !loadingNodeId) return null;
     const node = findWorkspaceNode(tree, loadingNodeId);
-    return node?.name ?? null;
+    return node?.nodeName ?? null;
   }, [loadingNodeId, tree]);
 
   if (!workspaceId) {

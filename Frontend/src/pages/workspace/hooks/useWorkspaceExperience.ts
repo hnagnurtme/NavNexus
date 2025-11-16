@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { treeService } from '@/services/tree.service';
-import type { NodeDetailsResponse, TreeNodeShallow } from '@/types';
+import type { KnowledgeNodeUI } from '@/types';
+import { transformToKnowledgeNodeUI } from '@/utils/treeTransform';
 import {
   WorkspaceNode,
-  createWorkspaceNode,
   findWorkspaceNode,
   updateWorkspaceNode,
 } from '../utils/treeUtils';
@@ -23,15 +23,12 @@ const initialJourneyState = {
 
 export type JourneyState = typeof initialJourneyState;
 
-const convertChildren = (children: TreeNodeShallow[]): WorkspaceNode[] =>
-  children.map((child) => createWorkspaceNode(child));
-
 export const useWorkspaceExperience = (workspaceId?: string) => {
   const [view, setView] = useState<CanvasView>('onboarding');
   const [viewMode, setViewMode] = useState<ViewMode>('galaxy');
   const [tree, setTree] = useState<WorkspaceNode | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [details, setDetails] = useState<NodeDetailsResponse | null>(null);
+  const [details, setDetails] = useState<KnowledgeNodeUI | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
   const [isNodeLoading, setIsNodeLoading] = useState(false);
   const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
@@ -60,10 +57,14 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
       setIsNodeLoading(true);
       setLoadingNodeId(nodeId);
       try {
-        const data = await treeService.getNodeDetails(workspaceId, nodeId);
-        setDetails(data);
-        setSelectedNodeId(nodeId);
-        setError(null);
+        // Fetch node details using the API
+        const response = await treeService.getKnowledgeNodeById(nodeId);
+        if (response.data) {
+          const nodeUI = transformToKnowledgeNodeUI(response.data, { isExpanded: true });
+          setDetails(nodeUI);
+          setSelectedNodeId(nodeId);
+          setError(null);
+        }
       } catch (err) {
         console.error(err);
         setError('Unable to load insights for this topic.');
@@ -95,19 +96,21 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
       }
 
       try {
-        const childrenData = await treeService.getNodeChildren(workspaceId, nodeId);
-        const childrenNodes = convertChildren(childrenData);
-        const updatedNode: WorkspaceNode = {
-          ...currentNode,
-          children: childrenNodes,
-          childrenLoaded: true,
-          isExpanded: true,
-        };
-        setTree((prev) => {
-          if (!prev) return prev;
-          return updateWorkspaceNode(prev, nodeId, () => updatedNode);
-        });
-        return updatedNode;
+        // Fetch node with children from API
+        const response = await treeService.getKnowledgeNodeById(nodeId);
+        if (response.data) {
+          const updatedNodeUI = transformToKnowledgeNodeUI(response.data, { 
+            isExpanded: true,
+            childrenLoaded: true 
+          });
+          
+          setTree((prev) => {
+            if (!prev) return prev;
+            return updateWorkspaceNode(prev, nodeId, () => updatedNodeUI);
+          });
+          return updatedNodeUI;
+        }
+        return null;
       } catch (err) {
         console.error(err);
         setError('Unable to load related nodes.');
@@ -134,16 +137,18 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
     setError(null);
 
     try {
-      const data = await treeService.getTreeRoot(workspaceId);
-      const rootNode = createWorkspaceNode(data.root, {
-        expanded: true,
-        children: convertChildren(data.children),
-      });
-      rootNode.childrenLoaded = true;
+      // Fetch the root node with all children from API
+      const response = await treeService.getKnowledgeTree(workspaceId);
+      if (response.data) {
+        const rootNode = transformToKnowledgeNodeUI(response.data, {
+          isExpanded: true,
+          childrenLoaded: true,
+        });
 
-      setTree(rootNode);
-      setView('active');
-      await focusNode(rootNode.id);
+        setTree(rootNode);
+        setView('active');
+        await focusNode(rootNode.nodeId);
+      }
     } catch (err) {
       console.error(err);
       setError('Unable to synthesize this workspace right now.');
@@ -227,7 +232,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
     }
 
     if (children.length === 1) {
-      await travelToNode(children[0].id);
+      await travelToNode(children[0].nodeId);
       return;
     }
 
