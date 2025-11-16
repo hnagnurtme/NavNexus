@@ -82,7 +82,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<ITokenRepository, TokenRepository>();
-        services.AddScoped<IKnowledgetreeRepository, KnowLedgeTreeRepository>();
+        services.AddScoped<IKnowledgetreeRepository,KnowledgeTreeRepository >();
     }
 
     // -------------------------

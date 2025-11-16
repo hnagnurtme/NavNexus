@@ -143,19 +143,19 @@ def find_or_merge_node_semantic(session, workspace_id: str, name: str, type: str
     return node_id, False
 
 
-def calculate_embedding_similarity(emb1: List[float], emb2: List[float]) -> float:
-    """Calculate cosine similarity between two embeddings"""
-    if not emb1 or not emb2 or len(emb1) != len(emb2):
-        return 0.0
+# def calculate_embedding_similarity(emb1: List[float], emb2: List[float]) -> float:
+#     """Calculate cosine similarity between two embeddings"""
+#     if not emb1 or not emb2 or len(emb1) != len(emb2):
+#         return 0.0
     
-    dot_product = sum(a * b for a, b in zip(emb1, emb2))
-    norm1 = sum(a * a for a in emb1) ** 0.5
-    norm2 = sum(b * b for b in emb2) ** 0.5
+#     dot_product = sum(a * b for a, b in zip(emb1, emb2))
+#     norm1 = sum(a * a for a in emb1) ** 0.5
+#     norm2 = sum(b * b for b in emb2) ** 0.5
     
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
+#     if norm1 == 0 or norm2 == 0:
+#         return 0.0
     
-    return dot_product / (norm1 * norm2)
+#     return dot_product / (norm1 * norm2)
 
 
 def create_evidence_node(session, evidence: Evidence, node_id: str) -> str:
@@ -561,3 +561,359 @@ def get_node_with_relationships(session, node_id: str) -> Optional[Dict]:
         "evidences": [dict(e) for e in record["evidences"] if e],
         "suggestions": [dict(s) for s in record["suggestions"] if s]
     }
+"""Post-processing deduplication phase using LLM"""
+import json
+from typing import Dict, List, Tuple
+from datetime import datetime
+
+
+def batch_deduplicate_nodes(session, workspace_id: str, clova_api_key: str, 
+                            clova_api_url: str, embedding_func) -> Dict:
+    """
+    Phase 6: Intelligent deduplication using LLM to identify semantic duplicates.
+    Scans all nodes once and merges similar ones.
+    """
+    from .llm_analysis import call_llm_compact
+    
+    print(f"\n🔍 Phase 6: Post-processing deduplication")
+    
+    results = {
+        "scanned": 0,
+        "merged": 0,
+        "merge_groups": []
+    }
+    
+    # Process by level and type to avoid cross-level merging
+    levels = [
+        ("domain", 0),
+        ("category", 1),
+        ("concept", 2),
+        ("subconcept", 3)
+    ]
+    
+    for node_type, level in levels:
+        print(f"\n  Scanning {node_type} (level {level})...")
+        
+        # Get all nodes of this type
+        result = session.run(
+            """
+            MATCH (n:KnowledgeNode {workspace_id: $workspace_id, type: $type, level: $level})
+            RETURN n.id as id, n.name as name, n.synthesis as synthesis
+            ORDER BY n.name
+            """,
+            workspace_id=workspace_id,
+            type=node_type,
+            level=level
+        )
+        
+        nodes = [dict(record) for record in result]
+        results["scanned"] += len(nodes)
+        
+        if len(nodes) < 2:
+            continue
+        
+        # Find duplicates using LLM in batches
+        merge_groups = find_duplicate_groups_llm(nodes, clova_api_key, clova_api_url, embedding_func)
+        
+        # Execute merges
+        for group in merge_groups:
+            if len(group) < 2:
+                continue
+            
+            # Pick canonical node (first one or one with most evidences)
+            canonical_id = pick_canonical_node(session, group)
+            to_merge = [nid for nid in group if nid != canonical_id]
+            
+            print(f"    Merging {len(to_merge)} nodes into {canonical_id}")
+            
+            for merge_id in to_merge:
+                merge_nodes(session, canonical_id, merge_id)
+                results["merged"] += 1
+            
+            results["merge_groups"].append({
+                "canonical": canonical_id,
+                "merged": to_merge
+            })
+    
+    print(f"\n  ✓ Scanned {results['scanned']} nodes, merged {results['merged']} duplicates")
+    return results
+
+
+def find_duplicate_groups_llm(nodes: List[Dict], clova_api_key: str, 
+                              clova_api_url: str, embedding_func) -> List[List[str]]:
+    """
+    Use LLM to identify groups of semantically similar nodes.
+    Returns list of groups, where each group is list of node IDs to merge.
+    """
+    from .llm_analysis import call_llm_compact
+    
+    if len(nodes) < 2:
+        return []
+    
+    # STEP 1: Quick embedding-based filtering
+    # Group nodes that are very similar (>0.90 similarity)
+    candidate_groups = []
+    processed = set()
+    
+    for i, node_a in enumerate(nodes):
+        if node_a["id"] in processed:
+            continue
+        
+        group = [node_a["id"]]
+        emb_a = embedding_func(node_a["name"])
+        
+        for j, node_b in enumerate(nodes[i+1:], i+1):
+            if node_b["id"] in processed:
+                continue
+            
+            emb_b = embedding_func(node_b["name"])
+            similarity = calculate_embedding_similarity(emb_a, emb_b)
+            
+            if similarity > 0.90:  # Very high threshold
+                group.append(node_b["id"])
+                processed.add(node_b["id"])
+        
+        if len(group) > 1:
+            candidate_groups.append(group)
+        processed.add(node_a["id"])
+    
+    if not candidate_groups:
+        return []
+    
+    # STEP 2: LLM validation for each candidate group
+    # Batch multiple groups into one LLM call
+    validated_groups = []
+    
+    for batch_start in range(0, len(candidate_groups), 5):  # Process 5 groups at a time
+        batch = candidate_groups[batch_start:batch_start+5]
+        
+        # Prepare LLM prompt
+        groups_data = []
+        for group_idx, group in enumerate(batch):
+            group_nodes = [n for n in nodes if n["id"] in group]
+            groups_data.append({
+                "group_id": group_idx,
+                "nodes": [{"id": n["id"], "name": n["name"], "synthesis": n.get("synthesis", "")} for n in group_nodes]
+            })
+        
+        prompt = f"""Analyze these groups of potentially duplicate concept nodes. For each group, determine if the nodes are truly referring to the SAME concept and should be merged.
+
+Groups to analyze:
+{json.dumps(groups_data, indent=2, ensure_ascii=False)}
+
+Rules:
+- Merge if: Same core concept, just different wording (e.g., "ML" vs "Machine Learning", "Neural Nets" vs "Neural Networks")
+- Keep separate if: Related but distinct concepts (e.g., "Supervised Learning" vs "Unsupervised Learning")
+- Keep separate if: Different levels of specificity (e.g., "AI" vs "Deep Learning")
+
+Return JSON array of groups to merge:
+{{
+  "merge_groups": [
+    {{
+      "group_id": 0,
+      "should_merge": true,
+      "reason": "Same concept, different names",
+      "node_ids": ["id1", "id2"]
+    }}
+  ]
+}}"""
+        
+        result = call_llm_compact(prompt, max_tokens=1000, 
+                                 clova_api_key=clova_api_key, 
+                                 clova_api_url=clova_api_url)
+        
+        # Parse LLM decision
+        merge_decisions = result.get("merge_groups", [])
+        for decision in merge_decisions:
+            if decision.get("should_merge", False):
+                node_ids = decision.get("node_ids", [])
+                if len(node_ids) > 1:
+                    validated_groups.append(node_ids)
+                    print(f"      ✓ Merge: {decision.get('reason', 'No reason')}")
+    
+    return validated_groups
+
+
+def calculate_embedding_similarity(emb1: List[float], emb2: List[float]) -> float:
+    """Calculate cosine similarity"""
+    if not emb1 or not emb2 or len(emb1) != len(emb2):
+        return 0.0
+    
+    dot_product = sum(a * b for a, b in zip(emb1, emb2))
+    norm1 = sum(a * a for a in emb1) ** 0.5
+    norm2 = sum(b * b for b in emb2) ** 0.5
+    
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+    
+    return dot_product / (norm1 * norm2)
+
+
+def pick_canonical_node(session, node_ids: List[str]) -> str:
+    """
+    Pick the best node to keep from a group.
+    Criteria: most evidences, then earliest created
+    """
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode)
+        WHERE n.id IN $node_ids
+        OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
+        WITH n, count(e) as evidence_count
+        RETURN n.id as id, 
+               n.name as name,
+               evidence_count, 
+               n.created_at as created_at
+        ORDER BY evidence_count DESC, created_at ASC
+        LIMIT 1
+        """,
+        node_ids=node_ids
+    )
+    
+    record = result.single()
+    if record:
+        print(f"      Canonical: {record['name']} ({record['evidence_count']} evidences)")
+        return record["id"]
+    
+    return node_ids[0]  # Fallback
+
+
+def merge_nodes(session, canonical_id: str, merge_id: str):
+    """
+    Merge merge_id into canonical_id:
+    1. Move all evidences
+    2. Move all child relationships
+    3. Move all parent relationships
+    4. Move all suggestions
+    5. Update synthesis
+    6. Delete merged node
+    """
+    
+    # 1. Move evidences
+    session.run(
+        """
+        MATCH (merge:KnowledgeNode {id: $merge_id})-[r:HAS_EVIDENCE]->(e:Evidence)
+        MATCH (canonical:KnowledgeNode {id: $canonical_id})
+        DELETE r
+        MERGE (canonical)-[:HAS_EVIDENCE]->(e)
+        """,
+        canonical_id=canonical_id,
+        merge_id=merge_id
+    )
+    
+    # 2. Move child relationships
+    session.run(
+        """
+        MATCH (merge:KnowledgeNode {id: $merge_id})-[r:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->(child)
+        MATCH (canonical:KnowledgeNode {id: $canonical_id})
+        DELETE r
+        MERGE (canonical)-[:CONTAINS_CONCEPT]->(child)
+        """,
+        canonical_id=canonical_id,
+        merge_id=merge_id
+    )
+    
+    # 3. Move parent relationships
+    session.run(
+        """
+        MATCH (parent)-[r:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->(merge:KnowledgeNode {id: $merge_id})
+        MATCH (canonical:KnowledgeNode {id: $canonical_id})
+        DELETE r
+        MERGE (parent)-[:CONTAINS_CONCEPT]->(canonical)
+        """,
+        canonical_id=canonical_id,
+        merge_id=merge_id
+    )
+    
+    # 4. Move suggestions
+    session.run(
+        """
+        MATCH (merge:KnowledgeNode {id: $merge_id})-[r:HAS_SUGGESTION]->(g:GapSuggestion)
+        MATCH (canonical:KnowledgeNode {id: $canonical_id})
+        DELETE r
+        MERGE (canonical)-[:HAS_SUGGESTION]->(g)
+        """,
+        canonical_id=canonical_id,
+        merge_id=merge_id
+    )
+    
+    # 5. Update canonical node statistics
+    session.run(
+        """
+        MATCH (canonical:KnowledgeNode {id: $canonical_id})
+        OPTIONAL MATCH (canonical)-[:HAS_EVIDENCE]->(e:Evidence)
+        WITH canonical, count(DISTINCT e) as evidence_count, sum(e.confidence) as total_conf
+        SET canonical.source_count = evidence_count,
+            canonical.total_confidence = total_conf,
+            canonical.updated_at = $updated_at
+        """,
+        canonical_id=canonical_id,
+        updated_at=datetime.now().isoformat()
+    )
+    
+    # 6. Delete merged node
+    session.run(
+        """
+        MATCH (n:KnowledgeNode {id: $merge_id})
+        DETACH DELETE n
+        """,
+        merge_id=merge_id
+    )
+
+
+def deduplicate_across_workspace(session, workspace_id: str, clova_api_key: str,
+                                 clova_api_url: str, embedding_func) -> Dict:
+    """
+    Smart deduplication that handles common patterns:
+    - Abbreviations: "ML" → "Machine Learning"
+    - Synonyms: "Neural Nets" → "Neural Networks"
+    - Case variations: "deep learning" → "Deep Learning"
+    """
+    
+    print(f"\n🧹 Smart Deduplication Across Workspace")
+    
+    # Common abbreviation mappings (you can expand this)
+    common_patterns = {
+        "ml": "machine learning",
+        "ai": "artificial intelligence",
+        "nn": "neural network",
+        "cnn": "convolutional neural network",
+        "rnn": "recurrent neural network",
+        "nlp": "natural language processing",
+        "cv": "computer vision",
+        "dl": "deep learning"
+    }
+    
+    results = batch_deduplicate_nodes(session, workspace_id, 
+                                     clova_api_key, clova_api_url, 
+                                     embedding_func)
+    
+    return results
+
+
+def get_deduplication_report(session, workspace_id: str) -> Dict:
+    """Get statistics after deduplication"""
+    
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $workspace_id})
+        OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
+        WITH n, count(DISTINCT e.source_id) as source_count
+        RETURN n.type as type,
+               count(n) as node_count,
+               sum(CASE WHEN source_count > 1 THEN 1 ELSE 0 END) as merged_count,
+               avg(source_count) as avg_sources_per_node
+        ORDER BY n.type
+        """,
+        workspace_id=workspace_id
+    )
+    
+    stats = {}
+    for record in result:
+        stats[record["type"]] = {
+            "total_nodes": record["node_count"],
+            "merged_nodes": record["merged_count"],
+            "avg_sources": round(record["avg_sources_per_node"], 2)
+        }
+    
+    return stats

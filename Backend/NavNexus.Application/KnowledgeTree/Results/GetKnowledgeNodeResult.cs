@@ -3,7 +3,7 @@ using NavNexus.Domain.Entities;
 
 namespace NavNexus.Application.KnowledgeTree.Results;
 
-public class GetKnowledgeNodeResult
+public class  GetKnowledgeNodeResult
 {
     public  string Id { get; set; }
     public  string Type { get; set; }
