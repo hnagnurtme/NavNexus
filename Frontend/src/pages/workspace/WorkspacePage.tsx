@@ -6,16 +6,14 @@ import { WorkspaceCanvas } from "./components/canvas/WorkspaceCanvas";
 import { ForensicPanel } from "./components/forensic/ForensicPanel";
 import { ViewToggle } from "./components/common/ViewToggle";
 import { JourneyOverlay } from "./components/journey/JourneyOverlay";
-import { FloatingAISynthesis } from "./components/common/FloatingAISynthesis";
-import { FloatingNodeInfo } from "./components/common/FloatingNodeInfo";
 import { useWorkspaceExperience } from "./hooks/useWorkspaceExperience";
 import { findWorkspaceNode } from "./utils/treeUtils";
 
 export const WorkspacePage: React.FC = () => {
 	const { workspaceId } = useParams<{ workspaceId: string }>();
 	const experience = useWorkspaceExperience(workspaceId);
-	const [showAISynthesis, setShowAISynthesis] = useState(true);
-	const [showNodeInfo, setShowNodeInfo] = useState(true);
+	const [_showAISynthesis, setShowAISynthesis] = useState(true);
+	const [_showNodeInfo, setShowNodeInfo] = useState(true);
 
 	const {
 		view,

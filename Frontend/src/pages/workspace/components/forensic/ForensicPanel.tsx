@@ -27,7 +27,6 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 	isLoading,
 	journeyActive,
 	onStartJourney,
-	onHighlightRelated,
 }) => {
 	const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>(
 		[]
