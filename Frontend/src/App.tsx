@@ -5,6 +5,7 @@ import { WorkspacePage } from "./pages/workspace/WorkspacePage";
 import { AuthPage } from "./pages/auth/AuthPage";
 import { useAuth } from "./contexts/AuthContext";
 import Homepage from "./pages/homepage/Homepage";
+import WorkspaceListPage from "./pages/workspaces/WorkspaceListPage";
 import { NaverToaster } from "./pages/homepage/components/HomePageComponent/ToastNaver";
 
 
@@ -44,6 +45,14 @@ function App() {
           <Route
             path="/register"
             element={<AuthPage initialMode="register" />}
+          />
+          <Route
+            path="/workspaces"
+            element={
+              <PrivateRoute>
+                <WorkspaceListPage />
+              </PrivateRoute>
+            }
           />
           <Route
             path="/workspace/:workspaceId"

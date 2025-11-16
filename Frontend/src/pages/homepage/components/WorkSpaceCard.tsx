@@ -1,9 +1,9 @@
 import { ArrowRight, Briefcase } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import type {  WorkspaceDetailResponseApiResponse } from "@/types/workspace.types";
+import type { WorkspaceDetailResponse } from "@/types/workspace.types";
 
 type WorkSpaceCardProps = {
-  workspace: WorkspaceDetailResponseApiResponse;
+  workspace: WorkspaceDetailResponse;
 };
 
 export const WorkSpaceCard = ({ workspace }: WorkSpaceCardProps) => {
@@ -15,7 +15,7 @@ export const WorkSpaceCard = ({ workspace }: WorkSpaceCardProps) => {
 
   return (
     <div
-      key={workspace.data?.workspaceId}
+      key={workspace.workspaceId}
       className="group relative overflow-hidden rounded-[1.75rem] border border-[#2a2a2a] bg-[#121212] p-6 shadow-[0_20px_40px_rgba(0,0,0,0.4)] transition hover:border-[#03C75A]/40 hover:shadow-[0_30px_70px_rgba(3,199,90,0.15)]"
     >
       <div
@@ -29,14 +29,14 @@ export const WorkSpaceCard = ({ workspace }: WorkSpaceCardProps) => {
 
         <div>
           <h4 className="text-lg font-semibold text-[#f5f5f5]">
-            {workspace.data?.name}
+            {workspace.name}
           </h4>
-          <p className="mt-2 text-sm text-[#b3b3b3]">{workspace.data?.description || 'No description'}</p>
+          <p className="mt-2 text-sm text-[#b3b3b3]">{workspace.description || 'No description'}</p>
         </div>
 
         <div className="flex items-center gap-2 text-xs text-[#b3b3b3]">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#03C75A]/20 text-[11px] font-semibold text-[#03C75A]">
-            {workspace.data?.fileIds?.length || 0}
+            {workspace.fileIds?.length || 0}
           </span>
           documents
         </div>
@@ -44,20 +44,20 @@ export const WorkSpaceCard = ({ workspace }: WorkSpaceCardProps) => {
         <div className="space-y-1 text-xs text-[#b3b3b3]">
           <div className="flex items-center gap-2">
             <span className="font-semibold">Owner:</span>
-            <span>{workspace.data?.ownerName}</span>
+            <span>{workspace.ownerName}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-semibold">Created:</span>
-            <span>{formatDate(workspace.data?.createdAt)}</span>
+            <span>{formatDate(workspace.createdAt)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-semibold">Updated:</span>
-            <span>{formatDate(workspace.data?.updatedAt)}</span>
+            <span>{formatDate(workspace.updatedAt)}</span>
           </div>
         </div>
 
         <button
-          onClick={() => navigate(`/workspace/${workspace.data?.workspaceId}`)}
+          onClick={() => navigate(`/workspace/${workspace.workspaceId}`)}
           className="mt-auto inline-flex items-center gap-2 self-start rounded-full border border-transparent bg-[#03C75A]/20 px-4 py-2 text-sm font-semibold text-[#03C75A] transition hover:bg-[#03C75A]/30"
         >
           Open Workspace

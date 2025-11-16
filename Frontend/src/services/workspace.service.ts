@@ -2,14 +2,15 @@ import { apiClient } from './api.service';
 import type {
   CreateWorkspaceRequest,
   WorkspaceDetailResponseApiResponse,
+  UserWorkspaceResponseApiResponse,
 } from '@/types/workspace.types';
 
 export const workspaceService = {
   /**
    * Get all workspaces for the current user
    */
-  async getUserWorkspaces(): Promise<WorkspaceDetailResponseApiResponse> {
-    const response = await apiClient.get<WorkspaceDetailResponseApiResponse>('/workspace');
+  async getUserWorkspaces(): Promise<UserWorkspaceResponseApiResponse> {
+    const response = await apiClient.get<UserWorkspaceResponseApiResponse>('/workspace');
     return response.data;
   },
 
