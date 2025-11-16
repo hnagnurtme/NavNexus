@@ -3,7 +3,6 @@ import {
 	AlertTriangle,
 	ChevronDown,
 	FileText,
-	Info,
 	Loader2,
 	Sparkles,
 	Target,
@@ -90,15 +89,17 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 			<div className="border-b border-white/10 pb-4">
 				<div className="flex items-start justify-between gap-3 mb-4">
 					<div className="flex-1 min-w-0">
-						<h2 className="text-xl font-bold text-white leading-tight">
-							{details.nodeName}
-						</h2>
+						<div className="flex items-center gap-2">
+							<h2 className="text-xl font-bold text-white leading-tight">
+								{details.nodeName}
+							</h2>
+							{hasGapSuggestions && (
+								<span className="flex-shrink-0 rounded-full bg-amber-500/20 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
+									GAP
+								</span>
+							)}
+						</div>
 					</div>
-					{hasGapSuggestions && (
-						<span className="flex-shrink-0 rounded-full bg-amber-500/20 border border-amber-500/30 px-3 py-1 text-xs font-bold text-amber-300">
-							GAP
-						</span>
-					)}
 				</div>
 
 				{/* Tags and Metadata */}
@@ -135,12 +136,9 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						</div>
 					</div>
 				</div>
-			</div>
-
-			<section className="mt-4 flex flex-wrap gap-2">
 				<button
 					type="button"
-					className="group relative flex-1 overflow-hidden rounded-2xl border-2 border-emerald-500/60 bg-gradient-to-br from-emerald-500/20 to-emerald-600/10 px-4 py-3 text-sm font-bold uppercase tracking-wider text-emerald-200 shadow-lg transition-all duration-300 hover:border-emerald-400 hover:shadow-emerald-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+					className="inline-flex items-center gap-1 rounded-full border border-emerald-400/70 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40 mt-4"
 					disabled={
 						!selectedNode ||
 						!selectedNode.hasChildren ||
@@ -150,12 +148,10 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						selectedNode && onStartJourney(selectedNode.nodeId)
 					}
 				>
-					<span className="relative z-10 flex items-center justify-center gap-2">
-						🚀 Start Journey
-					</span>
-					<div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
+					<span aria-hidden="true">🚀</span>
+					Start Journey
 				</button>
-			</section>
+			</div>
 
 			<section className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
 				{[
@@ -271,10 +267,23 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 				].map((section) => {
 					const Icon = section.icon;
 					const isOpen = openSections[section.id];
+					const isAISynthesis = section.id === "ai";
+					const containerClass = isAISynthesis
+						? "border-cyan-300/50 bg-gradient-to-br from-slate-950/80 via-teal-900/60 to-cyan-900/40 animate-gradient-flow"
+						: "border-white/10 bg-white/5";
+					const headerTextClass = isAISynthesis
+						? "text-xs font-semibold uppercase tracking-widest text-cyan-100"
+						: "text-xs font-semibold uppercase tracking-widest text-white";
+					const iconClass = isAISynthesis
+						? "text-cyan-200"
+						: "text-white/70";
+					const contentBorderClass = isAISynthesis
+						? "border-cyan-400/30 text-cyan-50/90"
+						: "border-white/10 text-white/80";
 					return (
 						<div
 							key={section.id}
-							className="rounded-2xl border border-white/10 bg-white/5"
+							className={`rounded-2xl border ${containerClass}`}
 						>
 							<button
 								type="button"
@@ -286,9 +295,9 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 									<Icon
 										width={16}
 										height={16}
-										className="text-white/70"
+										className={iconClass}
 									/>
-									<span className="text-xs font-semibold uppercase tracking-widest text-white">
+									<span className={headerTextClass}>
 										{section.title}
 									</span>
 								</div>
@@ -301,7 +310,9 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 								/>
 							</button>
 							{isOpen && (
-								<div className="border-t border-white/10 p-4 text-sm text-white/80">
+								<div
+									className={`border-t p-4 text-sm ${contentBorderClass}`}
+								>
 									{section.content}
 								</div>
 							)}

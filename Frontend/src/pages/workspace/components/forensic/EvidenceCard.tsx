@@ -72,6 +72,20 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 						)}
 					</div>
 				)}
+				{/* Evidence Text */}
+				<div className="text-sm text-white/70 leading-relaxed">
+					{evidence.text ? (
+						isExpanded || (evidence.text?.length ?? 0) <= 200 ? (
+							<p>{evidence.text}</p>
+						) : (
+							<p>{evidence.text.slice(0, 200)}...</p>
+						)
+					) : (
+						<p className="italic text-white/30">
+							No evidence text available.
+						</p>
+					)}
+				</div>
 
 				{/* Expand Toggle */}
 				{(evidence.text?.length ?? 0) > 200 && (
