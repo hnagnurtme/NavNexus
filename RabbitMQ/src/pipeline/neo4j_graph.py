@@ -917,3 +917,744 @@ def get_deduplication_report(session, workspace_id: str) -> Dict:
         }
     
     return stats
+
+# ============================================
+# ULTRA-OPTIMIZED CASCADING DEDUPLICATION
+# ============================================
+
+def find_best_match(session, workspace_id: str, concept_name: str, 
+                   embedding: List[float], thresholds: Dict[str, float]) -> Optional[Dict]:
+    """
+    Cascading search: Exact → Very High → High → Medium similarity
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        concept_name: Name of concept to match
+        embedding: Embedding vector
+        thresholds: Dict with keys: very_high, high, medium
+        
+    Returns:
+        Dict with keys: id, name, sim, match_type or None
+    """
+    
+    # STAGE 1: Exact name match (case-insensitive)
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $ws})
+        WHERE toLower(n.name) = toLower($name)
+           OR toLower($name) IN [x IN COALESCE(n.aliases, []) | toLower(x)]
+        RETURN n.id as id, n.name as name, 1.0 as sim, 'exact' as match_type
+        LIMIT 1
+        """,
+        ws=workspace_id,
+        name=concept_name
+    )
+    
+    record = result.single()
+    if record:
+        return dict(record)
+    
+    # STAGE 2-4: Semantic similarity with cascading thresholds
+    for threshold, match_type in [
+        (thresholds.get('very_high', 0.90), 'very_high'),
+        (thresholds.get('high', 0.80), 'high'),
+        (thresholds.get('medium', 0.70), 'medium')
+    ]:
+        # Note: This requires Neo4j GDS plugin with cosine similarity
+        # For now, use Python-based similarity check
+        result = session.run(
+            """
+            MATCH (n:KnowledgeNode {workspace_id: $ws})
+            WHERE n.embedding IS NOT NULL
+            RETURN n.id as id, n.name as name, n.embedding as embedding
+            """,
+            ws=workspace_id
+        )
+        
+        best_match = None
+        best_sim = 0.0
+        
+        for record in result:
+            node_embedding = record.get('embedding')
+            if not node_embedding:
+                continue
+            
+            # Calculate cosine similarity
+            from ..pipeline.embedding import calculate_similarity
+            sim = calculate_similarity(embedding, node_embedding)
+            
+            if sim > best_sim and sim > threshold:
+                best_sim = sim
+                best_match = {
+                    'id': record['id'],
+                    'name': record['name'],
+                    'sim': sim,
+                    'match_type': match_type
+                }
+        
+        if best_match:
+            return best_match
+    
+    return None
+
+
+def create_or_merge_node(session, workspace_id: str, name: str, synthesis: str,
+                        node_type: str, file_id: str, file_name: str,
+                        embeddings_cache: Dict[str, List[float]],
+                        thresholds: Dict[str, float],
+                        stats: Dict[str, int]) -> Optional[str]:
+    """
+    Create new node or merge into existing with evidence tracking
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        name: Concept name
+        synthesis: Synthesis text
+        node_type: Type of node (domain, category, concept, subconcept)
+        file_id: Source file ID
+        file_name: Source file name
+        embeddings_cache: Pre-computed embeddings
+        thresholds: Similarity thresholds
+        stats: Statistics dict to update
+        
+    Returns:
+        Node ID or None if error
+    """
+    
+    if not name or not name.strip():
+        return None
+    
+    embedding = embeddings_cache.get(name)
+    if not embedding:
+        print(f"    ⚠️  No embedding for '{name}'")
+        return None
+    
+    match = find_best_match(session, workspace_id, name, embedding, thresholds)
+    
+    if match:
+        # MERGE: Add evidence to existing node
+        node_id = match['id']
+        match_type = match['match_type']
+        similarity = match['sim']
+        
+        # Calculate confidence boost based on match quality
+        confidence_boost = {
+            'exact': 1.0,
+            'very_high': 0.9,
+            'high': 0.8,
+            'medium': 0.6
+        }.get(match_type, 0.5)
+        
+        # Update existing node
+        session.run(
+            """
+            MATCH (n:KnowledgeNode {id: $id})
+            SET n.synthesis = CASE 
+                    WHEN n.synthesis IS NULL OR n.synthesis = '' 
+                    THEN '[' + $file_name + '] ' + $new_synthesis
+                    ELSE n.synthesis + '\\n\\n[' + $file_name + '] ' + $new_synthesis
+                END,
+                n.file_ids = CASE
+                    WHEN COALESCE(n.file_ids, []) = []
+                    THEN [$file_id]
+                    WHEN NOT $file_id IN COALESCE(n.file_ids, [])
+                    THEN COALESCE(n.file_ids, []) + $file_id
+                    ELSE n.file_ids
+                END,
+                n.evidence_count = COALESCE(n.evidence_count, 1) + 1,
+                n.confidence = COALESCE(n.confidence, 0.5) + $confidence_boost,
+                n.last_updated = $timestamp,
+                n.aliases = CASE 
+                    WHEN NOT $name IN COALESCE(n.aliases, []) AND $name <> n.name
+                    THEN COALESCE(n.aliases, []) + $name
+                    ELSE COALESCE(n.aliases, [])
+                END
+            """,
+            id=node_id,
+            new_synthesis=synthesis[:200],
+            file_id=file_id,
+            file_name=file_name,
+            name=name,
+            confidence_boost=confidence_boost,
+            timestamp=now_iso()
+        )
+        
+        # Update stats
+        if match_type == 'exact':
+            stats['exact_matches'] = stats.get('exact_matches', 0) + 1
+        elif match_type in ['very_high', 'high']:
+            stats['high_similarity_merges'] = stats.get('high_similarity_merges', 0) + 1
+        else:
+            stats['medium_similarity_merges'] = stats.get('medium_similarity_merges', 0) + 1
+        
+        print(f"    ♻️  MERGE ({match_type}, sim={similarity:.2f}): '{name}' → '{match['name']}'")
+        
+    else:
+        # CREATE: New node
+        node_id = str(uuid.uuid4())
+        stats['nodes_created'] = stats.get('nodes_created', 0) + 1
+        
+        session.run(
+            """
+            CREATE (n:KnowledgeNode {
+                id: $id,
+                workspace_id: $ws,
+                name: $name,
+                type: $type,
+                synthesis: '[' + $file_name + '] ' + $synthesis,
+                embedding: $embedding,
+                file_ids: [$file_id],
+                evidence_count: 1,
+                confidence: 0.5,
+                aliases: [],
+                created_at: $timestamp,
+                last_updated: $timestamp
+            })
+            """,
+            id=node_id,
+            ws=workspace_id,
+            name=name,
+            type=node_type,
+            synthesis=synthesis[:200],
+            embedding=embedding,
+            file_id=file_id,
+            file_name=file_name,
+            timestamp=now_iso()
+        )
+        
+        print(f"    ✨ CREATE: '{name}'")
+    
+    return node_id
+
+
+def create_hierarchical_graph_with_cascading_dedup(
+    session, workspace_id: str, structure: Dict, file_id: str,
+    file_name: str, embeddings_cache: Dict[str, List[float]],
+    thresholds: Optional[Dict[str, float]] = None
+) -> Dict[str, int]:
+    """
+    Ultra-aggressive deduplication with cascading similarity thresholds
+    
+    STRATEGY:
+    1. Exact name match (fastest)
+    2. Very high similarity (>0.90) - obvious duplicates
+    3. High similarity (>0.80) - semantic equivalents
+    4. Medium similarity (>0.70) - related concepts (merge with caution)
+    
+    EVIDENCE TRACKING:
+    - Each merged node tracks: file_ids[], aliases[], confidence_scores[]
+    - Synthesis accumulated from all sources
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        structure: Hierarchical structure dict
+        file_id: Source file ID
+        file_name: Source file name
+        embeddings_cache: Pre-computed embeddings
+        thresholds: Custom thresholds (optional)
+        
+    Returns:
+        Statistics dict with counts
+    """
+    
+    if thresholds is None:
+        from ..config import (
+            SEMANTIC_MERGE_THRESHOLD_VERY_HIGH,
+            SEMANTIC_MERGE_THRESHOLD_HIGH,
+            SEMANTIC_MERGE_THRESHOLD_MEDIUM
+        )
+        thresholds = {
+            'very_high': SEMANTIC_MERGE_THRESHOLD_VERY_HIGH,
+            'high': SEMANTIC_MERGE_THRESHOLD_HIGH,
+            'medium': SEMANTIC_MERGE_THRESHOLD_MEDIUM
+        }
+    
+    stats = {
+        'nodes_created': 0,
+        'exact_matches': 0,
+        'high_similarity_merges': 0,
+        'medium_similarity_merges': 0,
+        'final_count': 0
+    }
+    
+    print(f"\n📊 Building graph with cascading deduplication (thresholds: {thresholds})")
+    
+    # Process domain
+    domain = structure.get('domain', {})
+    domain_id = None
+    if domain.get('name'):
+        print(f"\n  🌐 Domain: {domain.get('name')}")
+        domain_id = create_or_merge_node(
+            session, workspace_id,
+            domain.get('name', ''),
+            domain.get('synthesis', '')[:200],
+            'domain',
+            file_id, file_name,
+            embeddings_cache, thresholds, stats
+        )
+    
+    # Process categories
+    for cat in structure.get('categories', []):
+        if not cat.get('name'):
+            continue
+        
+        print(f"\n  📁 Category: {cat.get('name')}")
+        cat_id = create_or_merge_node(
+            session, workspace_id,
+            cat.get('name', ''),
+            cat.get('synthesis', '')[:200],
+            'category',
+            file_id, file_name,
+            embeddings_cache, thresholds, stats
+        )
+        
+        if domain_id and cat_id:
+            session.run(
+                """
+                MATCH (d:KnowledgeNode {id: $did}), (c:KnowledgeNode {id: $cid})
+                MERGE (d)-[:HAS_SUBCATEGORY]->(c)
+                """,
+                did=domain_id, cid=cat_id
+            )
+        
+        # Process concepts
+        for concept in cat.get('concepts', []):
+            if not concept.get('name'):
+                continue
+            
+            print(f"\n    💡 Concept: {concept.get('name')}")
+            concept_id = create_or_merge_node(
+                session, workspace_id,
+                concept.get('name', ''),
+                concept.get('synthesis', '')[:200],
+                'concept',
+                file_id, file_name,
+                embeddings_cache, thresholds, stats
+            )
+            
+            if cat_id and concept_id:
+                session.run(
+                    """
+                    MATCH (c:KnowledgeNode {id: $cid}), (n:KnowledgeNode {id: $nid})
+                    MERGE (c)-[:CONTAINS_CONCEPT]->(n)
+                    """,
+                    cid=cat_id, nid=concept_id
+                )
+            
+            # Process subconcepts
+            for sub in concept.get('subconcepts', []):
+                if not sub.get('name'):
+                    continue
+                
+                print(f"\n      🔸 Subconcept: {sub.get('name')}")
+                sub_id = create_or_merge_node(
+                    session, workspace_id,
+                    sub.get('name', ''),
+                    sub.get('synthesis', '')[:200],
+                    'subconcept',
+                    file_id, file_name,
+                    embeddings_cache, thresholds, stats
+                )
+                
+                if concept_id and sub_id:
+                    session.run(
+                        """
+                        MATCH (c:KnowledgeNode {id: $cid}), (s:KnowledgeNode {id: $sid})
+                        MERGE (c)-[:HAS_DETAIL]->(s)
+                        """,
+                        cid=concept_id, sid=sub_id
+                    )
+    
+    # Calculate final count
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $ws})
+        RETURN count(n) as total
+        """,
+        ws=workspace_id
+    )
+    record = result.single()
+    stats['final_count'] = record['total'] if record else 0
+    
+    print(f"\n✅ Graph construction complete:")
+    print(f"   - New nodes created: {stats['nodes_created']}")
+    print(f"   - Exact matches: {stats['exact_matches']}")
+    print(f"   - High similarity merges: {stats['high_similarity_merges']}")
+    print(f"   - Medium similarity merges: {stats['medium_similarity_merges']}")
+    print(f"   - Total nodes in workspace: {stats['final_count']}")
+    
+    return stats
+
+
+# ============================================
+# ULTRA-OPTIMIZED CASCADING DEDUPLICATION
+# ============================================
+
+def find_best_match(session, workspace_id: str, concept_name: str, 
+                   embedding: List[float], thresholds: Dict[str, float]) -> Optional[Dict]:
+    """
+    Cascading search: Exact → Very High → High → Medium similarity
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        concept_name: Name of concept to match
+        embedding: Embedding vector
+        thresholds: Dict with keys: very_high, high, medium
+        
+    Returns:
+        Dict with keys: id, name, sim, match_type or None
+    """
+    
+    # STAGE 1: Exact name match (case-insensitive)
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $ws})
+        WHERE toLower(n.name) = toLower($name)
+           OR toLower($name) IN [x IN COALESCE(n.aliases, []) | toLower(x)]
+        RETURN n.id as id, n.name as name, 1.0 as sim, 'exact' as match_type
+        LIMIT 1
+        """,
+        ws=workspace_id,
+        name=concept_name
+    )
+    
+    record = result.single()
+    if record:
+        return dict(record)
+    
+    # STAGE 2-4: Semantic similarity with cascading thresholds
+    for threshold, match_type in [
+        (thresholds.get('very_high', 0.90), 'very_high'),
+        (thresholds.get('high', 0.80), 'high'),
+        (thresholds.get('medium', 0.70), 'medium')
+    ]:
+        # Note: This requires Neo4j GDS plugin with cosine similarity
+        # For now, use Python-based similarity check
+        result = session.run(
+            """
+            MATCH (n:KnowledgeNode {workspace_id: $ws})
+            WHERE n.embedding IS NOT NULL
+            RETURN n.id as id, n.name as name, n.embedding as embedding
+            """,
+            ws=workspace_id
+        )
+        
+        best_match = None
+        best_sim = 0.0
+        
+        for record in result:
+            node_embedding = record.get('embedding')
+            if not node_embedding:
+                continue
+            
+            # Calculate cosine similarity
+            from ..pipeline.embedding import calculate_similarity
+            sim = calculate_similarity(embedding, node_embedding)
+            
+            if sim > best_sim and sim > threshold:
+                best_sim = sim
+                best_match = {
+                    'id': record['id'],
+                    'name': record['name'],
+                    'sim': sim,
+                    'match_type': match_type
+                }
+        
+        if best_match:
+            return best_match
+    
+    return None
+
+
+def create_or_merge_node(session, workspace_id: str, name: str, synthesis: str,
+                        node_type: str, file_id: str, file_name: str,
+                        embeddings_cache: Dict[str, List[float]],
+                        thresholds: Dict[str, float],
+                        stats: Dict[str, int]) -> Optional[str]:
+    """
+    Create new node or merge into existing with evidence tracking
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        name: Concept name
+        synthesis: Synthesis text
+        node_type: Type of node (domain, category, concept, subconcept)
+        file_id: Source file ID
+        file_name: Source file name
+        embeddings_cache: Pre-computed embeddings
+        thresholds: Similarity thresholds
+        stats: Statistics dict to update
+        
+    Returns:
+        Node ID or None if error
+    """
+    
+    if not name or not name.strip():
+        return None
+    
+    embedding = embeddings_cache.get(name)
+    if not embedding:
+        print(f"    ⚠️  No embedding for '{name}'")
+        return None
+    
+    match = find_best_match(session, workspace_id, name, embedding, thresholds)
+    
+    if match:
+        # MERGE: Add evidence to existing node
+        node_id = match['id']
+        match_type = match['match_type']
+        similarity = match['sim']
+        
+        # Calculate confidence boost based on match quality
+        confidence_boost = {
+            'exact': 1.0,
+            'very_high': 0.9,
+            'high': 0.8,
+            'medium': 0.6
+        }.get(match_type, 0.5)
+        
+        # Update existing node
+        session.run(
+            """
+            MATCH (n:KnowledgeNode {id: $id})
+            SET n.synthesis = CASE 
+                    WHEN n.synthesis IS NULL OR n.synthesis = '' 
+                    THEN '[' + $file_name + '] ' + $new_synthesis
+                    ELSE n.synthesis + '\\n\\n[' + $file_name + '] ' + $new_synthesis
+                END,
+                n.file_ids = CASE
+                    WHEN COALESCE(n.file_ids, []) = []
+                    THEN [$file_id]
+                    WHEN NOT $file_id IN COALESCE(n.file_ids, [])
+                    THEN COALESCE(n.file_ids, []) + $file_id
+                    ELSE n.file_ids
+                END,
+                n.evidence_count = COALESCE(n.evidence_count, 1) + 1,
+                n.confidence = COALESCE(n.confidence, 0.5) + $confidence_boost,
+                n.last_updated = $timestamp,
+                n.aliases = CASE 
+                    WHEN NOT $name IN COALESCE(n.aliases, []) AND $name <> n.name
+                    THEN COALESCE(n.aliases, []) + $name
+                    ELSE COALESCE(n.aliases, [])
+                END
+            """,
+            id=node_id,
+            new_synthesis=synthesis[:200],
+            file_id=file_id,
+            file_name=file_name,
+            name=name,
+            confidence_boost=confidence_boost,
+            timestamp=now_iso()
+        )
+        
+        # Update stats
+        if match_type == 'exact':
+            stats['exact_matches'] = stats.get('exact_matches', 0) + 1
+        elif match_type in ['very_high', 'high']:
+            stats['high_similarity_merges'] = stats.get('high_similarity_merges', 0) + 1
+        else:
+            stats['medium_similarity_merges'] = stats.get('medium_similarity_merges', 0) + 1
+        
+        print(f"    ♻️  MERGE ({match_type}, sim={similarity:.2f}): '{name}' → '{match['name']}'")
+        
+    else:
+        # CREATE: New node
+        node_id = str(uuid.uuid4())
+        stats['nodes_created'] = stats.get('nodes_created', 0) + 1
+        
+        session.run(
+            """
+            CREATE (n:KnowledgeNode {
+                id: $id,
+                workspace_id: $ws,
+                name: $name,
+                type: $type,
+                synthesis: '[' + $file_name + '] ' + $synthesis,
+                embedding: $embedding,
+                file_ids: [$file_id],
+                evidence_count: 1,
+                confidence: 0.5,
+                aliases: [],
+                created_at: $timestamp,
+                last_updated: $timestamp
+            })
+            """,
+            id=node_id,
+            ws=workspace_id,
+            name=name,
+            type=node_type,
+            synthesis=synthesis[:200],
+            embedding=embedding,
+            file_id=file_id,
+            file_name=file_name,
+            timestamp=now_iso()
+        )
+        
+        print(f"    ✨ CREATE: '{name}'")
+    
+    return node_id
+
+
+def create_hierarchical_graph_with_cascading_dedup(
+    session, workspace_id: str, structure: Dict, file_id: str,
+    file_name: str, embeddings_cache: Dict[str, List[float]],
+    thresholds: Optional[Dict[str, float]] = None
+) -> Dict[str, int]:
+    """
+    Ultra-aggressive deduplication with cascading similarity thresholds
+    
+    STRATEGY:
+    1. Exact name match (fastest)
+    2. Very high similarity (>0.90) - obvious duplicates
+    3. High similarity (>0.80) - semantic equivalents
+    4. Medium similarity (>0.70) - related concepts (merge with caution)
+    
+    EVIDENCE TRACKING:
+    - Each merged node tracks: file_ids[], aliases[], confidence_scores[]
+    - Synthesis accumulated from all sources
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        structure: Hierarchical structure dict
+        file_id: Source file ID
+        file_name: Source file name
+        embeddings_cache: Pre-computed embeddings
+        thresholds: Custom thresholds (optional)
+        
+    Returns:
+        Statistics dict with counts
+    """
+    
+    if thresholds is None:
+        from ..config import (
+            SEMANTIC_MERGE_THRESHOLD_VERY_HIGH,
+            SEMANTIC_MERGE_THRESHOLD_HIGH,
+            SEMANTIC_MERGE_THRESHOLD_MEDIUM
+        )
+        thresholds = {
+            'very_high': SEMANTIC_MERGE_THRESHOLD_VERY_HIGH,
+            'high': SEMANTIC_MERGE_THRESHOLD_HIGH,
+            'medium': SEMANTIC_MERGE_THRESHOLD_MEDIUM
+        }
+    
+    stats = {
+        'nodes_created': 0,
+        'exact_matches': 0,
+        'high_similarity_merges': 0,
+        'medium_similarity_merges': 0,
+        'final_count': 0
+    }
+    
+    print(f"\n📊 Building graph with cascading deduplication (thresholds: {thresholds})")
+    
+    # Process domain
+    domain = structure.get('domain', {})
+    domain_id = None
+    if domain.get('name'):
+        print(f"\n  🌐 Domain: {domain.get('name')}")
+        domain_id = create_or_merge_node(
+            session, workspace_id,
+            domain.get('name', ''),
+            domain.get('synthesis', '')[:200],
+            'domain',
+            file_id, file_name,
+            embeddings_cache, thresholds, stats
+        )
+    
+    # Process categories
+    for cat in structure.get('categories', []):
+        if not cat.get('name'):
+            continue
+        
+        print(f"\n  📁 Category: {cat.get('name')}")
+        cat_id = create_or_merge_node(
+            session, workspace_id,
+            cat.get('name', ''),
+            cat.get('synthesis', '')[:200],
+            'category',
+            file_id, file_name,
+            embeddings_cache, thresholds, stats
+        )
+        
+        if domain_id and cat_id:
+            session.run(
+                """
+                MATCH (d:KnowledgeNode {id: $did}), (c:KnowledgeNode {id: $cid})
+                MERGE (d)-[:HAS_SUBCATEGORY]->(c)
+                """,
+                did=domain_id, cid=cat_id
+            )
+        
+        # Process concepts
+        for concept in cat.get('concepts', []):
+            if not concept.get('name'):
+                continue
+            
+            print(f"\n    💡 Concept: {concept.get('name')}")
+            concept_id = create_or_merge_node(
+                session, workspace_id,
+                concept.get('name', ''),
+                concept.get('synthesis', '')[:200],
+                'concept',
+                file_id, file_name,
+                embeddings_cache, thresholds, stats
+            )
+            
+            if cat_id and concept_id:
+                session.run(
+                    """
+                    MATCH (c:KnowledgeNode {id: $cid}), (n:KnowledgeNode {id: $nid})
+                    MERGE (c)-[:CONTAINS_CONCEPT]->(n)
+                    """,
+                    cid=cat_id, nid=concept_id
+                )
+            
+            # Process subconcepts
+            for sub in concept.get('subconcepts', []):
+                if not sub.get('name'):
+                    continue
+                
+                print(f"\n      🔸 Subconcept: {sub.get('name')}")
+                sub_id = create_or_merge_node(
+                    session, workspace_id,
+                    sub.get('name', ''),
+                    sub.get('synthesis', '')[:200],
+                    'subconcept',
+                    file_id, file_name,
+                    embeddings_cache, thresholds, stats
+                )
+                
+                if concept_id and sub_id:
+                    session.run(
+                        """
+                        MATCH (c:KnowledgeNode {id: $cid}), (s:KnowledgeNode {id: $sid})
+                        MERGE (c)-[:HAS_DETAIL]->(s)
+                        """,
+                        cid=concept_id, sid=sub_id
+                    )
+    
+    # Calculate final count
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $ws})
+        RETURN count(n) as total
+        """,
+        ws=workspace_id
+    )
+    record = result.single()
+    stats['final_count'] = record['total'] if record else 0
+    
+    print(f"\n✅ Graph construction complete:")
+    print(f"   - New nodes created: {stats['nodes_created']}")
+    print(f"   - Exact matches: {stats['exact_matches']}")
+    print(f"   - High similarity merges: {stats['high_similarity_merges']}")
+    print(f"   - Medium similarity merges: {stats['medium_similarity_merges']}")
+    print(f"   - Total nodes in workspace: {stats['final_count']}")
+    
+    return stats
