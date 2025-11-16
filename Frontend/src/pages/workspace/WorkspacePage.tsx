@@ -73,19 +73,20 @@ export const WorkspacePage: React.FC = () => {
           {error}
         </div>
       )}
-      <div className="flex h-full gap-4 p-4">
-        {isControlPanelVisible ? (
+      <div className="relative flex h-full gap-4 p-4">
+        {isControlPanelVisible && (
           <ControlPanel
             isBusy={isBuilding}
             onSynthesize={actions.buildGraph}
             onReset={actions.resetWorkspace}
             onToggleVisibility={actions.toggleControlPanel}
           />
-        ) : (
+        )}
+        {!isControlPanelVisible && (
           <button
             type="button"
             onClick={actions.toggleControlPanel}
-            className="flex h-full w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/60 transition hover:text-white"
+            className="absolute left-4 top-4 z-30 flex h-12 w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/60 shadow-lg transition hover:text-white"
             aria-label="Show control panel"
           >
             <Menu width={20} height={20} />
@@ -93,7 +94,11 @@ export const WorkspacePage: React.FC = () => {
         )}
 
         <main className="relative flex flex-1 flex-col gap-4">
-          <div className="flex items-center justify-between">
+          <div
+            className={`flex items-center justify-between ${
+              !isControlPanelVisible ? 'pl-16' : ''
+            }`}
+          >
             <div>
               <p className="text-xs uppercase tracking-[0.5em] text-white/50">Workspace</p>
               <h1 className="text-3xl font-semibold text-white">NavNexus Knowledge Journey</h1>
