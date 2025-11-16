@@ -171,8 +171,16 @@ export const useWorkspaceGraph = (
 				childrenLoaded: true,
 			});
 
-			// Register root node
-			nodeRegistry.current.set(rootNode.nodeId, rootNode);
+			// Recursively register all descendants in the node registry
+			const registerDescendants = (node: KnowledgeNodeUI) => {
+				nodeRegistry.current.set(node.nodeId, node);
+				if (node.children) {
+					node.children.forEach((child) => registerDescendants(child));
+				}
+			};
+			
+			// Register root and all its descendants
+			registerDescendants(rootNode);
 			
 			// Set up visible nodes (root + immediate children)
 			const childIds = rootNode.children?.map(c => c.nodeId) ?? [];
@@ -180,11 +188,6 @@ export const useWorkspaceGraph = (
 			
 			// Set up adjacency
 			adjacencyMap.current.set(rootNode.nodeId, childIds);
-			
-			// Register children
-			rootNode.children?.forEach((child) => {
-				nodeRegistry.current.set(child.nodeId, child);
-			});
 			
 			// Cache children
 			childrenCache.current.set(rootNode.nodeId, rootNode.children ?? []);
@@ -233,9 +236,17 @@ export const useWorkspaceGraph = (
 
 			const children = nodeUI.children ?? [];
 			childrenCache.current.set(nodeId, children);
-			children.forEach((child) =>
-				nodeRegistry.current.set(child.nodeId, child)
-			);
+			
+			// Recursively register all descendants in the node registry
+			const registerDescendants = (node: KnowledgeNodeUI) => {
+				nodeRegistry.current.set(node.nodeId, node);
+				if (node.children) {
+					node.children.forEach((child) => registerDescendants(child));
+				}
+			};
+			
+			children.forEach((child) => registerDescendants(child));
+			
 			pendingNodeIds.current.delete(nodeId);
 			return children;
 		},
