@@ -19,6 +19,20 @@ import type { WorkspaceNode } from '../../utils/treeUtils';
 
 const nodeTypes = { custom: CustomNode };
 
+/**
+ * Convert WorkspaceNode (KnowledgeNodeUI) to MindmapNodeData
+ */
+const toMindmapNodeData = (node: WorkspaceNode): MindmapNodeData => ({
+  id: node.nodeId,
+  name: node.nodeName,
+  type: node.tags?.[0] || 'node', // Use first tag as type or default to 'node'
+  level: node.level,
+  isGap: (node.gapSuggestions?.length ?? 0) > 0,
+  hasChildren: node.hasChildren,
+  children: node.children?.map(toMindmapNodeData),
+  evidence: node.evidences?.map(e => ({ sourceTitle: e.sourceName || 'Unknown' })),
+});
+
 const OnboardingScreen = memo(() => (
   <div className="flex h-full w-full flex-col items-center justify-center rounded-2xl bg-black/20 p-8">
     <motion.div
@@ -119,14 +133,14 @@ const KnowledgeMindmapContent: React.FC<Omit<KnowledgeMindmapProps, 'view'>> = (
 
     const traverse = (items: WorkspaceNode[], parent?: WorkspaceNode) => {
       items.forEach((item) => {
-        map.set(item.id, item);
-        if (parent) parents.set(item.id, parent);
+        map.set(item.nodeId, item);
+        if (parent) parents.set(item.nodeId, parent);
         if (item.children?.length) traverse(item.children, item);
       });
     };
 
     if (rootNode) {
-      map.set(rootNode.id, rootNode);
+      map.set(rootNode.nodeId, rootNode);
       if (rootNode.children) {
         traverse(rootNode.children, rootNode);
       }
@@ -137,8 +151,8 @@ const KnowledgeMindmapContent: React.FC<Omit<KnowledgeMindmapProps, 'view'>> = (
 
     if (viewMode === 'galaxy') {
       const initialNodes = topLevelNodes.map((node, index) => ({
-        id: node.id,
-        data: { ...node } satisfies MindmapNodeData,
+        id: node.nodeId,
+        data: toMindmapNodeData(node),
         position: { x: 60, y: index * 140 },
         type: 'custom',
       }));
@@ -151,19 +165,19 @@ const KnowledgeMindmapContent: React.FC<Omit<KnowledgeMindmapProps, 'view'>> = (
 
       const buildHierarchy = (item: WorkspaceNode, parentId?: string) => {
         allNodes.push({
-          id: item.id,
-          data: { ...item } satisfies MindmapNodeData,
+          id: item.nodeId,
+          data: toMindmapNodeData(item),
           position: { x: 0, y: 0 },
           type: 'custom',
         });
         if (parentId) {
           allEdges.push({
-            id: `${parentId}-${item.id}`,
+            id: `${parentId}-${item.nodeId}`,
             source: parentId,
-            target: item.id,
+            target: item.nodeId,
           });
         }
-        item.children?.forEach((child) => buildHierarchy(child, item.id));
+        item.children?.forEach((child) => buildHierarchy(child, item.nodeId));
       };
 
       buildHierarchy(rootNode);
@@ -314,15 +328,15 @@ const KnowledgeMindmapContent: React.FC<Omit<KnowledgeMindmapProps, 'view'>> = (
         );
       } else {
         const childNodes: Node[] = fullNodeData.children.map((child) => ({
-          id: child.id,
-          data: { ...child } satisfies MindmapNodeData,
+          id: child.nodeId,
+          data: toMindmapNodeData(child),
           position: { x: 0, y: 0 },
           type: 'custom',
         }));
         const childEdges: Edge[] = fullNodeData.children.map((child) => ({
-          id: `${clickedNode.id}-${child.id}`,
+          id: `${clickedNode.id}-${child.nodeId}`,
           source: clickedNode.id,
-          target: child.id,
+          target: child.nodeId,
         }));
 
         const mergedNodes = [...nodes, ...childNodes];
@@ -376,8 +390,7 @@ const KnowledgeMindmapContent: React.FC<Omit<KnowledgeMindmapProps, 'view'>> = (
                 <h3 className="text-lg font-bold">AI Synthesis</h3>
               </div>
               <p className="text-sm text-white/80 leading-relaxed">
-                {/* TODO: Provide real synthesis text when available from node details */}
-                {selectedNode.name}
+                {selectedNode.description || selectedNode.nodeName}
               </p>
             </motion.div>
           </Panel>

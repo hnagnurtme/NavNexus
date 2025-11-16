@@ -1,13 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { TreeNodeUI } from '@/types';
+import type { KnowledgeNodeUI } from '@/types';
 
 interface NavigationState {
   history: string[];
   currentIndex: number;
   bookmarks: Set<string>;
   searchQuery: string;
-  searchResults: TreeNodeUI[];
+  searchResults: KnowledgeNodeUI[];
 
   // Actions
   visitNode: (nodeId: string) => void;
@@ -18,7 +18,7 @@ interface NavigationState {
   jumpTo: (nodeId: string) => void;
   toggleBookmark: (nodeId: string) => void;
   setSearchQuery: (query: string) => void;
-  setSearchResults: (results: TreeNodeUI[]) => void;
+  setSearchResults: (results: KnowledgeNodeUI[]) => void;
   clearSearch: () => void;
   reset: () => void;
 }
@@ -91,7 +91,7 @@ export const useNavigationStore = create<NavigationState>()(
 
       setSearchQuery: (query: string) => set({ searchQuery: query }),
       
-      setSearchResults: (results: TreeNodeUI[]) => set({ searchResults: results }),
+      setSearchResults: (results: KnowledgeNodeUI[]) => set({ searchResults: results }),
       
       clearSearch: () => set({ searchQuery: '', searchResults: [] }),
 

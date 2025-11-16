@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { BrainCircuit, FileText, Loader2, Sparkles } from 'lucide-react';
-import type { NodeDetailsResponse } from '@/types';
+import type { KnowledgeNodeUI } from '@/types';
 import type { WorkspaceNode } from '../../utils/treeUtils';
 import { EvidenceCard } from './EvidenceCard';
 import { GapAssistant } from './GapAssistant';
-import { SuggestedDocuments } from './SuggestedDocuments';
 
 interface ForensicPanelProps {
-  details: NodeDetailsResponse | null;
+  details: KnowledgeNodeUI | null;
   selectedNode: WorkspaceNode | null;
   isLoading: boolean;
   journeyActive: boolean;
@@ -28,8 +27,10 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 
   const selectedEvidenceText = useMemo(() => {
     if (!details) return null;
-    return details.evidence.filter((ev) => ev.id && selectedEvidenceIds.includes(ev.id));
+    return details.evidences.filter((ev) => ev.id && selectedEvidenceIds.includes(ev.id));
   }, [details, selectedEvidenceIds]);
+
+  const hasGapSuggestions = (details?.gapSuggestions?.length ?? 0) > 0;
 
   if (!details) {
     return (
@@ -48,22 +49,33 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
         <p className="text-xs uppercase tracking-[0.4em] text-white/50">Forensic Panel</p>
         <div className="mt-2 flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-semibold text-white">{details.name}</h2>
-            <p className="text-xs uppercase tracking-[0.4em] text-white/50">{details.type}</p>
+            <h2 className="text-lg font-semibold text-white">{details.nodeName}</h2>
+            {details.tags && details.tags.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {details.tags.map((tag, idx) => (
+                  <span 
+                    key={idx} 
+                    className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
-            {details.aiSuggestion.isGap && (
+            {hasGapSuggestions && (
               <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200">
                 Gap
               </span>
             )}
-            {details.aiSuggestion.isCrossroads && (
-              <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-200">
-                Crossroad
-              </span>
-            )}
           </div>
         </div>
+        {details.sourceCount > 0 && (
+          <p className="mt-2 text-xs text-white/50">
+            {details.sourceCount} {details.sourceCount === 1 ? 'source' : 'sources'}
+          </p>
+        )}
       </header>
 
       <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
@@ -71,7 +83,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
           <BrainCircuit width={18} height={18} />
           <h3 className="text-xs font-semibold uppercase tracking-widest">AI Synthesis</h3>
         </div>
-        <p className="leading-relaxed text-white/80">{details.synthesis}</p>
+        <p className="leading-relaxed text-white/80">{details.description || 'No synthesis available.'}</p>
       </section>
 
       <section className="mt-4 flex flex-wrap gap-2">
@@ -79,7 +91,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
           type="button"
           className="flex-1 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-200 transition hover:border-emerald-400/80"
           disabled={!selectedNode || !selectedNode.hasChildren || journeyActive}
-          onClick={() => selectedNode && onStartJourney(selectedNode.id)}
+          onClick={() => selectedNode && onStartJourney(selectedNode.nodeId)}
         >
           Start Journey
         </button>
@@ -89,16 +101,16 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
           disabled={!selectedNode || !(selectedNode.children?.length || 0)}
           onClick={() =>
             selectedNode?.children &&
-            onHighlightRelated(selectedNode.children.map((child) => child.id))
+            onHighlightRelated(selectedNode.children.map((child) => child.nodeId))
           }
         >
           Highlight Branches
         </button>
       </section>
 
-      {details.aiSuggestion.isGap && (
+      {hasGapSuggestions && details.gapSuggestions && (
         <div className="mt-4">
-          <GapAssistant suggestion={details.aiSuggestion} topicName={details.name} />
+          <GapAssistant suggestions={details.gapSuggestions} topicName={details.nodeName} />
         </div>
       )}
 
@@ -108,42 +120,42 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
           <h3 className="text-xs font-semibold uppercase tracking-widest">Evidence</h3>
         </div>
         <div className="space-y-3">
-          {details.evidence.map((evidence) => (
-            <EvidenceCard
-              key={evidence.id || Math.random().toString()}
-              evidence={evidence}
-              selected={evidence.id ? selectedEvidenceIds.includes(evidence.id) : false}
-              disabled={selectedEvidenceIds.length >= 2 && (!evidence.id || !selectedEvidenceIds.includes(evidence.id))}
-              onToggle={() => {
-                if (!evidence.id) return;
-                setSelectedEvidenceIds((prev) =>
-                  prev.includes(evidence.id!)
-                    ? prev.filter((id) => id !== evidence.id)
-                    : prev.length >= 2
-                      ? prev
-                      : [...prev, evidence.id!],
-                );
-              }}
-            />
-          ))}
+          {details.evidences && details.evidences.length > 0 ? (
+            details.evidences.map((evidence, idx) => (
+              <EvidenceCard
+                key={evidence.id || idx}
+                evidence={evidence}
+                selected={evidence.id ? selectedEvidenceIds.includes(evidence.id) : false}
+                disabled={selectedEvidenceIds.length >= 2 && (!evidence.id || !selectedEvidenceIds.includes(evidence.id))}
+                onToggle={() => {
+                  if (!evidence.id) return;
+                  setSelectedEvidenceIds((prev) =>
+                    prev.includes(evidence.id!)
+                      ? prev.filter((id) => id !== evidence.id)
+                      : prev.length >= 2
+                        ? prev
+                        : [...prev, evidence.id!],
+                  );
+                }}
+              />
+            ))
+          ) : (
+            <p className="text-sm text-white/50">No evidence available.</p>
+          )}
         </div>
 
         {comparisonReady && selectedEvidenceText && (
           <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 p-4 text-sm text-cyan-50">
             <p className="text-xs uppercase tracking-[0.4em] text-cyan-200">Comparison</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-cyan-100">
-              {selectedEvidenceText.map((evidence) => (
-                <li key={evidence.id || Math.random().toString()}>{evidence.sourceName || 'Unknown Source'}</li>
+              {selectedEvidenceText.map((evidence, idx) => (
+                <li key={evidence.id || idx}>{evidence.sourceName || 'Unknown Source'}</li>
               ))}
             </ul>
             <p className="mt-2 text-xs text-cyan-100/80">
               TODO: Missing AI comparison service endpoint. Hook here when available.
             </p>
           </div>
-        )}
-
-        {details.aiSuggestion.suggestedDocuments && details.aiSuggestion.suggestedDocuments.length > 0 && (
-          <SuggestedDocuments documents={details.aiSuggestion.suggestedDocuments} />
         )}
       </section>
 
