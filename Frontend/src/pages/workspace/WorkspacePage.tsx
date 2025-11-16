@@ -84,7 +84,7 @@ export const WorkspacePage: React.FC = () => {
 					<button
 						type="button"
 						onClick={actions.toggleControlPanel}
-						className="absolute left-4 top-4 z-30 flex h-12 w-12 items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/60 shadow-lg transition hover:text-white"
+						className="absolute left-4 top-4 z-30 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-white/10 to-white/5 text-white/70 shadow-2xl ring-1 ring-white/10 backdrop-blur-sm transition-all duration-200 hover:scale-105 hover:from-white/15 hover:to-white/10 hover:text-white hover:shadow-white/20 active:scale-95"
 						aria-label="Show control panel"
 					>
 						<Menu width={20} height={20} />
