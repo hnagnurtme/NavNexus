@@ -31,9 +31,9 @@ public class KnowledgeNodeController : ControllerBase
     [HttpGet("{workspaceId}")]
     [SwaggerOperation(Summary = "Get Knowledge Node", Description = "Retrieve a knowledge node by its ID within a specified workspace.")]
     [ProducesResponseType(typeof(ApiResponse<GetKnowledgeNodeResponse>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetKnowledgeNode([FromQuery] string nodeId, [FromRoute] string workspaceId)
+    public async Task<IActionResult> GetKnowledgeNode( [FromRoute] string workspaceId)
     {
-        var query = new GetKnowledgeNodeQuery(workspaceId, nodeId);
+        var query = new GetKnowledgeNodeQuery(workspaceId);
         var result = await _mediator.Send(query);
         var response = result.MapTo<GetKnowledgeNodeResult, GetKnowledgeNodeResponse>(_mapper);
         return OK.HandleResult(response, "Knowledge node retrieved successfully");
@@ -50,5 +50,17 @@ public class KnowledgeNodeController : ControllerBase
         var result = await _mediator.Send(command);
         var response = result.MapTo<RabbitMqSendingResult, RabbitMqSendingResponse>(_mapper);
         return OK.HandleResult(response, "Knowledge tree creation initiated successfully");
+    }
+
+
+    [HttpGet("node/{nodeId}")]
+    [SwaggerOperation(Summary = "Get Knowledge Node by ID", Description = "Retrieve a knowledge node by its ID.")]
+    [ProducesResponseType(typeof(ApiResponse<GetKnowledgeNodeResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetKnowledgeNodeById( [FromRoute] string nodeId)
+    {
+        var query = new GetKnowledgeNodeByIdQuery(nodeId);
+        var result = await _mediator.Send(query);
+        var response = result.MapTo<GetKnowledgeNodeResult, GetKnowledgeNodeResponse>(_mapper);
+        return OK.HandleResult(response, "Knowledge node retrieved successfully");
     }
 }

@@ -46,9 +46,13 @@ EXPOSE ${PORT:-8080}
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD wget --quiet --tries=1 --spider http://localhost:8080/health || exit 1
 
+COPY --from=build /app/publish .
+
 # Set environment for production
 ENV ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production
+
+USER appuser
 
 # Run application
 ENTRYPOINT ["dotnet", "NavNexus.API.dll"]

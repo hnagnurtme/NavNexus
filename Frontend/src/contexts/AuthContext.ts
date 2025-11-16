@@ -56,7 +56,14 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
+    const handleAuthError = () => {
+      signOutUser();
+    };
+    window.addEventListener('auth-error', handleAuthError);
     setIsInitializing(false);
+    return () => {
+      window.removeEventListener('auth-error', handleAuthError);
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
@@ -117,7 +124,6 @@ export const AuthProvider = ({ children }: PropsWithChildren<{}>) => {
     try {
       authService.logout();
       setUser(null);
-      localStorage.removeItem(STORAGE_KEY);
       ToastNaver.success('Successfully signed out!');
     } finally {
       setIsActionLoading(false);

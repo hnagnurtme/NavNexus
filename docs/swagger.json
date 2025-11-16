@@ -225,6 +225,138 @@
         }
       }
     },
+    "/api/knowledge-tree/{workspaceId}": {
+      "get": {
+        "tags": [
+          "KnowledgeNode"
+        ],
+        "summary": "Get Knowledge Node",
+        "description": "Retrieve a knowledge node by its ID within a specified workspace.",
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-tree": {
+      "post": {
+        "tags": [
+          "KnowledgeNode"
+        ],
+        "summary": "Create Knowledge Tree",
+        "description": "Create a knowledge tree for a specified workspace using provided file paths.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatedKnowledgetreeRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatedKnowledgetreeRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatedKnowledgetreeRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RabbitMqSendingResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RabbitMqSendingResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RabbitMqSendingResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/knowledge-tree/node/{nodeId}": {
+      "get": {
+        "tags": [
+          "KnowledgeNode"
+        ],
+        "summary": "Get Knowledge Node by ID",
+        "description": "Retrieve a knowledge node by its ID.",
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspace/{userId}": {
       "get": {
         "tags": [
@@ -448,6 +580,229 @@
         },
         "additionalProperties": false
       },
+      "CreatedKnowledgetreeRequest": {
+        "required": [
+          "filePaths",
+          "workspaceId"
+        ],
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "filePaths": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "chunkId": {
+            "type": "string",
+            "nullable": true
+          },
+          "text": {
+            "type": "string",
+            "nullable": true
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "confidence": {
+            "type": "number",
+            "format": "float"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "language": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceLanguage": {
+            "type": "string",
+            "nullable": true
+          },
+          "hierarchyPath": {
+            "type": "string",
+            "nullable": true
+          },
+          "concepts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "keyClaims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "questionsRaised": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "evidenceStrength": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GapSuggestion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "suggestionText": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetNodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetFileId": {
+            "type": "string",
+            "nullable": true
+          },
+          "similarityScore": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetKnowledgeNodeResponse": {
+        "required": [
+          "childNodes",
+          "createdAt",
+          "description",
+          "evidences",
+          "level",
+          "nodeId",
+          "nodeName",
+          "sourceCount",
+          "tags",
+          "updatedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "nodeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "nodeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "level": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "sourceCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "evidences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "childNodes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GetKnowledgeNodeResponse"
+            },
+            "nullable": true
+          },
+          "gapSuggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GapSuggestion"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetKnowledgeNodeResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GetKnowledgeNodeResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meta": {
+            "nullable": true
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "required": [
           "email",
@@ -480,6 +835,51 @@
           "deviceFingerprint": {
             "type": "string",
             "description": "An optional device fingerprint to uniquely identify the device",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RabbitMqSendingResponse": {
+        "required": [
+          "messageId",
+          "sentAt"
+        ],
+        "type": "object",
+        "properties": {
+          "messageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sentAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RabbitMqSendingResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RabbitMqSendingResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meta": {
+            "nullable": true
+          },
+          "errorCode": {
+            "type": "string",
             "nullable": true
           }
         },
