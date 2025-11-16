@@ -225,7 +225,6 @@ export const useWorkspaceGraph = (
 			pendingNodeIds.current.add(nodeId);
 			rebuildGalaxy();
 
-			console.log("[WorkspaceGraph] Fetching children for node", nodeId);
 			// Fetch node with its children from API
 			const response = await treeService.getKnowledgeNodeById(nodeId);
 			if (!response.data) {
@@ -239,12 +238,6 @@ export const useWorkspaceGraph = (
 
 			const children = nodeUI.children ?? [];
 			childrenCache.current.set(nodeId, children);
-			console.log(
-				"[WorkspaceGraph] Loaded",
-				children.length,
-				"children for node",
-				nodeId
-			);
 
 			// Recursively register all descendants in the node registry
 			const registerDescendants = (node: KnowledgeNodeUI) => {
@@ -377,7 +370,6 @@ export const useWorkspaceGraph = (
 			if (!response.data) {
 				throw new Error("No data in response");
 			}
-			console.log(response.data);
 
 			const rootNode = transformToKnowledgeNodeUI(response.data, {
 				isExpanded: true,
