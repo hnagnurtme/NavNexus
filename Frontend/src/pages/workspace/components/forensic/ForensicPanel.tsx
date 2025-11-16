@@ -28,7 +28,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 
   const selectedEvidenceText = useMemo(() => {
     if (!details) return null;
-    return details.evidence.filter((ev) => selectedEvidenceIds.includes(ev.id));
+    return details.evidence.filter((ev) => ev.id && selectedEvidenceIds.includes(ev.id));
   }, [details, selectedEvidenceIds]);
 
   if (!details) {
@@ -110,19 +110,20 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
         <div className="space-y-3">
           {details.evidence.map((evidence) => (
             <EvidenceCard
-              key={evidence.id}
+              key={evidence.id || Math.random().toString()}
               evidence={evidence}
-              selected={selectedEvidenceIds.includes(evidence.id)}
-              disabled={selectedEvidenceIds.length >= 2 && !selectedEvidenceIds.includes(evidence.id)}
-              onToggle={() =>
+              selected={evidence.id ? selectedEvidenceIds.includes(evidence.id) : false}
+              disabled={selectedEvidenceIds.length >= 2 && (!evidence.id || !selectedEvidenceIds.includes(evidence.id))}
+              onToggle={() => {
+                if (!evidence.id) return;
                 setSelectedEvidenceIds((prev) =>
-                  prev.includes(evidence.id)
+                  prev.includes(evidence.id!)
                     ? prev.filter((id) => id !== evidence.id)
                     : prev.length >= 2
                       ? prev
-                      : [...prev, evidence.id],
-                )
-              }
+                      : [...prev, evidence.id!],
+                );
+              }}
             />
           ))}
         </div>
@@ -132,7 +133,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
             <p className="text-xs uppercase tracking-[0.4em] text-cyan-200">Comparison</p>
             <ul className="mt-2 list-disc space-y-1 pl-4 text-cyan-100">
               {selectedEvidenceText.map((evidence) => (
-                <li key={evidence.id}>{evidence.sourceTitle}</li>
+                <li key={evidence.id || Math.random().toString()}>{evidence.sourceName || 'Unknown Source'}</li>
               ))}
             </ul>
             <p className="mt-2 text-xs text-cyan-100/80">
