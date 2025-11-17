@@ -851,8 +851,10 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             "error": error_msg,
             "traceback": traceback.format_exc()
         }
-def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
-    """Process a single PDF through the pipeline with smart deduplication"""
+
+# DEPRECATED: This async version is not currently used. Use process_pdf_job_optimized instead.
+async def process_pdf_job_async(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
+    """Process a single PDF through the pipeline with smart deduplication (ASYNC VERSION - DEPRECATED)"""
     from src.pipeline.neo4j_graph import deduplicate_across_workspace
     
     start_time = datetime.now()
