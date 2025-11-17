@@ -248,9 +248,8 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 					</div>
 
 					{contextItems.length === 0 ? (
-						<p className="text-xs text-white/40">
-							No context selected. Add nodes or documents to guide
-							the copilot.
+						<p className="text-xs text-white/20">
+							Add context to guide the chatbot
 						</p>
 					) : (
 						contextItems.map((context) => {
