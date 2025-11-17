@@ -39,7 +39,7 @@ from src.pipeline.pdf_extraction import extract_pdf_fast
 from src.pipeline.chunking import create_smart_chunks
 from src.pipeline.embedding import create_embedding_via_clova, calculate_similarity
 from src.pipeline.translation import translate_batch
-from src.pipeline.llm_analysis import extract_hierarchical_structure_compact
+from src.pipeline.llm_analysis import extract_hierarchical_structure_compact, process_chunks_ultra_compact
 from src.pipeline.neo4j_graph import now_iso
 from src.pipeline.qdrant_storage import store_chunks_in_qdrant
 
@@ -508,13 +508,35 @@ class Neo4jBatchWriter:
 # ================================
 print("🔧 Initializing clients...")
 
-if not FIREBASE_SERVICE_ACCOUNT or not os.path.exists(FIREBASE_SERVICE_ACCOUNT):
+# Initialize Neo4j driver
+neo4j_driver = GraphDatabase.driver(
+    NEO4J_URL,
+    auth=(NEO4J_USER, NEO4J_PASSWORD)
+)
+print(f"✓ Neo4j connected: {NEO4J_URL}")
+
+# Initialize Qdrant client
+qdrant_client = QdrantClient(
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY
+)
+print(f"✓ Qdrant connected: {QDRANT_URL}")
+
+# Initialize Firebase client (optional)
+firebase_client = None
+if FIREBASE_SERVICE_ACCOUNT and os.path.exists(FIREBASE_SERVICE_ACCOUNT):
+    try:
+        firebase_client = FirebaseClient(FIREBASE_SERVICE_ACCOUNT, FIREBASE_DATABASE_URL)
+        print(f"✓ Firebase initialized")
+    except Exception as e:
+        print(f"⚠️  Firebase initialization failed: {e}")
+        firebase_client = None
+else:
     print("="*80)
     print("⚠️  Firebase Service Account Key Not Found!")
     print(f"   File path: '{FIREBASE_SERVICE_ACCOUNT}'")
     print("   Worker will continue but Firebase features will be disabled.")
     print("="*80)
-    FIREBASE_SERVICE_ACCOUNT = None
 
 """
 ULTRA-OPTIMIZED PIPELINE
@@ -539,8 +561,7 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
     - Phase 7: HyperCLOVA X web search for resources
     """
     from src.pipeline.embedding_cache import extract_all_concept_names, batch_create_embeddings
-    from src.pipeline.neo4j_graph import create_hierarchical_graph_with_cascading_dedup
-    from src.pipeline.llm_analysis import extract_hierarchical_structure_compact, process_chunks_ultra_compact
+    from src.pipeline.neo4j_graph import create_hierarchical_graph_ultra_aggressive
     from src.pipeline.resource_discovery import discover_resources_with_hyperclova
     from src.config import (
         MAX_SYNTHESIS_LENGTH,
@@ -601,32 +622,10 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
         )
         
         # =================================================================
-        # PHASE 4: Build Graph with CASCADING Deduplication
-        # =================================================================
-        print(f"\n🔗 Phase 4: Building graph with cascading deduplication")
-        
-        with neo4j_driver.session() as session:
-            graph_stats = create_hierarchical_graph_with_cascading_dedup(
-                session, workspace_id, structure, file_id, file_name,
-                embeddings_cache
-            )
-        
-        nodes_created = graph_stats.get('nodes_created', 0)
-        exact_matches = graph_stats.get('exact_matches', 0)
-        high_sim_merges = graph_stats.get('high_similarity_merges', 0)
-        medium_sim_merges = graph_stats.get('medium_similarity_merges', 0)
-        total_nodes = graph_stats.get('final_count', 0)
-        
-        # Calculate deduplication rate
-        total_concepts = len(all_concept_names)
-        merges = exact_matches + high_sim_merges + medium_sim_merges
-        dedup_rate = (merges / total_concepts * 100) if total_concepts > 0 else 0
-        
-        # =================================================================
-        # PHASE 5: Process Chunks (ULTRA-COMPACT)
+        # PHASE 4: Process Chunks (ULTRA-COMPACT) - MOVED BEFORE GRAPH CREATION
         # =================================================================
         chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-        print(f"\n⚡ Phase 5: Processing {len(chunks)} chunks (ULTRA-COMPACT)")
+        print(f"\n⚡ Phase 4: Processing {len(chunks)} chunks (ULTRA-COMPACT)")
         
         # Use ultra-compact chunk processing
         chunk_results = process_chunks_ultra_compact(
@@ -635,23 +634,64 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             batch_size=BATCH_SIZE,
             max_text_length=MAX_CHUNK_TEXT_LENGTH
         )
+        print(f"✓ Processed {len(chunk_results)} chunks with metadata")
         
-        # Create Qdrant chunks with cached embeddings
+        # =================================================================
+        # PHASE 5: Build Graph with ULTRA-AGGRESSIVE Deduplication + Real Evidence
+        # =================================================================
+        print(f"\n🔗 Phase 5: Building graph with ultra-aggressive deduplication")
+        
+        with neo4j_driver.session() as session:
+            from src.pipeline.neo4j_graph import create_hierarchical_graph_ultra_aggressive
+            
+            # FIXED: Pass lang and processed_chunks parameters correctly
+            graph_stats = create_hierarchical_graph_ultra_aggressive(
+                session, workspace_id, structure, file_id, file_name,
+                lang="en",  # Language after translation
+                processed_chunks=chunk_results  # Real chunk data for Evidence
+            )
+        
+        nodes_created = graph_stats.get('nodes_created', 0)
+        exact_matches = graph_stats.get('exact_matches', 0)
+        high_sim_merges = graph_stats.get('high_similarity_merges', 0) + graph_stats.get('synonym_matches', 0)
+        medium_sim_merges = graph_stats.get('medium_similarity_matches', 0)
+        total_nodes = graph_stats.get('final_node_count', 0)
+        total_evidences = graph_stats.get('total_evidences_created', 0)
+        total_suggestions = graph_stats.get('total_suggestions_created', 0)
+        
+        # Calculate deduplication rate
+        total_concepts = len(all_concept_names)
+        merges = exact_matches + high_sim_merges + medium_sim_merges
+        dedup_rate = (merges / total_concepts * 100) if total_concepts > 0 else 0
+        
+        # =================================================================
+        # PHASE 6: Create Qdrant Chunks with Embeddings (STORE ALL CHUNKS)
+        # =================================================================
+        print(f"\n💾 Phase 6: Creating Qdrant chunks with embeddings")
         all_qdrant_chunks = []
         prev_chunk_id = ""
         prev_embedding = None
+        chunks_without_results = 0
         
-        for result in chunk_results:
-            chunk_idx = result.get('chunk_index', 0)
-            if chunk_idx >= len(chunks):
-                continue
-            
-            original_chunk = chunks[chunk_idx]
+        # Create a dict for quick lookup of chunk results
+        chunk_results_dict = {r.get('chunk_index', -1): r for r in chunk_results}
+        
+        # Process ALL chunks (not just those with results)
+        for chunk_idx, original_chunk in enumerate(chunks):
             chunk_id = str(uuid.uuid4())
             
-            summary = result.get('summary', '')
-            concepts = result.get('concepts', [])
-            topic = result.get('topic', 'General')
+            # Get result if available, otherwise use fallback
+            result = chunk_results_dict.get(chunk_idx)
+            if result:
+                summary = result.get('summary', '')
+                concepts = result.get('concepts', [])
+                topic = result.get('topic', 'General')
+            else:
+                # Fallback for chunks without LLM results
+                chunks_without_results += 1
+                summary = original_chunk["text"][:150]
+                concepts = []
+                topic = 'General'
             
             # Translate if needed
             if lang != "en":
@@ -663,14 +703,19 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
                     topic = translated[1] if len(translated) > 1 else topic
                     concepts = translated[2:] if len(translated) > 2 else concepts
             
-            # Reuse cached embedding or create new one
+            # Reuse cached embedding or create new one (with fallback)
             embedding = embeddings_cache.get(summary)
             if not embedding:
                 embedding = create_embedding_via_clova(summary, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
             
+            # Ensure we always have a valid embedding (fallback to hash if needed)
+            if not embedding or len(embedding) == 0:
+                from src.pipeline.embedding import create_hash_embedding
+                embedding = create_hash_embedding(summary)
+            
             # Calculate semantic similarity with previous chunk
             semantic_sim = 0.0
-            if prev_embedding:
+            if prev_embedding and embedding:
                 semantic_sim = calculate_similarity(prev_embedding, embedding)
             
             # Build hierarchy path
@@ -679,7 +724,7 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
                 hierarchy_path += f" > {concepts[0]}"
             hierarchy_path += f" > Chunk {chunk_idx+1}"
             
-            # Create Qdrant chunk
+            # Create Qdrant chunk with all metadata
             qdrant_chunk = QdrantChunk(
                 chunk_id=chunk_id,
                 paper_id=file_id,
@@ -714,19 +759,21 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             
             gc.collect()
         
-        print(f"✓ Processed {len(all_qdrant_chunks)} chunks with ultra-compact context")
+        if chunks_without_results > 0:
+            print(f"⚠️  {chunks_without_results} chunks used fallback data (LLM processing failed)")
+        print(f"✓ Created {len(all_qdrant_chunks)} Qdrant chunks (100% of chunks)")
         
         # =================================================================
-        # PHASE 6: Store Chunks in Qdrant (REUSE embeddings)
+        # PHASE 7: Store Chunks in Qdrant (REUSE embeddings)
         # =================================================================
-        print(f"\n💾 Phase 6: Storing {len(all_qdrant_chunks)} chunks in Qdrant")
+        print(f"\n💾 Phase 7: Storing {len(all_qdrant_chunks)} chunks in Qdrant")
         store_chunks_in_qdrant(qdrant_client, workspace_id, all_qdrant_chunks)
         print(f"✓ Stored in Qdrant collection: {workspace_id}")
         
         # =================================================================
-        # PHASE 7: Smart Resource Discovery (HyperCLOVA X Web Search)
+        # PHASE 8: Smart Resource Discovery (HyperCLOVA X Web Search)
         # =================================================================
-        print(f"\n🔍 Phase 7: Discovering academic resources (HyperCLOVA X Web Search)")
+        print(f"\n🔍 Phase 8: Discovering academic resources (HyperCLOVA X Web Search)")
         with neo4j_driver.session() as session:
             resource_count = discover_resources_with_hyperclova(
                 session, workspace_id,
@@ -743,12 +790,16 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
         print(f"✅ ULTRA-OPTIMIZED PIPELINE COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
         print(f"├─ Embedding Calls: {len(embeddings_cache)} (reduced by ~50%)")
         print(f"├─ Neo4j Nodes Created: {nodes_created}")
+        print(f"├─ Neo4j Nodes Merged: {merges}")
+        print(f"├─ Total Neo4j Evidences: {total_evidences}")
+        print(f"├─ Total Gap Suggestions: {total_suggestions}")
         print(f"├─ Exact Matches: {exact_matches}")
         print(f"├─ High Similarity Merges: {high_sim_merges}")
         print(f"├─ Medium Similarity Merges: {medium_sim_merges}")
         print(f"├─ Total Workspace Nodes: {total_nodes}")
         print(f"├─ Deduplication Rate: {dedup_rate:.1f}%")
-        print(f"├─ Qdrant Chunks: {len(all_qdrant_chunks)}")
+        print(f"├─ Qdrant Chunks Stored: {len(all_qdrant_chunks)}/{len(chunks)} (100%)")
+        print(f"├─ Chunks with Fallback: {chunks_without_results}")
         print(f"├─ Academic Resources: {resource_count}")
         print(f"├─ Language: {lang} → en")
         print(f"└─ File ID: {file_id}")
@@ -763,7 +814,13 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             "nodes": total_nodes,
             "nodesCreated": nodes_created,
             "nodesMerged": merges,
+            "evidences": total_evidences,
+            "suggestions": total_suggestions,
             "chunks": len(all_qdrant_chunks),
+            "chunksStored": len(all_qdrant_chunks),
+            "chunksTotal": len(chunks),
+            "chunkStorageRate": 100.0,  # Now always 100%
+            "chunksWithFallback": chunks_without_results,
             "resources": resource_count,
             "sourceLanguage": lang,
             "targetLanguage": "en",
@@ -774,7 +831,10 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
                 "embeddingCacheSize": len(embeddings_cache),
                 "exactMatches": exact_matches,
                 "highSimilarityMerges": high_sim_merges,
-                "mediumSimilarityMerges": medium_sim_merges
+                "mediumSimilarityMerges": medium_sim_merges,
+                "processedChunksUsed": True,
+                "realEvidenceData": True,
+                "allChunksStored": True
             }
         }
     
@@ -791,8 +851,10 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             "error": error_msg,
             "traceback": traceback.format_exc()
         }
-def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
-    """Process a single PDF through the pipeline with smart deduplication"""
+
+# DEPRECATED: This async version is not currently used. Use process_pdf_job_optimized instead.
+async def process_pdf_job_async(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
+    """Process a single PDF through the pipeline with smart deduplication (ASYNC VERSION - DEPRECATED)"""
     from src.pipeline.neo4j_graph import deduplicate_across_workspace
     
     start_time = datetime.now()
@@ -1193,10 +1255,8 @@ def handle_job_message(message: Dict[str, Any]):
         
         print(f"📌 Processing first file: {file_name}")
         
-        # Run async pipeline
-        result = asyncio.run(
-            process_pdf_job_ultra_optimized(workspace_id, pdf_url, file_name, job_id)
-        )
+        # Use the optimized pipeline (synchronous)
+        result = process_pdf_job_optimized(workspace_id, pdf_url, file_name, job_id)
         
         # Push result to Firebase (if available)
         if firebase_client:
