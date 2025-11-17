@@ -62,6 +62,19 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 		);
 	}, [details, selectedEvidenceIds]);
 
+	const evidenceSourceLabels = useMemo(() => {
+		if (!details?.evidences) return [];
+		return details.evidences
+			.map(
+				(ev, idx) =>
+					ev.sourceName?.trim() ||
+					ev.title?.trim() ||
+					ev.id ||
+					`Source ${idx + 1}`
+			)
+			.filter((label): label is string => Boolean(label));
+	}, [details]);
+
 	const toggleSection = (sectionId: string) => {
 		setOpenSections((prev) => ({
 			...prev,
@@ -374,14 +387,15 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						</div>
 					)}
 				</>
-			) : (
-				<div className="flex flex-1 min-h-0 flex-col">
-					<ChatbotPanel
-						topicName={details.nodeName}
-						summary={details.description}
-					/>
-				</div>
-			)}
+				) : (
+					<div className="flex flex-1 min-h-0 flex-col">
+						<ChatbotPanel
+							topicName={details.nodeName}
+							summary={details.description}
+							evidenceSources={evidenceSourceLabels}
+						/>
+					</div>
+				)}
 		</aside>
 	);
 };

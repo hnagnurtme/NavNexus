@@ -1,54 +1,61 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, Loader2, Send } from "lucide-react";
-
-type ChatRole = "user" | "ai";
-
-interface ChatMessage {
-	id: string;
-	role: ChatRole;
-	content: string;
-	source?: string;
-	timestamp: number;
-}
+import {
+	FileText,
+	GitBranch,
+	Loader2,
+	Plus,
+	Send,
+	X,
+} from "lucide-react";
+import {
+	type ContextItem,
+	type ContextType,
+	buildDefaultContexts,
+} from "./contextUtils";
+import {
+	type ChatMessage,
+	buildInitialMessage,
+} from "./chatTypes";
 
 interface ChatbotPanelProps {
 	topicName?: string | null;
 	summary?: string | null;
+	evidenceSources?: string[];
 }
-
-const buildInitialMessage = (
-	topicName?: string | null,
-	summary?: string | null
-): ChatMessage => ({
-	id: "ai-initial",
-	role: "ai",
-	content:
-		summary && summary.trim().length > 0
-			? `Here is the latest synthesis for ${
-					topicName ?? "this selection"
-			  }: ${summary}`
-			: `Hi! I can help you reason about ${
-					topicName ?? "this part of the graph"
-			  }. What should we explore?`,
-	source: summary ? "Node synthesis" : "Workspace knowledge graph",
-	timestamp: Date.now(),
-});
 
 export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	topicName,
 	summary,
+	evidenceSources,
 }) => {
 	const [messages, setMessages] = useState<ChatMessage[]>(() => [
 		buildInitialMessage(topicName, summary),
 	]);
 	const [inputValue, setInputValue] = useState("");
 	const [isThinking, setIsThinking] = useState(false);
+	const [contextItems, setContextItems] = useState<ContextItem[]>(() =>
+		buildDefaultContexts(topicName, evidenceSources)
+	);
 	const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
+	const sourcesKey = useMemo(
+		() => (evidenceSources ?? []).join("|"),
+		[evidenceSources]
+	);
+	const defaultContexts = useMemo(
+		() => buildDefaultContexts(topicName, evidenceSources),
+		[topicName, sourcesKey]
+	);
+	const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
 
 	useEffect(() => {
 		setMessages([buildInitialMessage(topicName, summary)]);
 		setInputValue("");
 	}, [topicName, summary]);
+
+	useEffect(() => {
+		setContextItems(defaultContexts);
+		setIsContextMenuOpen(false);
+	}, [defaultContexts]);
 
 	useEffect(() => {
 		scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -107,6 +114,41 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		}
 	};
 
+	const handleAddContext = (type: ContextType) => {
+		if (typeof window === "undefined") return;
+		const promptLabel =
+			type === "node"
+				? "Enter a node or concept to prioritize"
+				: "Enter a document or evidence source";
+		const defaultValue =
+			type === "node"
+				? topicName ?? "Untitled node"
+				: "Untitled file";
+		const value = window.prompt(promptLabel, defaultValue);
+		if (!value) return;
+		const trimmed = value.trim();
+		if (!trimmed) return;
+		setContextItems((prev) => [
+			...prev,
+			{
+				id: `${type}-${Date.now()}`,
+				type,
+				label: trimmed,
+			},
+		]);
+	};
+
+	const handleRemoveContext = (contextId: string) => {
+		setContextItems((prev) =>
+			prev.filter((context) => context.id !== contextId)
+		);
+	};
+
+	const handleContextMenuSelect = (type: ContextType) => {
+		setIsContextMenuOpen(false);
+		handleAddContext(type);
+	};
+
 	return (
 		<div className="flex h-full min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-white shadow-inner shadow-black/40">
 			<div className="scrollbar flex-1 min-h-0 space-y-4 overflow-y-auto pr-2 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
@@ -151,7 +193,84 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 				<div ref={scrollAnchorRef} />
 			</div>
 
-			<div className="mt-4 rounded-xl border border-white/10 bg-slate-900/80 p-2 shadow-inner shadow-black/30">
+			<div className="mt-4 rounded-xl border border-white/10 bg-slate-900/80 p-2.5 shadow-inner shadow-black/30">
+				<div className="mb-2 flex flex-wrap items-center gap-1.5 text-[11px] text-white/60">
+					<div className="relative">
+						<button
+							type="button"
+							onClick={() =>
+								setIsContextMenuOpen((prev) => !prev)
+							}
+							className="inline-flex h-6 w-6 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-white transition hover:border-white/30 hover:bg-white/10"
+							aria-label="Add context"
+						>
+							<Plus className="h-3.5 w-3.5" />
+						</button>
+						{isContextMenuOpen && (
+							<div className="absolute bottom-8 left-0 z-10 mb-2 w-32 rounded-xl border border-white/10 bg-slate-900/95 p-1 text-[11px] text-white shadow-xl">
+								<button
+									type="button"
+									onClick={() =>
+										handleContextMenuSelect("node")
+									}
+									className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+								>
+									<GitBranch className="h-3.5 w-3.5 text-white/70" />
+									Node
+								</button>
+								<button
+									type="button"
+									onClick={() =>
+										handleContextMenuSelect("file")
+									}
+									className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
+								>
+									<FileText className="h-3.5 w-3.5 text-white/70" />
+									File
+								</button>
+							</div>
+						)}
+					</div>
+
+					{contextItems.length === 0 ? (
+						<p className="text-xs text-white/40">
+							No context selected. Add nodes or documents to guide
+							the copilot.
+						</p>
+					) : (
+						contextItems.map((context) => {
+							const isFile = context.type === "file";
+							const IconComponent = isFile
+								? FileText
+								: GitBranch;
+							const cardAccent = isFile
+								? "border-cyan-400/30 bg-cyan-500/5 text-cyan-100/80"
+								: "border-emerald-400/30 bg-emerald-500/5 text-emerald-100/80";
+							return (
+								<div
+									key={context.id}
+									className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] shadow-inner shadow-black/30 ${cardAccent}`}
+								>
+									<IconComponent className="h-3 w-3 flex-shrink-0 text-white/80" />
+									<span className="max-w-[130px] truncate font-medium text-white/80">
+										{context.label}
+									</span>
+									<button
+										type="button"
+										onClick={() =>
+											handleRemoveContext(context.id)
+										}
+										className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full text-white/70 transition hover:text-white"
+										aria-label={`Remove ${context.label}`}
+									>
+										<X className="h-3.5 w-3.5" />
+									</button>
+								</div>
+							);
+						})
+					)}
+				</div>
+
 				<div className="relative">
 					<textarea
 						value={inputValue}
