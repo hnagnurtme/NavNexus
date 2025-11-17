@@ -492,18 +492,31 @@ Max 2 concepts, 1 sentence summary each."""
             else:
                 chunk_analyses = []
             
-            for analysis in chunk_analyses:
-                idx = analysis.get('i', 0)
-                if idx >= len(batch):
-                    continue
-                
-                results.append({
-                    'chunk_index': batch_start + idx,
-                    'text': batch[idx].get('text', ''),
-                    'topic': analysis.get('topic', 'General'),
-                    'concepts': analysis.get('concepts', [])[:2],  # Max 2
-                    'summary': analysis.get('summary', '')[:150]  # Max 150 chars
-                })
+            # If we got valid analyses, process them
+            if chunk_analyses:
+                for analysis in chunk_analyses:
+                    idx = analysis.get('i', 0)
+                    if idx >= len(batch):
+                        continue
+                    
+                    results.append({
+                        'chunk_index': batch_start + idx,
+                        'text': batch[idx].get('text', ''),
+                        'topic': analysis.get('topic', 'General'),
+                        'concepts': analysis.get('concepts', [])[:2],  # Max 2
+                        'summary': analysis.get('summary', '')[:150]  # Max 150 chars
+                    })
+            else:
+                # No analyses from LLM - use fallback for all chunks in batch
+                print(f"  ⚠️  No LLM results, using fallback for {len(batch)} chunks")
+                for i, chunk in enumerate(batch):
+                    results.append({
+                        'chunk_index': batch_start + i,
+                        'text': chunk.get('text', ''),
+                        'topic': 'General',
+                        'concepts': [],
+                        'summary': chunk.get('text', '')[:100]
+                    })
         
         except Exception as e:
             print(f"  ⚠️  Batch processing error: {e}")
