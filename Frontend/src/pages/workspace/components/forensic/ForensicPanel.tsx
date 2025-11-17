@@ -13,8 +13,66 @@ import { ChatbotPanel } from "../chatbot/ChatbotPanel";
 import { EvidenceCard } from "./EvidenceCard";
 import { GapAssistant } from "./GapAssistant";
 
+type ContextSuggestion = {
+	id: string;
+	label: string;
+};
+
+const collectWorkspaceNodes = (
+	node: WorkspaceNode | null
+): ContextSuggestion[] => {
+	if (!node) return [];
+	const stack: WorkspaceNode[] = [node];
+	const suggestions: ContextSuggestion[] = [];
+	const seen = new Set<string>();
+	while (stack.length) {
+		const current = stack.pop();
+		if (!current) continue;
+		if (!seen.has(current.nodeId)) {
+			seen.add(current.nodeId);
+			suggestions.push({
+				id: current.nodeId,
+				label: current.nodeName,
+			});
+		}
+		if (current.children && current.children.length > 0) {
+			for (const child of current.children) {
+				stack.push(child);
+			}
+		}
+	}
+	return suggestions;
+};
+
+const collectWorkspaceFiles = (
+	node: WorkspaceNode | null
+): ContextSuggestion[] => {
+	if (!node) return [];
+	const suggestions: ContextSuggestion[] = [];
+	const seen = new Set<string>();
+	const traverse = (current: WorkspaceNode) => {
+		(current.evidences ?? []).forEach((evidence, idx) => {
+			const label =
+				evidence.sourceName?.trim() ||
+				evidence.id ||
+				`Source ${idx + 1}`;
+			if (!label || seen.has(label)) return;
+			seen.add(label);
+			suggestions.push({
+				id: evidence.id ?? `${current.nodeId}-${idx}`,
+				label,
+			});
+		});
+		if (!current.children) return;
+		current.children.forEach(traverse);
+	};
+	traverse(node);
+	return suggestions;
+};
+
 interface ForensicPanelProps {
 	details: KnowledgeNodeUI | null;
+	tree: WorkspaceNode | null;
 	selectedNode: WorkspaceNode | null;
 	isLoading: boolean;
 	journeyActive: boolean;
@@ -24,6 +82,7 @@ interface ForensicPanelProps {
 
 export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 	details,
+	tree,
 	selectedNode,
 	isLoading,
 	journeyActive,
@@ -70,6 +129,16 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 			)
 			.filter((label): label is string => Boolean(label));
 	}, [details]);
+
+	const nodeContextOptions = useMemo(
+		() => collectWorkspaceNodes(tree),
+		[tree]
+	);
+
+	const fileContextOptions = useMemo(
+		() => collectWorkspaceFiles(tree),
+		[tree]
+	);
 
 	const toggleSection = (sectionId: string) => {
 		setOpenSections((prev) => ({
@@ -387,6 +456,8 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						topicName={details.nodeName}
 						summary={details.description}
 						evidenceSources={evidenceSourceLabels}
+						nodeSuggestions={nodeContextOptions}
+						fileSuggestions={fileContextOptions}
 					/>
 				</div>
 			)}

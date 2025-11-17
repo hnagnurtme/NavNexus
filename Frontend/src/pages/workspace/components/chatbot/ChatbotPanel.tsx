@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, GitBranch, Loader2, Plus, Send, X } from "lucide-react";
+import {
+	ChevronRight,
+	FileText,
+	GitBranch,
+	Loader2,
+	Plus,
+	Send,
+	X,
+} from "lucide-react";
 import {
 	type ContextItem,
 	type ContextType,
+	type ContextSuggestion,
 	buildDefaultContexts,
 } from "./contextUtils";
 import { type ChatMessage, buildInitialMessage } from "./chatTypes";
@@ -11,12 +20,16 @@ interface ChatbotPanelProps {
 	topicName?: string | null;
 	summary?: string | null;
 	evidenceSources?: string[];
+	nodeSuggestions?: ContextSuggestion[];
+	fileSuggestions?: ContextSuggestion[];
 }
 
 export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	topicName,
 	summary,
 	evidenceSources,
+	nodeSuggestions = [],
+	fileSuggestions = [],
 }) => {
 	const [messages, setMessages] = useState<ChatMessage[]>(() => [
 		buildInitialMessage(topicName, summary),
@@ -28,10 +41,19 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	);
 	const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 	const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
+	const [contextMenuType, setContextMenuType] = useState<ContextType | null>(
+		null
+	);
 
 	useEffect(() => {
 		scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messages, isThinking]);
+
+	useEffect(() => {
+		if (!isContextMenuOpen) {
+			setContextMenuType(null);
+		}
+	}, [isContextMenuOpen]);
 
 	const placeholder = useMemo(
 		() => `Ask about ${topicName ?? "this topic"}...`,
@@ -90,24 +112,35 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		}
 	};
 
-	const handleAddContext = (type: ContextType) => {
+	const handleAddContext = (type: ContextType, presetLabel?: string) => {
 		if (typeof window === "undefined") return;
-		const promptLabel =
-			type === "node"
-				? "Enter a node or concept to prioritize"
-				: "Enter a document or evidence source";
-		const defaultValue =
-			type === "node" ? topicName ?? "Untitled node" : "Untitled file";
-		const value = window.prompt(promptLabel, defaultValue);
-		if (!value) return;
-		const trimmed = value.trim();
-		if (!trimmed) return;
+		let resolvedLabel = presetLabel;
+		if (!resolvedLabel) {
+			const promptLabel =
+				type === "node"
+					? "Enter a node or concept to prioritize"
+					: "Enter a document or evidence source";
+			const defaultValue =
+				type === "node"
+					? topicName ?? "Untitled node"
+					: "Untitled file";
+			const value = window.prompt(promptLabel, defaultValue);
+			if (!value) return;
+			resolvedLabel = value.trim();
+		}
+		if (!resolvedLabel) return;
+		const exists = contextItems.some(
+			(item) =>
+				item.type === type &&
+				item.label.toLowerCase() === resolvedLabel!.toLowerCase()
+		);
+		if (exists) return;
 		setContextItems((prev) => [
 			...prev,
 			{
 				id: `${type}-${Date.now()}`,
 				type,
-				label: trimmed,
+				label: resolvedLabel!,
 			},
 		]);
 	};
@@ -118,9 +151,9 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		);
 	};
 
-	const handleContextMenuSelect = (type: ContextType) => {
+	const handleContextMenuSelect = (type: ContextType, label?: string) => {
 		setIsContextMenuOpen(false);
-		handleAddContext(type);
+		handleAddContext(type, label);
 	};
 
 	useEffect(() => {
@@ -222,27 +255,86 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 							<Plus className="h-3.5 w-3.5" />
 						</button>
 						{isContextMenuOpen && (
-							<div className="absolute bottom-8 left-0 z-10 mb-2 w-32 rounded-xl border border-white/10 bg-slate-900/95 p-1 text-[11px] text-white shadow-xl">
-								<button
-									type="button"
-									onClick={() =>
-										handleContextMenuSelect("node")
-									}
-									className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
-								>
-									<GitBranch className="h-3.5 w-3.5 text-white/70" />
-									Node
-								</button>
-								<button
-									type="button"
-									onClick={() =>
-										handleContextMenuSelect("file")
-									}
-									className="mt-1 flex w-full items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-white/5"
-								>
-									<FileText className="h-3.5 w-3.5 text-white/70" />
-									File
-								</button>
+							<div className="absolute bottom-8 left-0 z-10 mb-2 rounded-xl border border-white/10 bg-slate-900/95 p-1 text-white shadow-xl">
+								<div className="w-28">
+									{[
+										{
+											type: "node" as ContextType,
+											label: "Node",
+											icon: GitBranch,
+										},
+										{
+											type: "file" as ContextType,
+											label: "File",
+											icon: FileText,
+										},
+									].map((entry) => {
+										const Icon = entry.icon;
+										const isActive =
+											contextMenuType === entry.type;
+										return (
+											<button
+												type="button"
+												key={entry.type}
+												onMouseEnter={() =>
+													setContextMenuType(
+														entry.type
+													)
+												}
+												className={`flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-left ${
+													isActive
+														? "bg-white/10 text-white"
+														: "hover:bg-white/5"
+												}`}
+											>
+												<span className="flex items-center gap-2">
+													<Icon className="h-3.5 w-3.5 text-white/70" />
+													{entry.label}
+												</span>
+												<ChevronRight className="h-3 w-3 text-white/60" />
+											</button>
+										);
+									})}
+								</div>
+								{contextMenuType && (
+									<div
+										data-submenu
+										className="absolute top-0 left-full ml-2 w-40 rounded-xl border border-white/10 bg-slate-900/95 p-2 shadow-inner shadow-black/40"
+									>
+										<div className="scrollbar max-h-48 space-y-1 overflow-y-auto pr-1 text-[11px] text-white/80 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
+											{(contextMenuType === "node"
+												? nodeSuggestions
+												: fileSuggestions
+											).length === 0 ? (
+												<p className="text-[10px] text-white/40">
+													No entries
+												</p>
+											) : (
+												(contextMenuType === "node"
+													? nodeSuggestions
+													: fileSuggestions
+												).map((option) => (
+													<button
+														type="button"
+														key={`${contextMenuType}-${option.id}`}
+														onClick={() =>
+															handleContextMenuSelect(
+																contextMenuType,
+																option.label
+															)
+														}
+														className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left hover:bg-white/5"
+													>
+														<span className="max-w-[150px] truncate font-medium">
+															{option.label}
+														</span>
+														<Plus className="h-3 w-3 text-white/60" />
+													</button>
+												))
+											)}
+										</div>
+									</div>
+								)}
 							</div>
 						)}
 					</div>

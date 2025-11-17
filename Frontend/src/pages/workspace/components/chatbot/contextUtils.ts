@@ -6,6 +6,11 @@ export interface ContextItem {
 	label: string;
 }
 
+export interface ContextSuggestion {
+	id: string;
+	label: string;
+}
+
 export const buildDefaultContexts = (
 	nodeName?: string | null,
 	evidenceSources?: string[]

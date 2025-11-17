@@ -128,6 +128,7 @@ export const WorkspacePage: React.FC = () => {
 
 				<ForensicPanel
 					details={details}
+					tree={tree}
 					selectedNode={selectedNode}
 					isLoading={isNodeLoading}
 					journeyActive={journey.isActive}
