@@ -50,7 +50,7 @@ export const WorkspacePage: React.FC = () => {
     return node?.nodeName ?? null;
   }, [loadingNodeId, tree]);
 
-  // Auto-show AI Synthesis when a node is selected
+
   useMemo(() => {
     if (details) {
       setShowAISynthesis(true);
@@ -67,13 +67,13 @@ export const WorkspacePage: React.FC = () => {
   }
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-white">
+    <div className="max-h-screen w-screen bg-slate-950 text-white">
       {error && (
         <div className="absolute left-1/2 top-4 z-30 -translate-x-1/2 rounded-full border border-rose-500/60 bg-rose-500/10 px-6 py-2 text-sm text-rose-200">
           {error}
         </div>
       )}
-      <div className="flex h-full gap-4 p-4">
+      <div className="flex h-screen gap-4 p-4">
         {isControlPanelVisible ? (
           <ControlPanel
             isBusy={isBuilding}
