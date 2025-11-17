@@ -291,7 +291,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 						onKeyDown={handleKeyDown}
 						placeholder={placeholder}
 						rows={2}
-						className="w-full resize-none rounded-xl bg-transparent p-2.5 pr-12 text-sm text-white placeholder:text-white/30 focus:outline-none"
+						className="scrollbar w-full resize-none rounded-xl bg-transparent p-2.5 pr-12 text-sm text-white placeholder:text-white/30 focus:outline-none scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60"
 					/>
 					<button
 						type="button"

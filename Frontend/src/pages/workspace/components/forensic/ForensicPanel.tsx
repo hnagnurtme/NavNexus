@@ -187,7 +187,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						</button>
 					</div>
 
-					<section className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
+					<section className="scrollbar mt-4 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
 						{[
 							{
 								id: "ai",
