@@ -5,14 +5,28 @@ import type { GetKnowledgeNodeResponse, KnowledgeNodeUI } from '@/types';
  * Recursively transforms all child nodes as well
  */
 export function transformToKnowledgeNodeUI(
-  apiNode: GetKnowledgeNodeResponse,
-  options: {
-    isExpanded?: boolean;
-    childrenLoaded?: boolean;
-  } = {}
+	apiNode: GetKnowledgeNodeResponse,
+	options: {
+		isExpanded?: boolean;
+		childrenLoaded?: boolean;
+		hasChildren?: boolean;
+	} = {}
 ): KnowledgeNodeUI {
-  const hasChildren = (apiNode.childNodes?.length ?? 0) > 0;
-  
+	const apiChildNodes = apiNode.childNodes ?? [];
+	const hasChildrenFromData = apiChildNodes.length > 0;
+	const children = hasChildrenFromData
+		? apiChildNodes.map((child) =>
+				transformToKnowledgeNodeUI(child, {
+					isExpanded: false,
+					childrenLoaded: (child.childNodes?.length ?? 0) > 0,
+					hasChildren: (child.childNodes?.length ?? 0) > 0,
+				})
+		  )
+		: undefined;
+	const hasChildren =
+		options.hasChildren ??
+		((apiNode as { hasChildren?: boolean } | null | undefined)?.hasChildren ?? hasChildrenFromData);
+
   return {
     nodeId: apiNode.nodeId ?? '',
     nodeName: apiNode.nodeName ?? '',
@@ -24,13 +38,11 @@ export function transformToKnowledgeNodeUI(
     gapSuggestions: apiNode.gapSuggestions ?? undefined,
     createdAt: apiNode.createdAt ?? '',
     updatedAt: apiNode.updatedAt ?? '',
-    hasChildren,
-    children: apiNode.childNodes?.map(child => 
-      transformToKnowledgeNodeUI(child, { isExpanded: false, childrenLoaded: true })
-    ),
-    isExpanded: options.isExpanded ?? false,
-    childrenLoaded: options.childrenLoaded ?? hasChildren,
-  };
+		hasChildren,
+		children,
+		isExpanded: options.isExpanded ?? false,
+		childrenLoaded: options.childrenLoaded ?? hasChildrenFromData,
+	};
 }
 
 /**

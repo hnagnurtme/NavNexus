@@ -75,10 +75,8 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 			onSelect(id);
 		}
 
-		if (view === "galaxy" && hasChildren) {
-			if (onToggle) {
-				onToggle(id);
-			}
+		if (view === "galaxy" && onToggle) {
+			onToggle(id);
 		}
 	};
 
@@ -88,7 +86,7 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 		if (event.key === "Enter") {
 			event.preventDefault();
 			onSelect?.(id);
-			if (view === "galaxy" && hasChildren) {
+			if (view === "galaxy") {
 				onToggle?.(id);
 			}
 		}

@@ -256,16 +256,95 @@ GO DEEP (level 4-7). Be SPECIFIC. More nodes = better."""
     return {}
 
 
+def extract_hierarchical_structure(full_text: str, file_name: str, lang: str,
+                                   clova_api_key: str, clova_api_url: str) -> Dict:
+    """Extract multi-level hierarchical structure from document"""
+    
+    prompt = f"""Document: {file_name}
+First 3000 characters:
+{full_text[:3000]}
+
+Extract a DEEP hierarchical structure with multiple levels:
+
+{{
+  "domain": {{
+    "name": "Main domain/field",
+    "synthesis": "1-2 sentences about the overall domain"
+  }},
+  "categories": [
+    {{
+      "name": "Category 1 (e.g., Methodology, Theory, Results)",
+      "synthesis": "Brief description",
+      "concepts": [
+        {{
+          "name": "Concept name",
+          "synthesis": "What this concept means",
+          "subconcepts": [
+            {{
+              "name": "Detailed subconcept",
+              "synthesis": "Specific aspect",
+              "evidence": "Direct quote or specific claim from text"
+            }}
+          ]
+        }}
+      ]
+    }}
+  ]
+}}
+
+Make it DEEP (3-4 levels) and specific. Each node needs clear evidence."""
+    
+    return call_llm_compact(prompt, max_tokens=3000, clova_api_key=clova_api_key, clova_api_url=clova_api_url)
+
+
+def process_chunk_batch(chunks: List[Dict], lang: str, accumulated_concepts: List[str],
+                       clova_api_key: str, clova_api_url: str) -> Dict:
+    """Process multiple chunks at once"""
+    
+    concept_ctx = ", ".join(accumulated_concepts[-15:]) if accumulated_concepts else "None"
+    
+    chunk_texts = []
+    for i, c in enumerate(chunks):
+        overlap = f"[OVERLAP: {c['overlap_previous'][-150:]}]" if c['overlap_previous'] else ""
+        chunk_texts.append(f"## CHUNK {c['index']+1}\n{overlap}\n{c['text'][:1800]}")
+    
+    combined = "\n\n".join(chunk_texts)
+    
+    prompt = f"""Analyze these {len(chunks)} chunks. Known concepts: {concept_ctx}
+
+{combined}
+
+For EACH chunk extract:
+1. Core concepts (2-3 max, hierarchical)
+2. Key claims (1-2 sentences, specific)
+3. Questions raised
+4. Topic
+
+Return JSON:
+{{
+  "chunks": [
+    {{
+      "chunk_index": 0,
+      "topic": "...",
+      "concepts": [{{"name": "...", "type": "theory/method/finding", "level": 2, "synthesis": "1 sentence", "evidence": "specific quote"}}],
+      "key_claims": ["claim 1", "claim 2"],
+      "questions": ["what's unclear"],
+      "summary": "2 sentences"
+    }}
+  ]
+}}
+
+Be specific."""
+    
+    return call_llm_compact(prompt, max_tokens=3000, clova_api_key=clova_api_key, clova_api_url=clova_api_url)
+
+
 def extract_hierarchical_structure_compact(full_text: str, file_name: str, lang: str,
                                           clova_api_key: str, clova_api_url: str,
-                                          max_synthesis_length: int = 80) -> Dict:
+                                          max_synthesis_length: int = 100) -> Dict:
     """
-    Extract DEEP hierarchical structure using TTON format
-    
-    TTON enables:
-    - 50-70% token reduction
-    - 2-3x more nodes in same token budget
-    - Level 4-7 depth easily achievable
+    Extract hierarchical structure with COMPACT synthesis (max 100 chars per concept)
+    Optimization: Reduces context window size by 60-70%
     
     Args:
         full_text: Full document text
@@ -273,59 +352,48 @@ def extract_hierarchical_structure_compact(full_text: str, file_name: str, lang:
         lang: Language code
         clova_api_key: API key
         clova_api_url: API URL
-        max_synthesis_length: Maximum chars for synthesis (default: 80)
+        max_synthesis_length: Maximum characters for synthesis (default: 100)
         
     Returns:
-        Deep hierarchical structure (level 4-7)
+        Hierarchical structure with compact synthesis
     """
     
-    prompt = f"""Analyze document: {file_name}
+    prompt = f"""Document: {file_name}
+First 3000 characters:
+{full_text[:3000]}
 
-First 3500 chars:
-{full_text[:3500]}
+Extract a hierarchical structure. IMPORTANT: Keep synthesis VERY SHORT (max {max_synthesis_length} chars each).
 
-Extract DEEP hierarchy (level 4-7) using TTON format.
+{{
+  "domain": {{
+    "name": "Main domain/field",
+    "synthesis": "1 sentence max {max_synthesis_length} chars"
+  }},
+  "categories": [
+    {{
+      "name": "Category name",
+      "synthesis": "Brief, max {max_synthesis_length} chars",
+      "concepts": [
+        {{
+          "name": "Concept name",
+          "synthesis": "Short description, max {max_synthesis_length} chars",
+          "subconcepts": [
+            {{
+              "name": "Subconcept name",
+              "synthesis": "Very brief, max {max_synthesis_length} chars"
+            }}
+          ]
+        }}
+      ]
+    }}
+  ]
+}}
 
-Requirements:
-1. GO DEEP: At least 15 concepts, 30+ subconcepts
-2. Use >>>> for level 4-7 depth
-3. Each synthesis max {max_synthesis_length} chars
-4. Be SPECIFIC with evidence/examples
-5. More merge opportunities = better
-
-Example structure depth:
-D:Domain Name|Brief
-C:Major Category 1|Brief
-  >Main Concept A|Brief
-    >>Subconcept A1|Detail
-      >>>Deep concept A1a|Specific
-        >>>>Very deep A1a-i|Ultra specific
-        >>>>Very deep A1a-ii|Ultra specific
-      >>>Deep concept A1b|Specific
-    >>Subconcept A2|Detail
-  >Main Concept B|Brief
-    >>Subconcept B1|Detail
-      >>>Deep B1a|Specific
-C:Major Category 2|Brief
-  >Main Concept C|Brief
-
-NOW extract from the document. GO AS DEEP AS POSSIBLE."""
+Be specific but CONCISE. No long explanations."""
     
-    result = call_llm_compact(prompt, max_tokens=4000, clova_api_key=clova_api_key, 
-                            clova_api_url=clova_api_url, use_tton=True)
+    result = call_llm_compact(prompt, max_tokens=2000, clova_api_key=clova_api_key, clova_api_url=clova_api_url)
     
-    # Validate
-    if not result or not isinstance(result, dict):
-        print(f"⚠️  Failed to extract structure. LLM returned: {type(result).__name__}")
-        return {
-            'domain': {
-                'name': file_name or 'Unknown Domain',
-                'synthesis': 'Structure extraction failed'
-            },
-            'categories': []
-        }
-    
-    # Truncate synthesis
+    # Truncate all synthesis fields to max_synthesis_length
     def _truncate_synthesis(node: Dict):
         if isinstance(node, dict):
             if 'synthesis' in node and isinstance(node['synthesis'], str):
@@ -340,159 +408,85 @@ NOW extract from the document. GO AS DEEP AS POSSIBLE."""
                             _truncate_synthesis(item)
     
     _truncate_synthesis(result)
-    
-    # Ensure structure
-    if 'domain' not in result:
-        result['domain'] = {
-            'name': file_name or 'Unknown Domain',
-            'synthesis': 'No synthesis'
-        }
-    
-    if 'categories' not in result:
-        result['categories'] = []
-    
-    # Count depth for validation
-    def count_depth(node, current_depth=0):
-        max_depth = current_depth
-        if isinstance(node, dict):
-            if 'subconcepts' in node and node['subconcepts']:
-                for sub in node['subconcepts']:
-                    max_depth = max(max_depth, count_depth(sub, current_depth + 1))
-            elif 'concepts' in node and node['concepts']:
-                for concept in node['concepts']:
-                    max_depth = max(max_depth, count_depth(concept, current_depth + 1))
-        return max_depth
-    
-    total_depth = count_depth(result)
-    total_concepts = sum(len(cat.get('concepts', [])) for cat in result.get('categories', []))
-    
-    print(f"  ✓ Structure depth: {total_depth} levels, {total_concepts} concepts")
-    
     return result
-
-
-def parse_tton_batch_response(tton_text: str) -> List[Dict]:
-    """
-    Parse TTON batch response for chunk processing
-    
-    Format:
-    [0]T:Topic Name|C:Concept1,Concept2|S:Summary text
-    [1]T:Topic Name|C:Concept1,Concept2|S:Summary text
-    """
-    chunks = []
-    lines = tton_text.strip().split('\n')
-    
-    for line in lines:
-        if not line.strip():
-            continue
-        
-        # Match pattern: [N]T:...|C:...|S:...
-        match = re.match(r'\[(\d+)\]T:([^|]+)\|C:([^|]*)\|S:(.+)', line)
-        if match:
-            idx = int(match.group(1))
-            topic = match.group(2).strip()
-            concepts_str = match.group(3).strip()
-            summary = match.group(4).strip()
-            
-            concepts = [c.strip() for c in concepts_str.split(',') if c.strip()]
-            
-            chunks.append({
-                'i': idx,
-                'topic': topic,
-                'concepts': concepts[:2],  # Max 2
-                'summary': summary[:150]
-            })
-    
-    return chunks
 
 
 def process_chunks_ultra_compact(chunks: List[Dict], structure: Dict,
                                  clova_api_key: str, clova_api_url: str,
-                                 batch_size: int = 15, max_text_length: int = 250,
-                                 parallel: bool = True) -> List[Dict]:
+                                 batch_size: int = 10, max_text_length: int = 200) -> List[Dict]:
     """
-    Ultra-compact chunk processing with TTON (50-70% token reduction)
+    Ultra-compact chunk processing with FIXED context window and batch processing
     
-    TTON enables:
-    - 15 chunks/batch instead of 10 (50% increase)
-    - 250 chars/chunk instead of 200 (25% increase)
-    - More concepts extracted per batch
+    OPTIMIZATIONS:
+    - Fixed 3-concept context (not growing)
+    - Truncate chunk text to 200 chars
+    - Process 10 chunks per LLM call
+    - Extract only: topic + 2 concepts + summary
     
     Args:
         chunks: List of chunk dictionaries
         structure: Hierarchical structure (for context)
         clova_api_key: API key
         clova_api_url: API URL
-        batch_size: Number of chunks per batch (default: 15, was 10)
-        max_text_length: Maximum chars per chunk (default: 250, was 200)
-        parallel: Enable parallel processing (default: True)
+        batch_size: Number of chunks per batch (default: 10)
+        max_text_length: Maximum chars per chunk text (default: 200)
         
     Returns:
-        List of analyzed chunks with more detail
+        List of analyzed chunk results
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
     
     results = []
     
-    # Extract top 3 concepts
+    # Extract ONLY top 3 concepts from structure (FIXED context)
     top_concepts = []
+    
     if structure.get('domain', {}).get('name'):
         top_concepts.append(structure['domain']['name'])
     
-    for cat in structure.get('categories', [])[:2]:
+    for cat in structure.get('categories', [])[:2]:  # Top 2 categories only
         if cat.get('name') and len(top_concepts) < 3:
             top_concepts.append(cat['name'])
     
     context_prefix = f"Doc: {', '.join(top_concepts[:3])}"
     
-    # Prepare batches
-    batches = []
+    # Batch process: 10 chunks at a time
+    total_batches = (len(chunks) + batch_size - 1) // batch_size
+    
     for batch_start in range(0, len(chunks), batch_size):
-        batches.append((batch_start, chunks[batch_start:batch_start+batch_size]))
-    
-    total_batches = len(batches)
-    
-    def process_single_batch(batch_data: tuple) -> List[Dict]:
-        """Process a single batch with TTON"""
-        batch_start, batch = batch_data
+        batch = chunks[batch_start:batch_start+batch_size]
         batch_num = (batch_start // batch_size) + 1
-        batch_results = []
         
-        # TTON prompt (tiết kiệm 50-60% token)
+        print(f"  📦 Processing batch {batch_num}/{total_batches} ({len(batch)} chunks)...")
+        
+        # Ultra-compact prompt
         prompt = f"""{context_prefix}
 
-Extract for each chunk using TTON compact format:
-[N]T:Topic|C:Concept1,Concept2|S:Summary
+Extract for each chunk (keep concise):
+- 1 topic
+- 2 key concepts max
+- 1 summary (1 sentence)
 
 Chunks:
 """
         
         for i, chunk in enumerate(batch):
+            # CRITICAL: Truncate to max_text_length chars
             text = chunk.get('text', '')[:max_text_length].replace('\n', ' ')
             prompt += f"{i}. {text}...\n"
         
         prompt += f"""
-TTON Response (1 line per chunk):
-[0]T:Topic name|C:Key concept 1,Key concept 2|S:One sentence summary
-[1]T:Topic name|C:Concept A,Concept B|S:Brief summary
-
-Max 2 concepts/chunk. Be specific."""
+JSON: [{{"i":0,"topic":"...","concepts":["...","..."],"summary":"..."}}]
+Max 2 concepts, 1 sentence summary each."""
         
+        # Single LLM call for entire batch
         try:
-            llm_result = call_llm_compact(prompt, max_tokens=1000,
+            llm_result = call_llm_compact(prompt, max_tokens=800,
                                          clova_api_key=clova_api_key,
-                                         clova_api_url=clova_api_url,
-                                         use_tton=True)
+                                         clova_api_url=clova_api_url)
             
-            # Parse TTON batch response
-            if isinstance(llm_result, str):
-                chunk_analyses = parse_tton_batch_response(llm_result)
-            elif isinstance(llm_result, dict):
-                # Fallback to JSON if returned
-                if 'chunks' in llm_result:
-                    chunk_analyses = llm_result['chunks']
-                else:
-                    chunk_analyses = []
+            # Extract chunk analyses from result
+            if isinstance(llm_result, dict) and 'chunks' in llm_result:
+                chunk_analyses = llm_result['chunks']
             elif isinstance(llm_result, list):
                 chunk_analyses = llm_result
             else:
@@ -503,48 +497,24 @@ Max 2 concepts/chunk. Be specific."""
                 if idx >= len(batch):
                     continue
                 
-                batch_results.append({
+                results.append({
                     'chunk_index': batch_start + idx,
                     'text': batch[idx].get('text', ''),
                     'topic': analysis.get('topic', 'General'),
-                    'concepts': analysis.get('concepts', [])[:2],
-                    'summary': analysis.get('summary', '')[:150]
+                    'concepts': analysis.get('concepts', [])[:2],  # Max 2
+                    'summary': analysis.get('summary', '')[:150]  # Max 150 chars
                 })
         
         except Exception as e:
-            print(f"  ⚠️  Batch {batch_num} error: {e}")
-            # Fallback
+            print(f"  ⚠️  Batch processing error: {e}")
+            # Fallback: Add with minimal data
             for i, chunk in enumerate(batch):
-                batch_results.append({
+                results.append({
                     'chunk_index': batch_start + i,
                     'text': chunk.get('text', ''),
                     'topic': 'General',
                     'concepts': [],
                     'summary': chunk.get('text', '')[:100]
                 })
-        
-        return batch_results
-    
-    # Process batches
-    if parallel and total_batches > 1:
-        print(f"  ⚡ Processing {total_batches} batches in parallel (TTON format)...")
-        max_workers = min(5, total_batches)
-        
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_batch = {executor.submit(process_single_batch, batch_data): batch_data 
-                              for batch_data in batches}
-            
-            for future in as_completed(future_to_batch):
-                batch_results = future.result()
-                results.extend(batch_results)
-    else:
-        for batch_start, batch in batches:
-            batch_num = (batch_start // batch_size) + 1
-            print(f"  📦 Batch {batch_num}/{total_batches} ({len(batch)} chunks, TTON)...")
-            batch_results = process_single_batch((batch_start, batch))
-            results.extend(batch_results)
-    
-    # Sort by chunk_index
-    results.sort(key=lambda x: x.get('chunk_index', 0))
     
     return results

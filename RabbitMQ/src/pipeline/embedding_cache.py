@@ -118,35 +118,24 @@ def batch_create_embeddings(texts: List[str], clova_api_key: str,
     
     embeddings_cache: Dict[str, List[float]] = {}
     
-    # OPTIMIZED: Parallel processing for faster embedding creation
-    # Process in batches with parallel execution within each batch
+    # Process in batches
     total_batches = (len(unique_texts) + batch_size - 1) // batch_size
-    max_workers = min(10, batch_size)  # Parallel workers (max 10)
-    
-    def create_single_embedding(text: str) -> tuple:
-        """Create embedding for a single text (for parallel execution)"""
-        try:
-            embedding = create_embedding_via_clova(text, clova_api_key, clova_embedding_url)
-            return (text, embedding)
-        except Exception as e:
-            print(f"    ⚠️  Error creating embedding for '{text[:50]}...': {e}")
-            # Create fallback hash embedding
-            from pipeline.embedding import create_hash_embedding
-            return (text, create_hash_embedding(text))
     
     for batch_idx in range(0, len(unique_texts), batch_size):
         batch_texts = unique_texts[batch_idx:batch_idx + batch_size]
         batch_num = (batch_idx // batch_size) + 1
         
-        print(f"  ⚡ Processing batch {batch_num}/{total_batches} ({len(batch_texts)} concepts) in parallel...")
+        print(f"  ⚡ Processing batch {batch_num}/{total_batches} ({len(batch_texts)} concepts)...")
         
-        # PARALLEL: Process all texts in batch concurrently
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_text = {executor.submit(create_single_embedding, text): text for text in batch_texts}
-            
-            for future in as_completed(future_to_text):
-                text, embedding = future.result()
+        for text in batch_texts:
+            try:
+                embedding = create_embedding_via_clova(text, clova_api_key, clova_embedding_url)
                 embeddings_cache[text] = embedding
+            except Exception as e:
+                print(f"    ⚠️  Error creating embedding for '{text[:50]}...': {e}")
+                # Create fallback hash embedding
+                from pipeline.embedding import create_hash_embedding
+                embeddings_cache[text] = create_hash_embedding(text)
         
         # Show progress
         completed = min(batch_idx + batch_size, len(unique_texts))
