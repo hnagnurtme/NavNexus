@@ -52,7 +52,6 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 			evidence: true,
 		});
 		setSelectedEvidenceIds([]);
-		setActiveTab("insights");
 	}, [details?.nodeId, hasGapSuggestions]);
 
 	const selectedEvidenceText = useMemo(() => {
@@ -67,10 +66,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 		return details.evidences
 			.map(
 				(ev, idx) =>
-					ev.sourceName?.trim() ||
-					ev.title?.trim() ||
-					ev.id ||
-					`Source ${idx + 1}`
+					ev.sourceName?.trim() || ev.id || `Source ${idx + 1}`
 			)
 			.filter((label): label is string => Boolean(label));
 	}, [details]);
@@ -234,9 +230,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 											{details.evidences.map(
 												(evidence, idx) => (
 													<EvidenceCard
-														key={
-															evidence.id || idx
-														}
+														key={evidence.id || idx}
 														evidence={evidence}
 														selected={
 															evidence.id
@@ -387,15 +381,15 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						</div>
 					)}
 				</>
-				) : (
-					<div className="flex flex-1 min-h-0 flex-col">
-						<ChatbotPanel
-							topicName={details.nodeName}
-							summary={details.description}
-							evidenceSources={evidenceSourceLabels}
-						/>
-					</div>
-				)}
+			) : (
+				<div className="flex flex-1 min-h-0 flex-col">
+					<ChatbotPanel
+						topicName={details.nodeName}
+						summary={details.description}
+						evidenceSources={evidenceSourceLabels}
+					/>
+				</div>
+			)}
 		</aside>
 	);
 };

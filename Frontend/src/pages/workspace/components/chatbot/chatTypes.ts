@@ -6,6 +6,8 @@ export interface ChatMessage {
 	content: string;
 	source?: string;
 	timestamp: number;
+	nodeSnapshot?: string | null;
+	sourceSnapshot?: string | null;
 }
 
 export const buildInitialMessage = (
@@ -24,4 +26,10 @@ export const buildInitialMessage = (
 			  }. What should we explore?`,
 	source: summary ? "Node synthesis" : "Workspace knowledge graph",
 	timestamp: Date.now(),
+	nodeSnapshot: topicName ?? null,
+	sourceSnapshot: summary
+		? "Node synthesis"
+		: topicName
+		? `${topicName} dossier`
+		: "Workspace knowledge base",
 });

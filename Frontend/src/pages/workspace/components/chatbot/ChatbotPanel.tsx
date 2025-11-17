@@ -1,21 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-	FileText,
-	GitBranch,
-	Loader2,
-	Plus,
-	Send,
-	X,
-} from "lucide-react";
+import { FileText, GitBranch, Loader2, Plus, Send, X } from "lucide-react";
 import {
 	type ContextItem,
 	type ContextType,
 	buildDefaultContexts,
 } from "./contextUtils";
-import {
-	type ChatMessage,
-	buildInitialMessage,
-} from "./chatTypes";
+import { type ChatMessage, buildInitialMessage } from "./chatTypes";
 
 interface ChatbotPanelProps {
 	topicName?: string | null;
@@ -37,25 +27,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		buildDefaultContexts(topicName, evidenceSources)
 	);
 	const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
-	const sourcesKey = useMemo(
-		() => (evidenceSources ?? []).join("|"),
-		[evidenceSources]
-	);
-	const defaultContexts = useMemo(
-		() => buildDefaultContexts(topicName, evidenceSources),
-		[topicName, sourcesKey]
-	);
 	const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
-
-	useEffect(() => {
-		setMessages([buildInitialMessage(topicName, summary)]);
-		setInputValue("");
-	}, [topicName, summary]);
-
-	useEffect(() => {
-		setContextItems(defaultContexts);
-		setIsContextMenuOpen(false);
-	}, [defaultContexts]);
 
 	useEffect(() => {
 		scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -69,6 +41,10 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	const addAIResponse = (prompt: string) => {
 		setIsThinking(true);
 		setTimeout(() => {
+			const nodeSnapshot = topicName ?? null;
+			const sourceSnapshot = nodeSnapshot
+				? `${nodeSnapshot} dossier`
+				: "Workspace knowledge base";
 			setMessages((prev) => [
 				...prev,
 				{
@@ -77,9 +53,9 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 					content: `Here is how this connects back to ${
 						topicName ?? "the workspace"
 					}:\n${prompt} — I will outline supporting evidence and next steps as data sources come online.`,
-					source: topicName
-						? `${topicName} dossier`
-						: "Workspace knowledge base",
+					source: sourceSnapshot,
+					nodeSnapshot,
+					sourceSnapshot,
 					timestamp: Date.now(),
 				},
 			]);
@@ -121,9 +97,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 				? "Enter a node or concept to prioritize"
 				: "Enter a document or evidence source";
 		const defaultValue =
-			type === "node"
-				? topicName ?? "Untitled node"
-				: "Untitled file";
+			type === "node" ? topicName ?? "Untitled node" : "Untitled file";
 		const value = window.prompt(promptLabel, defaultValue);
 		if (!value) return;
 		const trimmed = value.trim();
@@ -149,6 +123,33 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		handleAddContext(type);
 	};
 
+	useEffect(() => {
+		setContextItems((prev) => {
+			if (!topicName) {
+				const hasNode = prev.some((item) => item.type === "node");
+				return hasNode
+					? prev.filter((item) => item.type !== "node")
+					: prev;
+			}
+			const nodeItem: ContextItem = {
+				id: `node-${topicName}`,
+				type: "node",
+				label: topicName,
+			};
+			const nodeIndex = prev.findIndex((item) => item.type === "node");
+			if (nodeIndex === -1) {
+				return [nodeItem, ...prev];
+			}
+			const existing = prev[nodeIndex];
+			if (existing.label === topicName) {
+				return prev;
+			}
+			const next = [...prev];
+			next[nodeIndex] = nodeItem;
+			return next;
+		});
+	}, [topicName]);
+
 	return (
 		<div className="flex h-full min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-white shadow-inner shadow-black/40">
 			<div className="scrollbar flex-1 min-h-0 space-y-4 overflow-y-auto pr-2 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
@@ -172,11 +173,25 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 								{message.content}
 							</p>
 							{message.role === "ai" && (
-								<div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-lg border border-cyan-400/20 bg-cyan-500/5 px-2.5 py-1 text-[10px] text-cyan-100/70">
-									<FileText className="h-3.5 w-3.5 flex-shrink-0 text-cyan-200" />
-									<span className="truncate text-xs font-medium tracking-wide text-white/50">
-										{message.source ?? "Graph context"}
-									</span>
+								<div className="mt-2 flex flex-wrap items-center gap-1.5">
+									{message.nodeSnapshot && (
+										<div className="flex items-center gap-1.5 rounded-lg border border-emerald-400/30 bg-emerald-500/5 px-2 py-1 text-[10px] text-emerald-100/80 shadow-inner shadow-black/20">
+											<GitBranch className="h-3 w-3 flex-shrink-0 text-emerald-200" />
+											<span className="max-w-[120px] truncate font-semibold text-emerald-50">
+												{message.nodeSnapshot}
+											</span>
+										</div>
+									)}
+									{(message.sourceSnapshot ??
+										message.source) && (
+										<div className="flex items-center gap-1.5 rounded-lg border border-cyan-400/30 bg-cyan-500/5 px-2 py-1 text-[10px] text-cyan-100/80 shadow-inner shadow-black/20">
+											<FileText className="h-3 w-3 flex-shrink-0 text-cyan-200" />
+											<span className="max-w-[140px] truncate font-semibold text-white/80">
+												{message.sourceSnapshot ??
+													message.source}
+											</span>
+										</div>
+									)}
 								</div>
 							)}
 						</div>
@@ -240,9 +255,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 					) : (
 						contextItems.map((context) => {
 							const isFile = context.type === "file";
-							const IconComponent = isFile
-								? FileText
-								: GitBranch;
+							const IconComponent = isFile ? FileText : GitBranch;
 							const cardAccent = isFile
 								? "border-cyan-400/30 bg-cyan-500/5 text-cyan-100/80"
 								: "border-emerald-400/30 bg-emerald-500/5 text-emerald-100/80";
