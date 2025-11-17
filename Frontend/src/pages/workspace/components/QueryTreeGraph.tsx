@@ -65,8 +65,8 @@ const GraphContent: React.FC<QueryTreeGraphInnerProps> = ({
 		const targetX = node.position.x + (node.width ?? 0) / 2;
 		const targetY = node.position.y + (node.height ?? 0) / 2;
 		setCenter(targetX, targetY, {
-			zoom: 1.1,
-			duration: 500,
+			zoom: 1.3, // Increased zoom for better focus
+			duration: 800, // Smoother animation
 		});
 	}, [focusedNodeId, getNodes, setCenter]);
 

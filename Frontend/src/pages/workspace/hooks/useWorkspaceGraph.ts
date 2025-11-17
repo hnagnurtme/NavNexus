@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Edge, Node } from "reactflow";
 import { treeService } from "@/services/tree.service";
-import type { TreeNodeShallow } from "@/types";
+import type { KnowledgeNodeUI } from "@/types";
+import { transformToKnowledgeNodeUI } from "@/utils/treeTransform";
 import { applyDagreLayout } from "../utils/layout";
 
 interface GraphState {
@@ -27,19 +28,20 @@ interface UseWorkspaceGraphReturn {
 }
 
 const toFlowNode = (
-	treeNode: TreeNodeShallow,
+	treeNode: KnowledgeNodeUI,
 	options: Partial<Node["data"]> = {}
 ): Node => ({
-	id: treeNode.id,
+	id: treeNode.nodeId,
 	type: "workspaceNode",
 	position: { x: 0, y: 0 },
 	data: {
-		id: treeNode.id,
-		name: treeNode.name,
-		type: treeNode.type,
+		id: treeNode.nodeId,
+		name: treeNode.nodeName,
+		type: "node", // Default type since we don't have specific types in API
 		level: treeNode.level,
-		isGap: treeNode.isGap,
+		isGap: (treeNode.gapSuggestions?.length ?? 0) > 0,
 		hasChildren: treeNode.hasChildren,
+		childCount: treeNode.children?.length ?? 0,
 		view: "galaxy" as const,
 		...options,
 	},
@@ -76,11 +78,11 @@ export const useWorkspaceGraph = (
 	});
 	const [initialized, setInitialized] = useState(false);
 
-	const nodeRegistry = useRef<Map<string, TreeNodeShallow>>(new Map());
+	const nodeRegistry = useRef<Map<string, KnowledgeNodeUI>>(new Map());
 	const visibleNodeIds = useRef<Set<string>>(new Set());
 	const expandedNodeIds = useRef<Set<string>>(new Set());
 	const adjacencyMap = useRef<Map<string, string[]>>(new Map());
-	const childrenCache = useRef<Map<string, TreeNodeShallow[]>>(new Map());
+	const childrenCache = useRef<Map<string, KnowledgeNodeUI[]>>(new Map());
 	const pendingNodeIds = useRef<Set<string>>(new Set());
 	const lastAddedIds = useRef<string[] | null>(null);
 
@@ -158,27 +160,43 @@ export const useWorkspaceGraph = (
 
 		setGalaxyState((prev) => ({ ...prev, loading: true, error: null }));
 		try {
-			const rootResponse = await treeService.getTreeRoot(workspaceId);
-			nodeRegistry.current.set(rootResponse.root.id, rootResponse.root);
-			visibleNodeIds.current = new Set([
-				rootResponse.root.id,
-				...rootResponse.children.map((c) => c.id),
-			]);
-			adjacencyMap.current.set(
-				rootResponse.root.id,
-				rootResponse.children.map((child) => child.id)
-			);
-			rootResponse.children.forEach((child) => {
-				nodeRegistry.current.set(child.id, child);
+			// Fetch the root node with all its children from API
+			const response = await treeService.getKnowledgeTree(workspaceId);
+			if (!response.data) {
+				throw new Error("No data in response");
+			}
+
+			const rootNode = transformToKnowledgeNodeUI(response.data, {
+				isExpanded: true,
+				childrenLoaded: true,
 			});
-			childrenCache.current.set(
-				rootResponse.root.id,
-				rootResponse.children
-			);
-			expandedNodeIds.current.add(rootResponse.root.id);
-			lastAddedIds.current = rootResponse.children.map(
-				(child) => child.id
-			);
+
+			// Recursively register all descendants in the node registry
+			const registerDescendants = (node: KnowledgeNodeUI) => {
+				nodeRegistry.current.set(node.nodeId, node);
+				if (node.children) {
+					node.children.forEach((child) =>
+						registerDescendants(child)
+					);
+				}
+			};
+
+			// Register root and all its descendants
+			registerDescendants(rootNode);
+
+			// Set up visible nodes (root + immediate children)
+			const childIds = rootNode.children?.map((c) => c.nodeId) ?? [];
+			visibleNodeIds.current = new Set([rootNode.nodeId, ...childIds]);
+
+			// Set up adjacency
+			adjacencyMap.current.set(rootNode.nodeId, childIds);
+
+			// Cache children
+			childrenCache.current.set(rootNode.nodeId, rootNode.children ?? []);
+
+			expandedNodeIds.current.add(rootNode.nodeId);
+			lastAddedIds.current = childIds;
+
 			rebuildGalaxy();
 			setGalaxyState((prev) => ({
 				...prev,
@@ -186,6 +204,7 @@ export const useWorkspaceGraph = (
 			}));
 			setInitialized(true);
 		} catch (error) {
+			console.error("Failed to load root tree:", error);
 			setGalaxyState((prev) => ({
 				...prev,
 				loading: false,
@@ -196,7 +215,7 @@ export const useWorkspaceGraph = (
 	}, [initialized, rebuildGalaxy, workspaceId]);
 
 	const ensureChildren = useCallback(
-		async (nodeId: string): Promise<TreeNodeShallow[]> => {
+		async (nodeId: string): Promise<KnowledgeNodeUI[]> => {
 			if (childrenCache.current.has(nodeId)) {
 				return childrenCache.current.get(nodeId)!;
 			}
@@ -205,14 +224,33 @@ export const useWorkspaceGraph = (
 			}
 			pendingNodeIds.current.add(nodeId);
 			rebuildGalaxy();
-			const children = await treeService.getNodeChildren(
-				workspaceId,
-				nodeId
-			);
+
+			// Fetch node with its children from API
+			const response = await treeService.getKnowledgeNodeById(nodeId);
+			if (!response.data) {
+				throw new Error("No data in response");
+			}
+
+			const nodeUI = transformToKnowledgeNodeUI(response.data, {
+				isExpanded: true,
+				childrenLoaded: true,
+			});
+
+			const children = nodeUI.children ?? [];
 			childrenCache.current.set(nodeId, children);
-			children.forEach((child) =>
-				nodeRegistry.current.set(child.id, child)
-			);
+
+			// Recursively register all descendants in the node registry
+			const registerDescendants = (node: KnowledgeNodeUI) => {
+				nodeRegistry.current.set(node.nodeId, node);
+				if (node.children) {
+					node.children.forEach((child) =>
+						registerDescendants(child)
+					);
+				}
+			};
+
+			children.forEach((child) => registerDescendants(child));
+
 			pendingNodeIds.current.delete(nodeId);
 			return children;
 		},
@@ -237,7 +275,7 @@ export const useWorkspaceGraph = (
 	const toggleNode = useCallback(
 		async (nodeId: string) => {
 			const treeNode = nodeRegistry.current.get(nodeId);
-			if (!treeNode || !treeNode.hasChildren) {
+			if (!treeNode) {
 				setSelectedNodeId(nodeId);
 				rebuildGalaxy();
 				return;
@@ -254,12 +292,12 @@ export const useWorkspaceGraph = (
 			const children = await ensureChildren(nodeId);
 			adjacencyMap.current.set(
 				nodeId,
-				children.map((child) => child.id)
+				children.map((child) => child.nodeId)
 			);
 			children.forEach((child) => {
-				visibleNodeIds.current.add(child.id);
+				visibleNodeIds.current.add(child.nodeId);
 			});
-			lastAddedIds.current = children.map((child) => child.id);
+			lastAddedIds.current = children.map((child) => child.nodeId);
 			rebuildGalaxy();
 			setGalaxyState((prev) => ({
 				...prev,
@@ -272,7 +310,7 @@ export const useWorkspaceGraph = (
 	const expandNode = useCallback(
 		async (nodeId: string) => {
 			const treeNode = nodeRegistry.current.get(nodeId);
-			if (!treeNode || !treeNode.hasChildren) {
+			if (!treeNode) {
 				return;
 			}
 			if (expandedNodeIds.current.has(nodeId)) {
@@ -286,12 +324,12 @@ export const useWorkspaceGraph = (
 			const children = await ensureChildren(nodeId);
 			adjacencyMap.current.set(
 				nodeId,
-				children.map((child) => child.id)
+				children.map((child) => child.nodeId)
 			);
 			children.forEach((child) => {
-				visibleNodeIds.current.add(child.id);
+				visibleNodeIds.current.add(child.nodeId);
 			});
-			lastAddedIds.current = children.map((child) => child.id);
+			lastAddedIds.current = children.map((child) => child.nodeId);
 			rebuildGalaxy();
 		},
 		[ensureChildren, rebuildGalaxy]
@@ -327,39 +365,35 @@ export const useWorkspaceGraph = (
 			error: null,
 		}));
 		try {
-			const rootResponse = await treeService.getTreeRoot(workspaceId);
-			const nodes: TreeNodeShallow[] = [rootResponse.root];
+			// Fetch the full tree from API
+			const response = await treeService.getKnowledgeTree(workspaceId);
+			if (!response.data) {
+				throw new Error("No data in response");
+			}
+
+			const rootNode = transformToKnowledgeNodeUI(response.data, {
+				isExpanded: true,
+				childrenLoaded: true,
+			});
+
+			// Flatten the tree for query view
+			const nodes: KnowledgeNodeUI[] = [];
 			const edges: Edge[] = [];
 
-			const queue: { parentId: string; node: TreeNodeShallow }[] =
-				rootResponse.children.map((child) => ({
-					parentId: rootResponse.root.id,
-					node: child,
-				}));
-			nodes.push(...rootResponse.children);
-			rootResponse.children.forEach((child) =>
-				edges.push(toEdge(rootResponse.root.id, child.id))
-			);
-
-			const visited = new Set(queue.map((item) => item.node.id));
-
-			while (queue.length > 0) {
-				const current = queue.shift()!;
-				if (!current.node.hasChildren) continue;
-				const children = await treeService.getNodeChildren(
-					workspaceId,
-					current.node.id
-				);
-				children.forEach((child) => {
-					if (visited.has(child.id)) return;
-					visited.add(child.id);
-					nodes.push(child);
-					edges.push(toEdge(current.node.id, child.id));
-					if (child.hasChildren) {
-						queue.push({ parentId: child.id, node: child });
-					}
+			const collectNodesAndEdges = (
+				node: KnowledgeNodeUI,
+				parentId?: string
+			) => {
+				nodes.push(node);
+				if (parentId) {
+					edges.push(toEdge(parentId, node.nodeId));
+				}
+				node.children?.forEach((child) => {
+					collectNodesAndEdges(child, node.nodeId);
 				});
-			}
+			};
+
+			collectNodesAndEdges(rootNode);
 
 			const flowNodes = nodes.map((node) =>
 				toFlowNode(node, {
@@ -380,6 +414,7 @@ export const useWorkspaceGraph = (
 				viewportKey: prev.viewportKey + 1,
 			}));
 		} catch (error) {
+			console.error("Failed to load query tree:", error);
 			setQueryState((prev) => ({
 				...prev,
 				nodes: [],
