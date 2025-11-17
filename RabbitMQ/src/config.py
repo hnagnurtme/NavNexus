@@ -11,7 +11,7 @@ load_dotenv()
 # ============================
 # API Keys
 # ============================
-CLOVA_API_KEY = os.getenv('CLOVA_API_KEY', '')
+CLOVA_API_KEY = os.getenv('CLOVA_API_KEY', 'nv-9063a257def64d469cfe961cb502988e5RNo')
 CLOVA_API_URL = os.getenv('CLOVA_API_URL', 'https://clovastudio.stream.ntruss.com/v3/chat-completions/HCX-005')
 CLOVA_EMBEDDING_URL = os.getenv('CLOVA_EMBEDDING_URL', 'https://clovastudio.stream.ntruss.com/testapp/v1/api-tools/embedding/clir-emb-dolphin')
 
@@ -41,8 +41,8 @@ RABBITMQ_VHOST = os.getenv('RABBITMQ_VHOST', 'odgfvgev')
 # ============================
 # Firebase Configuration
 # ============================
-FIREBASE_SERVICE_ACCOUNT = os.getenv('FIREBASE_SERVICE_ACCOUNT', 'serviceAccountKey.json')
-FIREBASE_DATABASE_URL = os.getenv('FIREBASE_DATABASE_URL', 'https://navnexus-default-rtdb.firebaseio.com/')
+FIREBASE_SERVICE_ACCOUNT = os.getenv('FIREBASE_SERVICE_ACCOUNT', '')
+FIREBASE_DATABASE_URL = os.getenv('FIREBASE_DATABASE_URL', '')
 
 # ============================
 # Pipeline Optimization Variables

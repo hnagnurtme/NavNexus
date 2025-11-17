@@ -10,3 +10,4 @@ fastapi
 uvicorn
 pika
 PyMuPDF
+aiohttp

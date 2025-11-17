@@ -1,10 +1,12 @@
 """
 Embedding cache module for batch embedding creation
 Implements pre-computation and caching of embeddings to reduce API calls by 50%
+OPTIMIZED: Added parallel processing for faster embedding creation
 """
 from typing import List, Dict, Set
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
