@@ -247,10 +247,22 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             original_chunk = chunks[chunk_idx]
             chunk_id = str(uuid.uuid4())
             
-            summary = chunk_data.get('summary', '')
+            # Normalize and validate chunk data
+            summary = chunk_data.get('summary', '').strip()
+            if not summary or len(summary) < 10:
+                summary = original_chunk["text"][:150].strip()
+            
             concepts = chunk_data.get('concepts', [])
-            topic = chunk_data.get('topic', 'General')
+            # Filter out empty concepts
+            concepts = [c.strip() for c in concepts if c and c.strip()]
+            
+            topic = chunk_data.get('topic', '').strip()
+            if not topic:
+                topic = 'General'
+            
             claims = chunk_data.get('key_claims', [])
+            # Filter out empty claims
+            claims = [c.strip() for c in claims if c and c.strip()]
             
             # OPTIMIZATION: Reuse embedding from cache if summary matches a concept
             # Otherwise create new embedding

@@ -114,8 +114,11 @@ def create_or_merge_node(
         print(f"    ⚠️  No embedding for '{name}', skipping")
         return None
     
-    # Truncate synthesis to 200 chars
-    synthesis = synthesis[:200] if synthesis else ""
+    # Normalize and validate synthesis
+    synthesis = synthesis.strip() if synthesis else ""
+    if len(synthesis) < 10:  # Ensure synthesis has meaningful content
+        synthesis = f"Information about {name}"
+    synthesis = synthesis[:200]  # Truncate to 200 chars
     
     # Try to find existing match
     match = find_best_match(session, workspace_id, name, embedding)
