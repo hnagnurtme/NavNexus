@@ -1,13 +1,12 @@
-import  { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import AddWorkSpaceForm from './components/AddWorkSpaceForm';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
+import AddWorkSpaceForm from "./components/AddWorkSpaceForm";
 
-import { Header } from './components/HomePageComponent/Header';
-import { LandingHero } from './components/HomePageComponent/LandingHero';
-import { FeaturesSection } from './components/HomePageComponent/FeaturesSection';
-import { BenefitsSection } from './components/HomePageComponent/BenefitsSection';
-
+import { Header } from "./components/HomePageComponent/Header";
+import { LandingHero } from "./components/HomePageComponent/LandingHero";
+import { FeaturesSection } from "./components/HomePageComponent/FeaturesSection";
+import { BenefitsSection } from "./components/HomePageComponent/BenefitsSection";
 
 function Footer() {
   const currentYear = new Date().getFullYear();
@@ -39,12 +38,12 @@ export default function Homepage() {
   // Redirect authenticated users to /workspaces
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/workspaces');
+      navigate("/workspaces");
     }
   }, [isAuthenticated, navigate]);
 
   const handleCreateWorkspace = (data: any) => {
-    console.log('Create workspace:', data);
+    console.log("Create workspace:", data);
     setOpenWorkSpace(false);
   };
 
@@ -62,18 +61,23 @@ export default function Homepage() {
           aria-modal="true"
           aria-labelledby="workspace-modal-title"
         >
-          <AddWorkSpaceForm onCreate={handleCreateWorkspace} onCancel={handleCancelWorkspace} />
+          <AddWorkSpaceForm
+            onCreate={handleCreateWorkspace}
+            onCancel={handleCancelWorkspace}
+          />
         </div>
       )}
 
       <div className="mx-auto max-w-7xl px-6 py-12">
-        <Header isAuthenticated={isAuthenticated} onCreate={() => setOpenWorkSpace(true)} />
+        <Header
+          isAuthenticated={isAuthenticated}
+          onCreate={() => setOpenWorkSpace(true)}
+        />
 
         {/* Show landing page for unauthenticated users */}
         <LandingHero />
         <FeaturesSection />
         <BenefitsSection />
-
         <Footer />
       </div>
     </div>
