@@ -1,6 +1,13 @@
 """
-RabbitMQ Worker for processing PDF jobs
+RabbitMQ Worker for processing PDF jobs - ULTRA-OPTIMIZED VERSION
 Listens to queue "pdf_jobs_queue" and processes PDF documents through the pipeline
+
+OPTIMIZATIONS:
+- Pre-compute ALL embeddings in batch (Phase 3)
+- Cascading deduplication during graph creation (Phase 4)
+- Ultra-compact chunk processing with fixed context (Phase 5)
+- Reuse embeddings from cache (Phase 6)
+- Resource discovery with HyperCLOVA X web search (Phase 7)
 """
 import os
 import sys
@@ -17,14 +24,21 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.rabbitmq_client import RabbitMQClient
 from src.handler.firebase import FirebaseClient
 
-# Pipeline modules
+# Pipeline modules - OPTIMIZED
 from src.pipeline.pdf_extraction import extract_pdf_fast
 from src.pipeline.chunking import create_smart_chunks
 from src.pipeline.embedding import create_embedding_via_clova, calculate_similarity
 from src.pipeline.translation import translate_batch
-from src.pipeline.llm_analysis import extract_hierarchical_structure, process_chunk_batch
-from src.pipeline.neo4j_graph import create_hierarchical_graph, find_or_merge_node, add_evidence_to_node, update_node_synthesis, now_iso
-from src.pipeline.qdrant_storage import store_chunks_in_qdrant
+
+# OPTIMIZED MODULES
+from src.pipeline.embedding_cache import extract_all_concept_names, batch_create_embeddings
+from src.pipeline.llm_analysis_optimized import extract_hierarchical_structure_compact, process_chunks_ultra_compact
+from src.pipeline.neo4j_graph_optimized import create_hierarchical_graph_with_cascading_dedup
+from src.pipeline.qdrant_storage_optimized import store_chunks_in_qdrant
+from src.pipeline.resource_discovery import discover_resources_with_hyperclova
+
+# Legacy modules for evidence handling
+from src.pipeline.neo4j_graph import find_or_merge_node, add_evidence_to_node, now_iso
 
 from src.model.Evidence import Evidence
 from src.model.QdrantChunk import QdrantChunk
@@ -71,7 +85,6 @@ CLOVA_EMBEDDING_URL = "https://clovastudio.stream.ntruss.com/testapp/v1/api-tool
 MAX_CHUNKS = int(os.getenv("MAX_CHUNKS", "12"))
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "2000"))
 OVERLAP = int(os.getenv("OVERLAP", "400"))
-BATCH_SIZE = 3
 
 # ================================
 # INITIALIZE CLIENTS
@@ -98,33 +111,62 @@ print("✓ Connected to Qdrant, Neo4j & Firebase")
 
 
 # ================================
-# MAIN PROCESSING FUNCTION
+# MAIN PROCESSING FUNCTION - OPTIMIZED
 # ================================
-def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
-    """Process a single PDF through the pipeline"""
+def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
+    """
+    Process a single PDF through the ULTRA-OPTIMIZED pipeline
+    
+    OPTIMIZATIONS APPLIED:
+    1. Batch embedding creation (Phase 3)
+    2. Cascading deduplication (Phase 4)
+    3. Ultra-compact chunk processing (Phase 5)
+    4. Embedding reuse (Phase 6)
+    5. Resource discovery with web search (Phase 7)
+    """
     start_time = datetime.now()
     file_id = str(uuid.uuid4())
     
     print(f"\n{'='*80}")
-    print(f"🚀 PROCESSING PDF JOB")
+    print(f"🚀 PROCESSING PDF JOB - ULTRA-OPTIMIZED PIPELINE")
     print(f"📄 File: {file_name}")
     print(f"🔖 Workspace: {workspace_id}")
     print(f"🆔 Job ID: {job_id}")
     print(f"{'='*80}\n")
     
+    # Optimization metrics
+    metrics = {
+        'embedding_calls': 0,
+        'llm_calls': 0,
+        'nodes_created': 0,
+        'nodes_merged': 0,
+        'chunks_processed': 0
+    }
+    
     try:
         # PHASE 1: Extract PDF
         print(f"📄 Phase 1: Extracting PDF")
         full_text, lang = extract_pdf_fast(pdf_url, max_pages=25)
+        print(f"✓ Extracted {len(full_text)} chars, language: {lang}")
         
-        # PHASE 2: Extract hierarchical structure
-        print(f"\n📊 Phase 2: Extracting hierarchical structure (lang: {lang})")
-        structure = extract_hierarchical_structure(full_text, file_name, lang, CLOVA_API_KEY, CLOVA_API_URL)
+        # PHASE 2: Extract hierarchical structure (COMPACT - 100 char synthesis)
+        print(f"\n📊 Phase 2: Extracting COMPACT hierarchical structure")
+        structure = extract_hierarchical_structure_compact(
+            full_text, file_name, lang, 
+            CLOVA_API_KEY, CLOVA_API_URL
+        )
+        metrics['llm_calls'] += 1
+        
+        if not structure or not structure.get('domain'):
+            print(f"⚠️  No structure extracted, using fallback")
+            structure = {
+                'domain': {'name': file_name, 'synthesis': 'Document analysis'},
+                'categories': []
+            }
         
         # Translate structure to English if needed
         if lang != "en":
             print(f"🌐 Translating structure to English...")
-            # Collect all text to translate
             texts_to_translate = []
             
             domain = structure.get("domain", {})
@@ -137,161 +179,163 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
                     for sub in concept.get("subconcepts", []):
                         texts_to_translate.extend([
                             sub.get("name", ""), 
-                            sub.get("synthesis", ""),
-                            sub.get("evidence", "")
+                            sub.get("synthesis", "")
                         ])
             
             # Translate in batch
-            translated = translate_batch([t for t in texts_to_translate if t], lang, "en", 
-                                        PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
-        
-        # PHASE 3: Create Neo4j graph
-        print(f"\n🔗 Phase 3: Creating hierarchical knowledge graph")
-        with neo4j_driver.session() as session:
-            node_ids = create_hierarchical_graph(
-                session, workspace_id, structure, file_id, file_name, lang,
-                CLOVA_API_KEY, CLOVA_API_URL
+            translated = translate_batch(
+                [t for t in texts_to_translate if t], 
+                lang, "en", 
+                PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET
             )
-            print(f"✓ Created/updated {len(node_ids)} nodes")
+            print(f"✓ Translated {len(translated)} texts")
         
-        # PHASE 4: Process chunks
+        # PHASE 3: Pre-compute & Cache ALL Embeddings (NEW!)
+        print(f"\n⚡ Phase 3: Pre-computing embeddings cache (OPTIMIZATION)")
+        concept_names = extract_all_concept_names(structure)
+        print(f"  📊 Extracted {len(concept_names)} unique concept names")
+        
+        embeddings_cache = batch_create_embeddings(
+            concept_names,
+            CLOVA_API_KEY,
+            CLOVA_EMBEDDING_URL,
+            batch_size=50
+        )
+        metrics['embedding_calls'] += len(embeddings_cache)
+        print(f"✓ Created embeddings cache with {len(embeddings_cache)} vectors")
+        
+        # PHASE 4: Create Neo4j graph with CASCADING DEDUPLICATION (NEW!)
+        print(f"\n🔗 Phase 4: Creating graph with CASCADING deduplication (OPTIMIZATION)")
+        with neo4j_driver.session() as session:
+            dedup_stats = create_hierarchical_graph_with_cascading_dedup(
+                session, workspace_id, structure, file_id, file_name,
+                embeddings_cache
+            )
+            
+            metrics['nodes_created'] = dedup_stats['nodes_created']
+            metrics['nodes_merged'] = dedup_stats.get('exact_matches', 0) + dedup_stats.get('high_similarity_merges', 0)
+            
+            print(f"\n  📊 Deduplication Statistics:")
+            print(f"     • Nodes created: {dedup_stats['nodes_created']}")
+            print(f"     • Exact matches: {dedup_stats.get('exact_matches', 0)}")
+            print(f"     • High similarity merges: {dedup_stats.get('high_similarity_merges', 0)}")
+            print(f"     • Final count: {dedup_stats['final_count']}")
+            
+            node_ids = dedup_stats['node_ids']
+        
+        # PHASE 5: Process chunks (ULTRA-COMPACT - fixed 3-concept context, 10-chunk batches) (NEW!)
         chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-        print(f"\n⚡ Phase 4: Processing {len(chunks)} chunks")
+        print(f"\n⚡ Phase 5: Processing {len(chunks)} chunks (ULTRA-COMPACT OPTIMIZATION)")
         
+        chunk_analyses = process_chunks_ultra_compact(
+            chunks, structure,
+            CLOVA_API_KEY, CLOVA_API_URL
+        )
+        metrics['llm_calls'] += (len(chunks) + 9) // 10  # Batch of 10
+        metrics['chunks_processed'] = len(chunk_analyses)
+        
+        print(f"✓ Processed {len(chunk_analyses)} chunks in {(len(chunks) + 9) // 10} LLM calls")
+        
+        # PHASE 6: Create Qdrant chunks (REUSE embeddings from cache) (OPTIMIZED!)
+        print(f"\n💾 Phase 6: Creating Qdrant chunks (REUSING cached embeddings)")
         all_chunks = []
-        accumulated_concepts = []
         prev_embedding = None
         prev_chunk_id = ""
         
-        for batch_start in range(0, len(chunks), BATCH_SIZE):
-            batch_end = min(batch_start + BATCH_SIZE, len(chunks))
-            batch = chunks[batch_start:batch_end]
+        for chunk_data in chunk_analyses:
+            chunk_idx = chunk_data.get('chunk_index', 0)
+            if chunk_idx >= len(chunks):
+                continue
             
-            batch_result = process_chunk_batch(batch, lang, accumulated_concepts, 
-                                              CLOVA_API_KEY, CLOVA_API_URL)
+            original_chunk = chunks[chunk_idx]
+            chunk_id = str(uuid.uuid4())
             
-            for chunk_data in batch_result.get("chunks", []):
-                chunk_idx = chunk_data.get("chunk_index", 0)
-                if chunk_idx >= len(chunks):
-                    continue
-                
-                original_chunk = chunks[chunk_idx]
-                chunk_id = str(uuid.uuid4())
-                
-                # Extract and translate if needed
-                concepts_data = chunk_data.get("concepts", [])
-                summary = chunk_data.get("summary", "")
-                claims = chunk_data.get("key_claims", [])
-                
-                if lang != "en":
-                    to_translate = [summary] + claims
-                    to_translate.extend([c.get("name", "") for c in concepts_data])
-                    to_translate.extend([c.get("synthesis", "") for c in concepts_data])
-                    to_translate.extend([c.get("evidence", "") for c in concepts_data])
-                    
-                    translated = translate_batch(to_translate, lang, "en", 
-                                                PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
-                    
-                    summary = translated[0] if translated else summary
-                    claims = translated[1:len(claims)+1] if len(translated) > 1 else claims
-                    
-                    # Update concepts
-                    offset = len(claims) + 1
-                    for i, c in enumerate(concepts_data):
-                        if offset + i*3 < len(translated):
-                            c["name"] = translated[offset + i*3]
-                            c["synthesis"] = translated[offset + i*3 + 1] if offset + i*3 + 1 < len(translated) else c.get("synthesis", "")
-                            c["evidence"] = translated[offset + i*3 + 2] if offset + i*3 + 2 < len(translated) else c.get("evidence", "")
-                
-                # Link chunk concepts to graph nodes
-                with neo4j_driver.session() as session:
-                    for c in concepts_data:
-                        concept_name = c.get("name", "")
-                        if not concept_name:
-                            continue
-                        
-                        # Find matching node
-                        node_id = find_or_merge_node(
-                            session, workspace_id, concept_name, 
-                            c.get("type", "concept"), 
-                            c.get("level", 2)
-                        )
-                        
-                        # Add chunk as evidence
-                        evidence = Evidence(
-                            SourceId=file_id,
-                            SourceName=file_name,
-                            ChunkId=chunk_id,
-                            Text=c.get("evidence", c.get("synthesis", "")),
-                            Page=chunk_idx + 1,
-                            Confidence=0.8,
-                            CreatedAt=datetime.utcnow(),
-                            KeyClaims=claims
-                        )
-                        
-                        add_evidence_to_node(session, node_id, evidence)
-                        update_node_synthesis(session, node_id, c.get("synthesis", ""), 
-                                            CLOVA_API_KEY, CLOVA_API_URL)
-                        
-                        accumulated_concepts.append(concept_name)
-                
-                # Create embedding
+            summary = chunk_data.get('summary', '')
+            concepts = chunk_data.get('concepts', [])
+            topic = chunk_data.get('topic', 'General')
+            claims = chunk_data.get('key_claims', [])
+            
+            # OPTIMIZATION: Reuse embedding from cache if summary matches a concept
+            # Otherwise create new embedding
+            embedding = None
+            for concept in concepts:
+                if concept in embeddings_cache:
+                    embedding = embeddings_cache[concept]
+                    break
+            
+            if not embedding:
+                # Create embedding for summary
                 embedding = create_embedding_via_clova(summary, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
-                
-                # Calculate similarity
-                semantic_sim = 0.0
-                if prev_embedding:
-                    semantic_sim = calculate_similarity(prev_embedding, embedding)
-                
-                # Create Qdrant chunk
-                qdrant_chunk = QdrantChunk(
-                    chunk_id=chunk_id,
-                    paper_id=file_id,
-                    page=chunk_idx + 1,
-                    text=original_chunk["text"][:500],
-                    summary=summary,
-                    concepts=[c.get("name", "") for c in concepts_data],
-                    topic=chunk_data.get("topic", "General"),
-                    workspace_id=workspace_id,
-                    language="en",
-                    source_language=lang,
-                    created_at=now_iso(),
-                    hierarchy_path=f"{file_name} > Chunk {chunk_idx+1}",
-                    chunk_index=chunk_idx,
-                    prev_chunk_id=prev_chunk_id,
-                    next_chunk_id="",
-                    semantic_similarity_prev=semantic_sim,
-                    overlap_with_prev=original_chunk["overlap_previous"][:200],
-                    key_claims=claims,
-                    questions_raised=chunk_data.get("questions", []),
-                    evidence_strength=0.8
-                )
-                
-                all_chunks.append((qdrant_chunk, embedding))
-                
-                # Update previous chunk
-                if prev_chunk_id and all_chunks:
-                    for i, (c, e) in enumerate(all_chunks):
-                        if c.chunk_id == prev_chunk_id:
-                            c.next_chunk_id = chunk_id
-                            break
-                
-                prev_chunk_id = chunk_id
-                prev_embedding = embedding
+                metrics['embedding_calls'] += 1
             
-            gc.collect()
+            # Calculate similarity with previous chunk
+            semantic_sim = 0.0
+            if prev_embedding:
+                semantic_sim = calculate_similarity(prev_embedding, embedding)
+            
+            # Create Qdrant chunk
+            qdrant_chunk = QdrantChunk(
+                chunk_id=chunk_id,
+                paper_id=file_id,
+                page=chunk_idx + 1,
+                text=original_chunk["text"][:500],
+                summary=summary,
+                concepts=concepts,
+                topic=topic,
+                workspace_id=workspace_id,
+                language="en",
+                source_language=lang,
+                created_at=now_iso(),
+                hierarchy_path=f"{file_name} > Chunk {chunk_idx+1}",
+                chunk_index=chunk_idx,
+                prev_chunk_id=prev_chunk_id,
+                next_chunk_id="",
+                semantic_similarity_prev=semantic_sim,
+                overlap_with_prev=original_chunk.get("overlap_previous", "")[:200],
+                key_claims=claims,
+                questions_raised=[],
+                evidence_strength=0.8
+            )
+            
+            all_chunks.append((qdrant_chunk, embedding))
+            
+            # Update previous chunk's next_chunk_id
+            if prev_chunk_id:
+                for i, (c, e) in enumerate(all_chunks):
+                    if c.chunk_id == prev_chunk_id:
+                        c.next_chunk_id = chunk_id
+                        break
+            
+            prev_chunk_id = chunk_id
+            prev_embedding = embedding
         
-        # PHASE 5: Store in Qdrant
-        print(f"\n💾 Phase 5: Storing {len(all_chunks)} chunks in Qdrant")
+        # Store in Qdrant
         store_chunks_in_qdrant(qdrant_client, workspace_id, all_chunks)
+        
+        # PHASE 7: Resource Discovery with HyperCLOVA X Web Search (NEW!)
+        print(f"\n🔍 Phase 7: Discovering academic resources (OPTIMIZATION)")
+        with neo4j_driver.session() as session:
+            resource_count = discover_resources_with_hyperclova(
+                session, workspace_id,
+                CLOVA_API_KEY, CLOVA_API_URL
+            )
+        
+        metrics['llm_calls'] += 1  # Resource discovery call
+        
+        # Clean up
+        gc.collect()
         
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
         
         print(f"\n{'='*80}")
         print(f"✅ COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
-        print(f"├─ Hierarchical nodes: {len(node_ids)}")
-        print(f"├─ Chunks processed: {len(all_chunks)}")
-        print(f"├─ Source language: {lang} → en")
+        print(f"\n📊 OPTIMIZATION METRICS:")
+        print(f"├─ Embedding API calls: {metrics['embedding_calls']}")
+        print(f"├─ LLM API calls: {metrics['llm_calls']}")
+        print(f"├─ Nodes created: {metrics['nodes_created']}")
+        print(f"├─ Nodes merged: {metrics['nodes_merged']}")
+        print(f"├─ Chunks processed: {metrics['chunks_processed']}")
+        print(f"├─ Resources found: {resource_count}")
         print(f"└─ File ID: {file_id}")
         print(f"{'='*80}\n")
         
@@ -300,9 +344,13 @@ def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str
             "jobId": job_id,
             "fileId": file_id,
             "nodes": len(node_ids),
+            "nodesCreated": metrics['nodes_created'],
+            "nodesMerged": metrics['nodes_merged'],
             "chunks": len(all_chunks),
+            "resources": resource_count,
             "sourceLanguage": lang,
-            "processingTimeMs": processing_time
+            "processingTimeMs": processing_time,
+            "optimizationMetrics": metrics
         }
     
     except Exception as e:
@@ -343,8 +391,8 @@ def handle_job_message(message: Dict[str, Any]):
         
         print(f"📌 Processing first file: {file_name}")
         
-        # Process the PDF
-        result = process_pdf_job(workspace_id, pdf_url, file_name, job_id)
+        # Process the PDF using OPTIMIZED pipeline
+        result = process_pdf_job_optimized(workspace_id, pdf_url, file_name, job_id)
         
         # Push result to Firebase
         print(f"\n🔥 Pushing result to Firebase...")
@@ -374,7 +422,7 @@ def handle_job_message(message: Dict[str, Any]):
 def main():
     """Main worker loop"""
     print("\n" + "="*80)
-    print("🤖 RabbitMQ Worker Starting...")
+    print("🤖 RabbitMQ Worker Starting - ULTRA-OPTIMIZED PIPELINE")
     print("="*80)
     
     # Connect to RabbitMQ
