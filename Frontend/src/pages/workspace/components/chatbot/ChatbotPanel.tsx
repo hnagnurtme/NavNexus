@@ -9,6 +9,7 @@ import {
 	X,
 } from "lucide-react";
 import {
+	DEFAULT_NODE_CONTEXT_ID,
 	type ContextItem,
 	type ContextType,
 	type ContextSuggestion,
@@ -22,6 +23,7 @@ import {
 } from "@/types";
 
 interface ChatbotPanelProps {
+	topicId?: string | null;
 	topicName?: string | null;
 	summary?: string | null;
 	evidenceSources?: string[];
@@ -30,6 +32,7 @@ interface ChatbotPanelProps {
 }
 
 export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
+	topicId,
 	topicName,
 	summary,
 	evidenceSources,
@@ -43,7 +46,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	const [isThinking, setIsThinking] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [contextItems, setContextItems] = useState<ContextItem[]>(() =>
-		buildDefaultContexts(topicName, evidenceSources)
+		buildDefaultContexts(topicName, evidenceSources, topicId)
 	);
 	const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 	const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
@@ -69,7 +72,8 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	const contextPayload = useMemo<ChatbotContextItemPayload[]>(
 		() =>
 			contextItems.map((item) => ({
-				id: item.id,
+				id: item.entityId ?? item.id,
+				entityId: item.entityId,
 				type: item.type,
 				label: item.label,
 			})),
@@ -94,7 +98,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		try {
 			const payload = {
 				prompt,
-				topicId: topicName ?? undefined,
+				topicId: topicId ?? undefined,
 				contexts: contextPayload,
 				history: buildHistoryPayload(history),
 			};
@@ -149,7 +153,11 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		}
 	};
 
-	const handleAddContext = (type: ContextType, presetLabel?: string) => {
+	const handleAddContext = (
+		type: ContextType,
+		presetLabel?: string,
+		presetEntityId?: string
+	) => {
 		if (typeof window === "undefined") return;
 		let resolvedLabel = presetLabel;
 		if (!resolvedLabel) {
@@ -166,11 +174,15 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 			resolvedLabel = value.trim();
 		}
 		if (!resolvedLabel) return;
-		const exists = contextItems.some(
-			(item) =>
-				item.type === type &&
+		const exists = contextItems.some((item) => {
+			if (item.type !== type) return false;
+			if (presetEntityId && item.entityId) {
+				return item.entityId === presetEntityId;
+			}
+			return (
 				item.label.toLowerCase() === resolvedLabel!.toLowerCase()
-		);
+			);
+		});
 		if (exists) return;
 		setContextItems((prev) => [
 			...prev,
@@ -178,6 +190,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 				id: `${type}-${Date.now()}`,
 				type,
 				label: resolvedLabel!,
+				entityId: presetEntityId,
 			},
 		]);
 	};
@@ -188,37 +201,37 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		);
 	};
 
-	const handleContextMenuSelect = (type: ContextType, label?: string) => {
+	const handleContextMenuSelect = (
+		type: ContextType,
+		option: ContextSuggestion
+	) => {
 		setIsContextMenuOpen(false);
-		handleAddContext(type, label);
+		handleAddContext(
+			type,
+			option.label,
+			option.entityId ?? option.id ?? undefined
+		);
 	};
 
 	useEffect(() => {
 		setContextItems((prev) => {
+			const remaining = prev.filter(
+				(item) => item.id !== DEFAULT_NODE_CONTEXT_ID
+			);
 			if (!topicName) {
-				const hasNode = prev.some((item) => item.type === "node");
-				return hasNode
-					? prev.filter((item) => item.type !== "node")
-					: prev;
+				return remaining;
 			}
-			const nodeItem: ContextItem = {
-				id: `node-${topicName}`,
-				type: "node",
-				label: topicName,
-			};
-			const nodeIndex = prev.findIndex((item) => item.type === "node");
-			if (nodeIndex === -1) {
-				return [nodeItem, ...prev];
-			}
-			const existing = prev[nodeIndex];
-			if (existing.label === topicName) {
-				return prev;
-			}
-			const next = [...prev];
-			next[nodeIndex] = nodeItem;
-			return next;
+			return [
+				{
+					id: DEFAULT_NODE_CONTEXT_ID,
+					type: "node",
+					label: topicName,
+					entityId: topicId ?? undefined,
+				},
+				...remaining,
+			];
 		});
-	}, [topicName]);
+	}, [topicId, topicName]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-white shadow-inner shadow-black/40">
@@ -353,13 +366,13 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 												).map((option) => (
 													<button
 														type="button"
-														key={`${contextMenuType}-${option.id}`}
-														onClick={() =>
-															handleContextMenuSelect(
-																contextMenuType,
-																option.label
-															)
-														}
+															key={`${contextMenuType}-${option.id}`}
+															onClick={() =>
+																handleContextMenuSelect(
+																	contextMenuType,
+																	option
+																)
+															}
 														className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left hover:bg-white/5"
 													>
 														<span className="max-w-[150px] truncate font-medium">

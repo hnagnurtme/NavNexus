@@ -10,6 +10,7 @@ export type ChatbotContextItemPayload = {
   id?: string;
   type: ChatbotContextType;
   label: string;
+  entityId?: string;
 };
 
 export type ChatbotMessageRole = 'user' | 'ai';

@@ -12,13 +12,18 @@ const delay = (ms: number) =>
 const resolvePrimaryTopic = (
   payload: ChatbotQueryRequest
 ): { label: string; source: string } => {
-  const contextMatch = payload.contexts.find(
-    (entry) => entry.type === 'node' && entry.label
+  const matchingContext = payload.contexts.find(
+    (entry) =>
+      entry.type === 'node' && entry.entityId && entry.entityId === payload.topicId
   );
+  const fallbackNode = payload.contexts.find((entry) => entry.type === 'node');
+  const anyContext = payload.contexts[0];
   const label =
+    matchingContext?.label ??
+    fallbackNode?.label ??
+    anyContext?.label ??
     payload.topicId ??
-    contextMatch?.label ??
-    (payload.contexts[0]?.label ?? 'the workspace');
+    'the workspace';
   const source =
     label && label !== 'the workspace'
       ? `${label} dossier`

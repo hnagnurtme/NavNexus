@@ -16,8 +16,18 @@ This doc tracks the request/response shape the React client expects when the AI 
   "workspaceId": "ws-123",
   "topicId": "Project Helios",
   "contexts": [
-    { "id": "node-helios", "type": "node", "label": "Project Helios" },
-    { "id": "file-brief", "type": "file", "label": "Helios briefing.pdf" }
+    {
+      "id": "node-helios",
+      "entityId": "node-helios",
+      "type": "node",
+      "label": "Project Helios"
+    },
+    {
+      "id": "file-brief",
+      "entityId": "file-brief",
+      "type": "file",
+      "label": "Helios briefing.pdf"
+    }
   ],
   "history": [
     {
@@ -38,8 +48,8 @@ This doc tracks the request/response shape the React client expects when the AI 
 ```
 
 - `prompt` is required.
-- `workspaceId`/`topicId` are optional but enable backend grounding.
-- `contexts` mirrors the chips users pin in the UI. Each entry must include a `type` of `node` or `file` today; extend the union if new context types ship.
+- `workspaceId`/`topicId` are optional but enable backend grounding. `topicId` should be the `nodeId` returned by the knowledge-tree API for the currently selected node.
+- `contexts` mirrors the chips users pin in the UI. Each entry must include a `type` of `node` or `file` today; extend the union if new context types ship. When the context references a knowledge node or evidence already known to the system, populate both `id` and `entityId` with the canonical identifier (free-form contexts will omit `entityId`).
 - `history` includes the full conversation so the model can stay stateful. `nodeSnapshot`, `sourceSnapshot`, and `source` should simply echo what the UI showed for previous AI responses.
 
 ## Response Body (`ChatbotQueryResponse`)
