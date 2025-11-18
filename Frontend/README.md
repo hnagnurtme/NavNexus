@@ -196,3 +196,10 @@ Frontend/
 ├── package.json
 └── README.md
 ```
+
+## Chatbot API Readiness
+
+- Frontend types: `src/types/chatbot.types.ts` defines the payload/response shapes.
+- Service: `src/services/chatbot.service.ts` posts to `/chatbot/query` (or the mock when `VITE_USE_CHATBOT_MOCK` is not `"false"`).
+- Mock data: `src/services/mocks/chatbot.mock.ts` mirrors the expected backend output for local development.
+- Full contract + sample payloads: see [`docs/chatbot-api.md`](docs/chatbot-api.md) before wiring the backend so both sides agree on the shape.

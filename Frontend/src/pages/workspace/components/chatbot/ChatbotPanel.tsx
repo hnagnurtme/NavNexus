@@ -15,6 +15,11 @@ import {
 	buildDefaultContexts,
 } from "./contextUtils";
 import { type ChatMessage, buildInitialMessage } from "./chatTypes";
+import { chatbotService } from "@/services/chatbot.service";
+import {
+	type ChatbotContextItemPayload,
+	type ChatbotMessageHistoryItem,
+} from "@/types";
 
 interface ChatbotPanelProps {
 	topicName?: string | null;
@@ -36,6 +41,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	]);
 	const [inputValue, setInputValue] = useState("");
 	const [isThinking, setIsThinking] = useState(false);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [contextItems, setContextItems] = useState<ContextItem[]>(() =>
 		buildDefaultContexts(topicName, evidenceSources)
 	);
@@ -60,47 +66,78 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		[topicName]
 	);
 
-	const addAIResponse = (prompt: string) => {
+	const contextPayload = useMemo<ChatbotContextItemPayload[]>(
+		() =>
+			contextItems.map((item) => ({
+				id: item.id,
+				type: item.type,
+				label: item.label,
+			})),
+		[contextItems]
+	);
+
+	const buildHistoryPayload = (
+		history: ChatMessage[]
+	): ChatbotMessageHistoryItem[] =>
+		history.map((message) => ({
+			role: message.role,
+			content: message.content,
+			timestamp: message.timestamp,
+			nodeSnapshot: message.nodeSnapshot ?? null,
+			sourceSnapshot: message.sourceSnapshot ?? null,
+			source: message.source ?? null,
+		}));
+
+	const sendPrompt = async (prompt: string, history: ChatMessage[]) => {
 		setIsThinking(true);
-		setTimeout(() => {
-			const nodeSnapshot = topicName ?? null;
-			const sourceSnapshot = nodeSnapshot
-				? `${nodeSnapshot} dossier`
-				: "Workspace knowledge base";
-			setMessages((prev) => [
-				...prev,
-				{
-					id: `ai-${Date.now()}`,
-					role: "ai",
-					content: `Here is how this connects back to ${
-						topicName ?? "the workspace"
-					}:\n${prompt} — I will outline supporting evidence and next steps as data sources come online.`,
-					source: sourceSnapshot,
-					nodeSnapshot,
-					sourceSnapshot,
-					timestamp: Date.now(),
-				},
-			]);
+		setErrorMessage(null);
+		try {
+			const payload = {
+				prompt,
+				topicId: topicName ?? undefined,
+				contexts: contextPayload,
+				history: buildHistoryPayload(history),
+			};
+			const response = await chatbotService.query(payload);
+			console.log("Your message payload:", payload);
+			console.log("Chatbot response:", response);
+			const aiMessage = response.data.message;
+			const timestamp = Date.now();
+			const normalizedMessage: ChatMessage = {
+				id: aiMessage.id ?? `ai-${timestamp}`,
+				role: "ai",
+				content: aiMessage.content,
+				source: aiMessage.source ?? undefined,
+				timestamp,
+				nodeSnapshot: aiMessage.nodeSnapshot ?? null,
+				sourceSnapshot: aiMessage.sourceSnapshot ?? null,
+			};
+			setMessages((prev) => [...prev, normalizedMessage]);
+		} catch (error) {
+			console.error("Failed to query chatbot", error);
+			setErrorMessage(
+				"The chatbot is unavailable right now. Please try again."
+			);
+		} finally {
 			setIsThinking(false);
-		}, 400);
+		}
 	};
 
 	const handleSend = () => {
 		const trimmed = inputValue.trim();
-		if (!trimmed) return;
+		if (!trimmed || isThinking) return;
 
 		const now = Date.now();
-		setMessages((prev) => [
-			...prev,
-			{
-				id: `user-${now}`,
-				role: "user",
-				content: trimmed,
-				timestamp: now,
-			},
-		]);
+		const outboundMessage: ChatMessage = {
+			id: `user-${now}`,
+			role: "user",
+			content: trimmed,
+			timestamp: now,
+		};
+
+		setMessages((prev) => [...prev, outboundMessage]);
 		setInputValue("");
-		addAIResponse(trimmed);
+		void sendPrompt(trimmed, [...messages, outboundMessage]);
 	};
 
 	const handleKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (
@@ -394,6 +431,9 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 						<Send className="h-4 w-4" />
 					</button>
 				</div>
+				{errorMessage && (
+					<p className="mt-2 text-xs text-red-400">{errorMessage}</p>
+				)}
 			</div>
 		</div>
 	);
