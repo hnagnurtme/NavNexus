@@ -76,6 +76,7 @@ export const WorkSpaceProvider = ({
       ToastNaver.success("Workspace created successfully.");
     } catch (error) {
       ToastNaver.error("Failed to create workspace. Please try again.");
+      console.error("Error creating workspace:", error);  
     }
   };
   return (
