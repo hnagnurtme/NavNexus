@@ -72,20 +72,36 @@ def extract_hierarchical_structure_compact(
     """
     Extract hierarchical structure with COMPACT synthesis (100 chars max per concept)
     
+    OPTIMIZATION: Processes document in NATIVE LANGUAGE for better semantic understanding.
+    Translation happens AFTER extraction in the worker.
+    
     Args:
-        full_text: Document text
+        full_text: Document text (in original language)
         file_name: Name of the file
-        lang: Language code
+        lang: Language code (ko, ja, zh, en, etc.)
         clova_api_key: API key
         clova_api_url: API URL
     
     Returns:
-        Hierarchical structure with compact synthesis
+        Hierarchical structure with compact synthesis in ORIGINAL LANGUAGE
     """
+    
+    # Language-specific instructions for better LLM understanding
+    lang_instruction = ""
+    if lang == "ko":
+        lang_instruction = "문서를 한국어로 분석하고 결과도 한국어로 작성하세요."
+    elif lang == "ja":
+        lang_instruction = "文書を日本語で分析し、結果も日本語で記述してください。"
+    elif lang == "zh":
+        lang_instruction = "用中文分析文档并用中文编写结果。"
+    else:
+        lang_instruction = "Analyze the document in its original language."
     
     prompt = f"""Document: {file_name}
 First 2500 characters:
 {full_text[:2500]}
+
+{lang_instruction}
 
 Extract a hierarchical structure. KEEP SYNTHESIS VERY SHORT (max 100 chars each):
 
@@ -123,7 +139,8 @@ def process_chunks_ultra_compact(
     chunks: List[Dict], 
     structure: Dict,
     clova_api_key: str, 
-    clova_api_url: str
+    clova_api_url: str,
+    lang: str = "en"
 ) -> List[Dict]:
     """
     Minimal context window with batch processing
@@ -133,15 +150,17 @@ def process_chunks_ultra_compact(
     - Truncate chunk text to 200 chars
     - Process 10 chunks per LLM call
     - Extract only: topic + 2 concepts + summary
+    - ANALYZE IN NATIVE LANGUAGE for better semantic understanding
     
     Args:
-        chunks: List of text chunks
+        chunks: List of text chunks (in original language)
         structure: Document structure (to extract top concepts)
         clova_api_key: API key
         clova_api_url: API URL
+        lang: Language code (ko, ja, zh, en, etc.)
     
     Returns:
-        List of analyzed chunk data
+        List of analyzed chunk data in ORIGINAL LANGUAGE
     """
     
     results = []
@@ -156,6 +175,17 @@ def process_chunks_ultra_compact(
     
     context_prefix = f"Doc: {', '.join(top_concepts[:3])}" if top_concepts else "Doc context"
     
+    # Language-specific instructions
+    lang_instruction = ""
+    if lang == "ko":
+        lang_instruction = "각 청크를 한국어로 분석하고 결과도 한국어로 작성하세요."
+    elif lang == "ja":
+        lang_instruction = "各チャンクを日本語で分析し、結果も日本語で記述してください。"
+    elif lang == "zh":
+        lang_instruction = "用中文分析每个块并用中文编写结果。"
+    else:
+        lang_instruction = "Analyze each chunk in its original language."
+    
     # Batch process: 10 chunks at a time
     BATCH_SIZE = 10
     
@@ -164,6 +194,8 @@ def process_chunks_ultra_compact(
         
         # Ultra-compact prompt
         prompt = f"""{context_prefix}
+
+{lang_instruction}
 
 Extract for each chunk (keep it SHORT):
 - 1 topic

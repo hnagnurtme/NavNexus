@@ -28,7 +28,7 @@ from src.handler.firebase import FirebaseClient
 from src.pipeline.pdf_extraction import extract_pdf_fast
 from src.pipeline.chunking import create_smart_chunks
 from src.pipeline.embedding import create_embedding_via_clova, calculate_similarity
-from src.pipeline.translation import translate_batch
+from src.pipeline.translation import translate_batch, translate_structure, translate_chunk_analysis
 
 # OPTIMIZED MODULES
 from src.pipeline.embedding_cache import extract_all_concept_names, batch_create_embeddings
@@ -150,7 +150,8 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
         print(f"✓ Extracted {len(full_text)} chars, language: {lang}")
         
         # PHASE 2: Extract hierarchical structure (COMPACT - 100 char synthesis)
-        print(f"\n📊 Phase 2: Extracting COMPACT hierarchical structure")
+        # OPTIMIZATION: LLM processes in NATIVE LANGUAGE for better semantic understanding
+        print(f"\n📊 Phase 2: Extracting COMPACT hierarchical structure (in {lang})")
         structure = extract_hierarchical_structure_compact(
             full_text, file_name, lang, 
             CLOVA_API_KEY, CLOVA_API_URL
@@ -165,30 +166,14 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             }
         
         # Translate structure to English if needed
+        # OPTIMIZATION: Translate ONLY the output, not the input
         if lang != "en":
-            print(f"🌐 Translating structure to English...")
-            texts_to_translate = []
-            
-            domain = structure.get("domain", {})
-            texts_to_translate.extend([domain.get("name", ""), domain.get("synthesis", "")])
-            
-            for cat in structure.get("categories", []):
-                texts_to_translate.extend([cat.get("name", ""), cat.get("synthesis", "")])
-                for concept in cat.get("concepts", []):
-                    texts_to_translate.extend([concept.get("name", ""), concept.get("synthesis", "")])
-                    for sub in concept.get("subconcepts", []):
-                        texts_to_translate.extend([
-                            sub.get("name", ""), 
-                            sub.get("synthesis", "")
-                        ])
-            
-            # Translate in batch
-            translated = translate_batch(
-                [t for t in texts_to_translate if t], 
-                lang, "en", 
+            print(f"🌐 Translating structure from {lang} to English...")
+            structure = translate_structure(
+                structure, lang, "en", 
                 PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET
             )
-            print(f"✓ Translated {len(translated)} texts")
+            print(f"✓ Structure translated to English")
         
         # PHASE 3: Pre-compute & Cache ALL Embeddings (NEW!)
         print(f"\n⚡ Phase 3: Pre-computing embeddings cache (OPTIMIZATION)")
@@ -224,17 +209,29 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             node_ids = dedup_stats['node_ids']
         
         # PHASE 5: Process chunks (ULTRA-COMPACT - fixed 3-concept context, 10-chunk batches) (NEW!)
+        # OPTIMIZATION: Process in NATIVE LANGUAGE then translate results
         chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-        print(f"\n⚡ Phase 5: Processing {len(chunks)} chunks (ULTRA-COMPACT OPTIMIZATION)")
+        print(f"\n⚡ Phase 5: Processing {len(chunks)} chunks in {lang} (ULTRA-COMPACT OPTIMIZATION)")
         
         chunk_analyses = process_chunks_ultra_compact(
             chunks, structure,
-            CLOVA_API_KEY, CLOVA_API_URL
+            CLOVA_API_KEY, CLOVA_API_URL,
+            lang  # Pass language for native processing
         )
         metrics['llm_calls'] += (len(chunks) + 9) // 10  # Batch of 10
         metrics['chunks_processed'] = len(chunk_analyses)
         
         print(f"✓ Processed {len(chunk_analyses)} chunks in {(len(chunks) + 9) // 10} LLM calls")
+        
+        # Translate chunk analyses to English if needed
+        if lang != "en":
+            print(f"🌐 Translating chunk analyses from {lang} to English...")
+            for i, chunk_data in enumerate(chunk_analyses):
+                chunk_analyses[i] = translate_chunk_analysis(
+                    chunk_data, lang, "en",
+                    PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET
+                )
+            print(f"✓ Translated {len(chunk_analyses)} chunk analyses")
         
         # PHASE 6: Create Qdrant chunks (REUSE embeddings from cache) (OPTIMIZED!)
         print(f"\n💾 Phase 6: Creating Qdrant chunks (REUSING cached embeddings)")
@@ -250,10 +247,22 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             original_chunk = chunks[chunk_idx]
             chunk_id = str(uuid.uuid4())
             
-            summary = chunk_data.get('summary', '')
+            # Normalize and validate chunk data
+            summary = chunk_data.get('summary', '').strip()
+            if not summary or len(summary) < 10:
+                summary = original_chunk["text"][:150].strip()
+            
             concepts = chunk_data.get('concepts', [])
-            topic = chunk_data.get('topic', 'General')
+            # Filter out empty concepts
+            concepts = [c.strip() for c in concepts if c and c.strip()]
+            
+            topic = chunk_data.get('topic', '').strip()
+            if not topic:
+                topic = 'General'
+            
             claims = chunk_data.get('key_claims', [])
+            # Filter out empty claims
+            claims = [c.strip() for c in claims if c and c.strip()]
             
             # OPTIMIZATION: Reuse embedding from cache if summary matches a concept
             # Otherwise create new embedding
