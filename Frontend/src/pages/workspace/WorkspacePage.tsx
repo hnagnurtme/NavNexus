@@ -4,7 +4,6 @@ import { Menu } from "lucide-react";
 import { ControlPanel } from "./components/control/ControlPanel";
 import { WorkspaceCanvas } from "./components/canvas/WorkspaceCanvas";
 import { ForensicPanel } from "./components/forensic/ForensicPanel";
-import { ViewToggle } from "./components/common/ViewToggle";
 import { JourneyOverlay } from "./components/journey/JourneyOverlay";
 import { useWorkspaceExperience } from "./hooks/useWorkspaceExperience";
 import { findWorkspaceNode } from "./utils/treeUtils";
@@ -105,13 +104,6 @@ export const WorkspacePage: React.FC = () => {
 								NavNexus Knowledge Journey
 							</h1>
 						</div>
-						{view === "active" && (
-							<ViewToggle
-								active={viewMode}
-								onChange={actions.setMode}
-								disabled={isBuilding}
-							/>
-						)}
 					</div>
 
 					<WorkspaceCanvas
@@ -136,6 +128,7 @@ export const WorkspacePage: React.FC = () => {
 
 				<ForensicPanel
 					details={details}
+					tree={tree}
 					selectedNode={selectedNode}
 					isLoading={isNodeLoading}
 					journeyActive={journey.isActive}
