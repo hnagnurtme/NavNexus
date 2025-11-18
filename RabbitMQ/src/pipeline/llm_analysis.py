@@ -2,38 +2,39 @@
 import json
 import re
 import uuid
+from typing import Any, Dict, List, Optional
+
 import requests
-from typing import Dict, Any, List
 
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
     """Extract JSON from LLM response"""
     try:
         return json.loads(text)
-    except:
+    except Exception:
         pass
-    
+
     patterns = [
         r'```json\s*(.*?)\s*```',
         r'```\s*(.*?)\s*```',
         r'\{.*\}'
     ]
-    
+
     for pattern in patterns:
         matches = re.findall(pattern, text, re.DOTALL)
         for match in matches:
             try:
                 return json.loads(match)
-            except:
+            except Exception:
                 continue
-    
+
     return {}
 
 
 def parse_tton_to_json(tton_text: str) -> Dict[str, Any]:
     """
     Parse TTON format to JSON
-    
+
     TTON Format (tiết kiệm 50-70% token):
     D:Domain Name|Short synthesis
     C:Category 1|Brief desc
@@ -49,15 +50,15 @@ def parse_tton_to_json(tton_text: str) -> Dict[str, Any]:
         'domain': {'name': 'Unknown', 'synthesis': ''},
         'categories': []
     }
-    
-    current_category = None
-    current_concept = None
-    
+
+    current_category: Optional[Dict[str, Any]] = None
+    current_concept: Optional[Dict[str, Any]] = None
+
     for line in lines:
         line = line.rstrip()
         if not line:
             continue
-            
+
         # Domain level
         if line.startswith('D:'):
             parts = line[2:].split('|', 1)
@@ -65,7 +66,7 @@ def parse_tton_to_json(tton_text: str) -> Dict[str, Any]:
                 'name': parts[0].strip(),
                 'synthesis': parts[1].strip() if len(parts) > 1 else ''
             }
-        
+
         # Category level
         elif line.startswith('C:'):
             parts = line[2:].split('|', 1)
@@ -76,12 +77,12 @@ def parse_tton_to_json(tton_text: str) -> Dict[str, Any]:
             }
             result['categories'].append(current_category)
             current_concept = None
-        
+
         # Concept level (1 level indent: >)
         elif line.strip().startswith('>') and not line.strip().startswith('>>'):
             if current_category is None:
                 continue
-            indent_count = len(line) - len(line.lstrip())
+            assert isinstance(current_category, dict) # Added for pylint
             content = line.strip()[1:].strip()  # Remove >
             parts = content.split('|', 1)
             current_concept = {
@@ -90,18 +91,19 @@ def parse_tton_to_json(tton_text: str) -> Dict[str, Any]:
                 'subconcepts': []
             }
             current_category['concepts'].append(current_concept)
-        
+
         # Subconcept level (2+ levels indent: >>)
         elif line.strip().startswith('>>'):
             if current_concept is None:
                 continue
+            assert isinstance(current_concept, dict) # Added for pylint
             # Count số dấu >
             stripped = line.strip()
             level = 0
             while stripped.startswith('>'):
                 level += 1
                 stripped = stripped[1:]
-            
+
             content = stripped.strip()
             parts = content.split('|', 1)
             subconcept = {
@@ -109,39 +111,38 @@ def parse_tton_to_json(tton_text: str) -> Dict[str, Any]:
                 'synthesis': parts[1].strip() if len(parts) > 1 else '',
                 'level': level
             }
-            
+
             # Nested subconcepts (level 3+)
             if level > 2:
                 subconcept['subconcepts'] = []
-            
+
             current_concept['subconcepts'].append(subconcept)
-    
+
     return result
 
 
-def call_llm_compact(prompt: str, max_tokens: int = 2000, 
+def call_llm_compact(prompt: str, max_tokens: int = 2000,
                     clova_api_key: str = "", clova_api_url: str = "",
-                    use_tton: bool = True, response_format: Dict = None) -> Dict[str, Any]:
+                    use_tton: bool = True) -> Dict[str, Any]:
     """
     Call CLOVA with TTON format for 50-70% token reduction
-    
+
     FIXED: Correct header and URL format per official HyperCLOVA X documentation
-    
+
     Args:
         prompt: User prompt
         max_tokens: Maximum tokens
         clova_api_key: API key
         clova_api_url: API URL (e.g., https://clovastudio.stream.ntruss.com/v3/chat-completions/HCX-005)
         use_tton: Use TTON format (default: True)
-        response_format: Optional response format
-        
+
     Returns:
         Parsed JSON response
     """
     if not clova_api_key:
         print("⚠️  CLOVA API key is missing!")
         return {}
-    
+
     # CORRECT HEADER FORMAT per official documentation
     headers = {
         "Authorization": f"Bearer {clova_api_key}",
@@ -149,7 +150,7 @@ def call_llm_compact(prompt: str, max_tokens: int = 2000,
         "Content-Type": "application/json; charset=utf-8",  # Added charset
         "Accept": "application/json"
     }
-    
+
     # System prompt cho TTON format
     if use_tton:
         system_content = """You use TTON format to maximize detail with minimal tokens.
@@ -179,7 +180,7 @@ C:Supervised Learning|Learning from labeled data
 GO DEEP (level 4-7). Be SPECIFIC. More nodes = better."""
     else:
         system_content = "You are a JSON-only assistant. Return ONLY valid JSON."
-    
+
     data = {
         "messages": [
             {"role": "system", "content": system_content},
@@ -192,11 +193,11 @@ GO DEEP (level 4-7). Be SPECIFIC. More nodes = better."""
         "repeatPenalty": 1.1,
         "includeAiFilters": True  # Added safety filter
     }
-    
+
     try:
         # Use json.dumps to ensure proper encoding
         r = requests.post(clova_api_url, data=json.dumps(data), headers=headers, timeout=60)
-        
+
         # Debug info
         if r.status_code != 200:
             print(f"⚠️  HTTP Status: {r.status_code}")
@@ -204,22 +205,22 @@ GO DEEP (level 4-7). Be SPECIFIC. More nodes = better."""
             try:
                 error_data = r.json()
                 print(f"   Error: {json.dumps(error_data, indent=2, ensure_ascii=False)}")
-            except:
+            except Exception:
                 print(f"   Response: {r.text[:500]}")
-        
+
         r.raise_for_status()
-        
+
         if r.status_code == 200:
             response_data = r.json()
-            
+
             # HyperCLOVA X response format: result.message.content
             content = response_data.get('result', {}).get('message', {}).get('content', '')
-            
+
             if not content:
                 print(f"⚠️  Empty content in response")
                 print(f"   Full response: {json.dumps(response_data, indent=2, ensure_ascii=False)[:500]}")
                 return {}
-            
+
             if use_tton:
                 # Parse TTON format
                 parsed = parse_tton_to_json(content)
@@ -227,39 +228,38 @@ GO DEEP (level 4-7). Be SPECIFIC. More nodes = better."""
                     return parsed
                 # Fallback to JSON if TTON parsing fails
                 return extract_json_from_text(content)
-            else:
-                return extract_json_from_text(content)
-                    
+
+            return extract_json_from_text(content)
+
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
             print(f"⚠️  CLOVA API authentication failed (401)")
-            print(f"   Check your API key format and permissions")
+            print("   Check your API key format and permissions")
             print(f"   URL: {clova_api_url}")
         elif e.response.status_code == 400:
             print(f"⚠️  CLOVA API parameter error (400)")
             try:
                 error_detail = e.response.json()
                 print(f"   Error: {json.dumps(error_detail, indent=2, ensure_ascii=False)}")
-            except:
+            except Exception:
                 print(f"   Response: {e.response.text[:500]}")
         elif e.response.status_code == 404:
             print(f"⚠️  CLOVA API endpoint not found (404)")
             print(f"   Check your URL: {clova_api_url}")
-            print(f"   Correct format: https://clovastudio.stream.ntruss.com/v3/chat-completions/HCX-005")
+            print("   Correct format: https://clovastudio.stream.ntruss.com/v3/chat-completions/HCX-005")
         else:
             print(f"⚠️  CLOVA API error {e.response.status_code}: {e}")
         return {}
     except Exception as e:
         print(f"⚠️  LLM error: {e}")
         return {}
-    
+
     return {}
 
-
-def extract_hierarchical_structure(full_text: str, file_name: str, lang: str,
+def extract_hierarchical_structure(full_text: str, file_name: str,
                                    clova_api_key: str, clova_api_url: str) -> Dict:
     """Extract multi-level hierarchical structure from document"""
-    
+
     prompt = f"""Document: {file_name}
 First 3000 characters:
 {full_text[:3000]}
@@ -293,71 +293,28 @@ Extract a DEEP hierarchical structure with multiple levels:
 }}
 
 Make it DEEP (3-4 levels) and specific. Each node needs clear evidence."""
-    
+
     return call_llm_compact(prompt, max_tokens=3000, clova_api_key=clova_api_key, clova_api_url=clova_api_url)
 
 
-def process_chunk_batch(chunks: List[Dict], lang: str, accumulated_concepts: List[str],
-                       clova_api_key: str, clova_api_url: str) -> Dict:
-    """Process multiple chunks at once"""
-    
-    concept_ctx = ", ".join(accumulated_concepts[-15:]) if accumulated_concepts else "None"
-    
-    chunk_texts = []
-    for i, c in enumerate(chunks):
-        overlap = f"[OVERLAP: {c['overlap_previous'][-150:]}]" if c['overlap_previous'] else ""
-        chunk_texts.append(f"## CHUNK {c['index']+1}\n{overlap}\n{c['text'][:1800]}")
-    
-    combined = "\n\n".join(chunk_texts)
-    
-    prompt = f"""Analyze these {len(chunks)} chunks. Known concepts: {concept_ctx}
-
-{combined}
-
-For EACH chunk extract:
-1. Core concepts (2-3 max, hierarchical)
-2. Key claims (1-2 sentences, specific)
-3. Questions raised
-4. Topic
-
-Return JSON:
-{{
-  "chunks": [
-    {{
-      "chunk_index": 0,
-      "topic": "...",
-      "concepts": [{{"name": "...", "type": "theory/method/finding", "level": 2, "synthesis": "1 sentence", "evidence": "specific quote"}}],
-      "key_claims": ["claim 1", "claim 2"],
-      "questions": ["what's unclear"],
-      "summary": "2 sentences"
-    }}
-  ]
-}}
-
-Be specific."""
-    
-    return call_llm_compact(prompt, max_tokens=3000, clova_api_key=clova_api_key, clova_api_url=clova_api_url)
-
-
-def extract_hierarchical_structure_compact(full_text: str, file_name: str, lang: str,
+def extract_hierarchical_structure_compact(full_text: str, file_name: str,
                                           clova_api_key: str, clova_api_url: str,
                                           max_synthesis_length: int = 100) -> Dict:
     """
     Extract hierarchical structure with COMPACT synthesis (max 100 chars per concept)
     Optimization: Reduces context window size by 60-70%
-    
+
     Args:
         full_text: Full document text
         file_name: Name of the file
-        lang: Language code
         clova_api_key: API key
         clova_api_url: API URL
         max_synthesis_length: Maximum characters for synthesis (default: 100)
-        
+
     Returns:
         Hierarchical structure with compact synthesis
     """
-    
+
     prompt = f"""Document: {file_name}
 First 3000 characters:
 {full_text[:3000]}
@@ -390,23 +347,23 @@ Extract a hierarchical structure. IMPORTANT: Keep synthesis VERY SHORT (max {max
 }}
 
 Be specific but CONCISE. No long explanations."""
-    
+
     result = call_llm_compact(prompt, max_tokens=2000, clova_api_key=clova_api_key, clova_api_url=clova_api_url)
-    
+
     # Truncate all synthesis fields to max_synthesis_length
     def _truncate_synthesis(node: Dict):
         if isinstance(node, dict):
             if 'synthesis' in node and isinstance(node['synthesis'], str):
                 node['synthesis'] = node['synthesis'][:max_synthesis_length]
-            
-            for key, value in node.items():
+
+            for _, value in node.items():
                 if isinstance(value, dict):
                     _truncate_synthesis(value)
                 elif isinstance(value, list):
                     for item in value:
                         if isinstance(item, dict):
                             _truncate_synthesis(item)
-    
+
     _truncate_synthesis(result)
     return result
 
@@ -416,13 +373,13 @@ def process_chunks_ultra_compact(chunks: List[Dict], structure: Dict,
                                  batch_size: int = 10, max_text_length: int = 200) -> List[Dict]:
     """
     Ultra-compact chunk processing with FIXED context window and batch processing
-    
+
     OPTIMIZATIONS:
     - Fixed 3-concept context (not growing)
     - Truncate chunk text to 200 chars
     - Process 10 chunks per LLM call
     - Extract only: topic + 2 concepts + summary
-    
+
     Args:
         chunks: List of chunk dictionaries
         structure: Hierarchical structure (for context)
@@ -430,34 +387,34 @@ def process_chunks_ultra_compact(chunks: List[Dict], structure: Dict,
         clova_api_url: API URL
         batch_size: Number of chunks per batch (default: 10)
         max_text_length: Maximum chars per chunk text (default: 200)
-        
+
     Returns:
         List of analyzed chunk results
     """
-    
+
     results = []
-    
+
     # Extract ONLY top 3 concepts from structure (FIXED context)
     top_concepts = []
-    
+
     if structure.get('domain', {}).get('name'):
         top_concepts.append(structure['domain']['name'])
-    
+
     for cat in structure.get('categories', [])[:2]:  # Top 2 categories only
         if cat.get('name') and len(top_concepts) < 3:
             top_concepts.append(cat['name'])
-    
+
     context_prefix = f"Doc: {', '.join(top_concepts[:3])}"
-    
+
     # Batch process: 10 chunks at a time
     total_batches = (len(chunks) + batch_size - 1) // batch_size
-    
+
     for batch_start in range(0, len(chunks), batch_size):
         batch = chunks[batch_start:batch_start+batch_size]
         batch_num = (batch_start // batch_size) + 1
-        
+
         print(f"  📦 Processing batch {batch_num}/{total_batches} ({len(batch)} chunks)...")
-        
+
         # Ultra-compact prompt
         prompt = f"""{context_prefix}
 
@@ -468,37 +425,46 @@ Extract for each chunk (keep concise):
 
 Chunks:
 """
-        
+
         for i, chunk in enumerate(batch):
             # CRITICAL: Truncate to max_text_length chars
             text = chunk.get('text', '')[:max_text_length].replace('\n', ' ')
             prompt += f"{i}. {text}...\n"
-        
+
         prompt += f"""
 JSON: [{{"i":0,"topic":"...","concepts":["...","..."],"summary":"..."}}]
 Max 2 concepts, 1 sentence summary each."""
-        
+
         # Single LLM call for entire batch
         try:
             llm_result = call_llm_compact(prompt, max_tokens=800,
                                          clova_api_key=clova_api_key,
                                          clova_api_url=clova_api_url)
-            
-            # Extract chunk analyses from result
+
+            chunk_analyses = []
             if isinstance(llm_result, dict) and 'chunks' in llm_result:
-                chunk_analyses = llm_result['chunks']
+                # If LLM returns a dict with a 'chunks' key, use its value
+                if isinstance(llm_result['chunks'], list):
+                    chunk_analyses = llm_result['chunks']
+                else:
+                    print(f"  ⚠️  Expected 'chunks' to be a list, got {type(llm_result['chunks'])}")
             elif isinstance(llm_result, list):
+                # If LLM returns a list directly, use it
                 chunk_analyses = llm_result
             else:
-                chunk_analyses = []
-            
-            # If we got valid analyses, process them
+                print(f"  ⚠️  LLM result is not a dict with 'chunks' or a list, got {type(llm_result)}")
+
+            # Now, ensure each item in chunk_analyses is a dict before processing
             if chunk_analyses:
                 for analysis in chunk_analyses:
+                    if not isinstance(analysis, dict):
+                        print(f"  ⚠️  Skipping non-dict analysis: {analysis}")
+                        continue
+
                     idx = analysis.get('i', 0)
                     if idx >= len(batch):
                         continue
-                    
+
                     results.append({
                         'chunk_index': batch_start + idx,
                         'text': batch[idx].get('text', ''),
@@ -509,15 +475,15 @@ Max 2 concepts, 1 sentence summary each."""
             else:
                 # No analyses from LLM - use fallback for all chunks in batch
                 print(f"  ⚠️  No LLM results, using fallback for {len(batch)} chunks")
-                for i, chunk in enumerate(batch):
+                for chunk in batch:
                     results.append({
-                        'chunk_index': batch_start + i,
+                        'chunk_index': batch_start + batch.index(chunk),
                         'text': chunk.get('text', ''),
                         'topic': 'General',
                         'concepts': [],
                         'summary': chunk.get('text', '')[:100]
                     })
-        
+
         except Exception as e:
             print(f"  ⚠️  Batch processing error: {e}")
             # Fallback: Add with minimal data
@@ -529,5 +495,5 @@ Max 2 concepts, 1 sentence summary each."""
                     'concepts': [],
                     'summary': chunk.get('text', '')[:100]
                 })
-    
+
     return results

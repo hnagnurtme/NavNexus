@@ -8,7 +8,7 @@ import json
 from typing import Dict, Any, List
 
 from ..model.GapSuggestion import GapSuggestion
-from .neo4j_graph import create_gap_suggestion_node, now_iso
+from .neo4j_graph import create_evidence_node_safe, now_iso
 
 
 def call_hyperclova_with_web_search(prompt: str, max_tokens: int,
@@ -118,6 +118,7 @@ def discover_resources_with_hyperclova(session, workspace_id: str,
     """
     
     print("\n🔍 Discovering academic resources with HyperCLOVA X web search...")
+    from src.model.Evidence import Evidence
     
     # Find top nodes by evidence count (most merged)
     result = session.run(
@@ -220,7 +221,10 @@ IMPORTANT:
                     SimilarityScore=0.85  # High relevance (from top nodes)
                 )
                 
-                create_gap_suggestion_node(session, gap, node_id)
+                evidence = Evidence(
+                    Text=gap.SuggestionText,
+                )
+                create_evidence_node_safe(session, evidence, node_id)
                 suggestion_count += 1
                 
                 print(f"    ✓ [{source}] {title[:60]}...")

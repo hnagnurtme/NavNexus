@@ -18,12 +18,8 @@ import json
 import uuid
 import gc
 import traceback
-<<<<<<< HEAD
-import threading
-=======
 import asyncio
 import aiohttp
->>>>>>> a0df38fe54fae0d3ea2f90cf81c0246506ddefe1
 from datetime import datetime
 from typing import Dict, Any, List, Optional, Tuple
 from collections import OrderedDict
@@ -53,8 +49,6 @@ from src.model.QdrantChunk import QdrantChunk
 # External dependencies
 from neo4j import GraphDatabase
 from qdrant_client import QdrantClient
-from fastapi import FastAPI
-import uvicorn
 
 # ================================
 # CONFIGURATION
@@ -104,6 +98,74 @@ MAX_CONCURRENT_EMBEDDINGS = int(os.getenv("MAX_CONCURRENT_EMBEDDINGS", "50"))
 MAX_CONCURRENT_CHUNKS = int(os.getenv("MAX_CONCURRENT_CHUNKS", "10"))
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", "30"))
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+# ================================
+# INITIALIZE CLIENTS
+# ================================
+print("🔧 Initializing clients...")
+
+# Check for Firebase service account key
+if not os.path.exists(FIREBASE_SERVICE_ACCOUNT):
+    print("="*80)
+    print("🔥 Firebase Service Account Key Not Found!")
+    print(f"Error: The file '{FIREBASE_SERVICE_ACCOUNT}' was not found.")
+    print("Please ensure that your 'serviceAccountKey.json' is placed in the root directory")
+    print("of the RabbitMQ project, or set the 'FIREBASE_SERVICE_ACCOUNT' environment")
+    print("variable to the correct path.")
+    print("You can obtain this file from your Firebase project settings.")
+    print("="*80)
+    sys.exit(1)
+
+qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
+neo4j_driver = GraphDatabase.driver(NEO4J_URL, auth=(NEO4J_USER, NEO4J_PASSWORD))
+firebase_client = FirebaseClient(FIREBASE_SERVICE_ACCOUNT, FIREBASE_DATABASE_URL)
+
+print("✓ Connected to Qdrant, Neo4j & Firebase")
+
+def handle_job_message(message: Dict[str, Any]):
+    """Handle incoming job message from RabbitMQ"""
+    try:
+        print(f"\n📥 Received job message: {json.dumps(message, indent=2)}")
+        
+        # Extract message fields
+        workspace_id = message.get("workspaceId") or message.get("WorkspaceId")
+        file_paths = message.get("filePaths") or message.get("FilePaths", [])
+        job_id = message.get("jobId") or message.get("JobId") or str(uuid.uuid4())
+        
+        if not workspace_id:
+            raise ValueError("Missing workspaceId in message")
+        
+        if not file_paths or len(file_paths) == 0:
+            raise ValueError("Missing or empty filePaths in message")
+        
+        # Process only the first file
+        pdf_url = file_paths[0]
+        file_name = pdf_url.split('/')[-1]
+        
+        print(f"📌 Processing first file: {file_name}")
+        
+        # Process the PDF with ULTRA-OPTIMIZED pipeline
+        result = process_pdf_job_optimized(workspace_id, pdf_url, file_name, job_id)
+        
+        # Push result to Firebase
+        print(f"\n🔥 Pushing result to Firebase...")
+        firebase_client.push_job_result(job_id, result)
+        print(f"✓ Result pushed to Firebase for job {job_id}")
+        
+    except Exception as e:
+        error_msg = str(e)
+        traceback.print_exc()
+        print(f"\n❌ Error handling job: {error_msg}")
+        
+        # Try to push error to Firebase
+        try:
+            job_id = message.get("jobId") or message.get("JobId") or "unknown"
+            firebase_client.push_job_result(job_id, {
+                "status": "failed",
+                "error": error_msg,
+                "traceback": traceback.format_exc()
+            })
+        except:
+            print("Failed to push error to Firebase")
 
 # ================================
 # SMART EMBEDDING CACHE (LRU)
@@ -295,13 +357,14 @@ async def create_embeddings_batch_async(
     tasks = [create_with_semaphore(text) for text in uncached_texts]
     embeddings = await asyncio.gather(*tasks, return_exceptions=True)
     
-    # Process results
+    # FIXED: Process results with proper type checking
     for text, embedding in zip(uncached_texts, embeddings):
         if isinstance(embedding, Exception):
             print(f"   ⚠️  Failed to create embedding for: {text[:50]}... - {embedding}")
             continue
         
-        if embedding:
+        # Only cache valid embeddings (not exceptions)
+        if embedding and isinstance(embedding, list):
             cache.set(text, embedding)
             results[text] = embedding
     
@@ -406,157 +469,6 @@ Respond in JSON format:
         }
 
 
-async def process_chunks_parallel(
-    chunks: List[Dict],
-    structure: Dict,
-    api_key: str,
-    api_url: str,
-    client: AsyncAPIClient,
-    max_text_length: int = 500
-) -> List[Dict]:
-    """
-    Process chunks in parallel
-    Expected: 5-6x faster than sequential for 12 chunks
-    """
-    print(f"   ⚡ Processing {len(chunks)} chunks in parallel...")
-    
-    # Create tasks with semaphore for rate limiting
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHUNKS)
-    
-    async def process_with_semaphore(chunk, idx):
-        async with semaphore:
-            return await process_single_chunk_async(
-                chunk, idx, structure, api_key, api_url, 
-                client, max_text_length
-            )
-    
-    tasks = [
-        process_with_semaphore(chunk, idx) 
-        for idx, chunk in enumerate(chunks)
-    ]
-    
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Filter out errors
-    valid_results = []
-    for idx, result in enumerate(results):
-        if isinstance(result, Exception):
-            print(f"   ⚠️  Chunk {idx} failed: {result}")
-        else:
-            valid_results.append(result)
-    
-    return valid_results
-
-# ================================
-# BATCH NEO4J WRITER
-# ================================
-
-class Neo4jBatchWriter:
-    """Batch Neo4j writes for better performance"""
-    
-    def __init__(self, session, batch_size: int = 100):
-        self.session = session
-        self.batch_size = batch_size
-        self.node_batch = []
-        self.evidence_batch = []
-    
-    def add_node(self, node_data: Dict):
-        """Add node to batch"""
-        self.node_batch.append(node_data)
-        if len(self.node_batch) >= self.batch_size:
-            self.flush_nodes()
-    
-    def add_evidence(self, evidence_data: Dict):
-        """Add evidence to batch"""
-        self.evidence_batch.append(evidence_data)
-        if len(self.evidence_batch) >= self.batch_size:
-            self.flush_evidence()
-    
-    def flush_nodes(self):
-        """Write all pending nodes"""
-        if not self.node_batch:
-            return
-        
-        # Process the PDF with ULTRA-OPTIMIZED pipeline
-        result = process_pdf_job_optimized(workspace_id, pdf_url, file_name, job_id)
-        
-        self.session.run(query, nodes=self.node_batch)
-        count = len(self.node_batch)
-        self.node_batch.clear()
-        return count
-    
-    def flush_evidence(self):
-        """Write all pending evidence"""
-        if not self.evidence_batch:
-            return
-        
-        query = """
-        UNWIND $evidences AS ev
-        MATCH (n:KnowledgeNode {id: ev.node_id})
-        MERGE (e:Evidence {id: ev.evidence_id})
-        SET e += ev.properties
-        MERGE (n)-[r:HAS_EVIDENCE]->(e)
-        """
-        
-        self.session.run(query, evidences=self.evidence_batch)
-        count = len(self.evidence_batch)
-        self.evidence_batch.clear()
-        return count
-    
-    def flush_all(self):
-        """Flush all pending operations"""
-        nodes = self.flush_nodes()
-        evidence = self.flush_evidence()
-        return {"nodes": nodes or 0, "evidence": evidence or 0}
-
-# Health check port
-HEALTH_CHECK_PORT = int(os.getenv("HEALTH_CHECK_PORT", "8000"))
-
-# ================================
-# INITIALIZE CLIENTS
-# ================================
-print("🔧 Initializing clients...")
-
-# Initialize Neo4j driver
-neo4j_driver = GraphDatabase.driver(
-    NEO4J_URL,
-    auth=(NEO4J_USER, NEO4J_PASSWORD)
-)
-print(f"✓ Neo4j connected: {NEO4J_URL}")
-
-# Initialize Qdrant client
-qdrant_client = QdrantClient(
-    url=QDRANT_URL,
-    api_key=QDRANT_API_KEY
-)
-print(f"✓ Qdrant connected: {QDRANT_URL}")
-
-# Initialize Firebase client (optional)
-firebase_client = None
-if FIREBASE_SERVICE_ACCOUNT and os.path.exists(FIREBASE_SERVICE_ACCOUNT):
-    try:
-        firebase_client = FirebaseClient(FIREBASE_SERVICE_ACCOUNT, FIREBASE_DATABASE_URL)
-        print(f"✓ Firebase initialized")
-    except Exception as e:
-        print(f"⚠️  Firebase initialization failed: {e}")
-        firebase_client = None
-else:
-    print("="*80)
-    print("⚠️  Firebase Service Account Key Not Found!")
-    print(f"   File path: '{FIREBASE_SERVICE_ACCOUNT}'")
-    print("   Worker will continue but Firebase features will be disabled.")
-    print("="*80)
-
-"""
-ULTRA-OPTIMIZED PIPELINE
-This is the new optimized version that uses:
-- Embedding cache (50% reduction in API calls)
-- Cascading deduplication (60-80% node reduction)
-- Ultra-compact chunk processing (80% context reduction)
-- Smart fallback search (0% empty results)
-- HyperCLOVA X resource discovery (real academic URLs)
-"""
-
 def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
     """
     Process a single PDF through the ULTRA-OPTIMIZED pipeline
@@ -569,15 +481,10 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
     - Phase 6: Reuse cached embeddings for Qdrant
     - Phase 7: HyperCLOVA X web search for resources
     """
-    from src.pipeline.embedding_cache import extract_all_concept_names, batch_create_embeddings
+    # Import optimized functions from pipeline modules
+    from src.pipeline.embedding_cache import extract_all_concept_names as extract_concepts_pipeline, batch_create_embeddings
     from src.pipeline.neo4j_graph import create_hierarchical_graph_ultra_aggressive
     from src.pipeline.resource_discovery import discover_resources_with_hyperclova
-    from src.config import (
-        MAX_SYNTHESIS_LENGTH,
-        MAX_CHUNK_TEXT_LENGTH,
-        BATCH_SIZE,
-        EMBEDDING_BATCH_SIZE
-    )
     
     start_time = datetime.now()
     file_id = str(uuid.uuid4())
@@ -600,18 +507,31 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
         # =================================================================
         # PHASE 2: Extract COMPACT Hierarchical Structure
         # =================================================================
-        print(f"\n📊 Phase 2: Extracting hierarchical structure (COMPACT - max {MAX_SYNTHESIS_LENGTH} chars)")
+        max_synth_len: int = MAX_SYNTHESIS_LENGTH  # Type hint for Pylance
+        print(f"\n📊 Phase 2: Extracting hierarchical structure (COMPACT - max {max_synth_len} chars)")
+        # Note: Function doesn't need 'lang' parameter - it extracts from text
         structure = extract_hierarchical_structure_compact(
-            full_text, file_name, lang, 
-            CLOVA_API_KEY, CLOVA_API_URL,
-            max_synthesis_length=MAX_SYNTHESIS_LENGTH
+            full_text, 
+            file_name, 
+            CLOVA_API_KEY, 
+            CLOVA_API_URL,
+            max_synthesis_length=max_synth_len
         )
         
         # Translate entire structure to English if needed
         if lang != "en":
             print(f"🌐 Translating structure from {lang} to English...")
-            structure = translate_structure_to_english(structure, lang, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
+            # Extract strings from structure for translation
+            structure_strings = json.dumps(structure, ensure_ascii=False)
+            translated_strings = translate_batch([structure_strings], lang, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
+            structure = json.loads(translated_strings[0]) if translated_strings else structure
             print(f"✓ Structure translated")
+            # DEBUG: Check structure after translation
+            print(f"   DEBUG: Structure type after translation: {type(structure)}")
+            if isinstance(structure, dict):
+                print(f"   DEBUG: Structure keys: {structure.keys()}")
+            else:
+                print(f"   ⚠️  WARNING: Structure is not a dict after translation!")
         
         # =================================================================
         # PHASE 3: Pre-compute & Cache ALL Embeddings (BATCH)
@@ -619,8 +539,21 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
         print(f"\n⚡ Phase 3: Pre-computing embeddings (BATCH)")
         
         # Extract ALL unique concept names from structure
+        if not isinstance(structure, dict):
+            print(f"   ⚠️  ERROR: Structure is type {type(structure)}, expected dict")
+            raise TypeError(f"Expected 'structure' to be a dictionary, got {type(structure)}")
+        
         all_concept_names = extract_all_concept_names(structure)
         print(f"   Found {len(all_concept_names)} unique concepts")
+        
+        # DEBUG: Show structure if no concepts found
+        if len(all_concept_names) == 0:
+            print(f"   ⚠️  WARNING: No concepts extracted!")
+            print(f"   DEBUG: Structure content: {json.dumps(structure, indent=2, ensure_ascii=False)[:500]}...")
+            # Use fallback: extract from file name and text
+            fallback_concepts = [file_name.replace('.pdf', '').replace('_', ' ')]
+            all_concept_names = fallback_concepts
+            
         
         # Batch create embeddings (50 at a time)
         embeddings_cache = batch_create_embeddings(
@@ -797,7 +730,7 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
         
         print(f"\n{'='*80}")
         print(f"✅ ULTRA-OPTIMIZED PIPELINE COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
-        print(f"├─ Embedding Calls: {len(embeddings_cache)} (reduced by ~50%)")
+        print(f"├─ Embedding Cache Size: {len(embeddings_cache)} vectors")
         print(f"├─ Neo4j Nodes Created: {nodes_created}")
         print(f"├─ Neo4j Nodes Merged: {merges}")
         print(f"├─ Total Neo4j Evidences: {total_evidences}")
@@ -846,481 +779,24 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
                 "allChunksStored": True
             }
         }
-    
     except Exception as e:
-        error_msg = str(e)
-        traceback.print_exc()
-        print(f"\n❌ ERROR: {error_msg}")
-        
+        print(f"Error processing PDF: {e}")
         return {
             "status": "failed",
             "jobId": job_id,
             "fileId": file_id,
             "fileName": file_name,
-            "error": error_msg,
-            "traceback": traceback.format_exc()
+            "workspaceId": workspace_id,
+            "error": str(e),
+            "processingTimeMs": int((datetime.now() - start_time).total_seconds() * 1000)
         }
-
-# DEPRECATED: This async version is not currently used. Use process_pdf_job_optimized instead.
-async def process_pdf_job_async(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
-    """Process a single PDF through the pipeline with smart deduplication (ASYNC VERSION - DEPRECATED)"""
-    from src.pipeline.neo4j_graph import deduplicate_across_workspace
-    
-    start_time = datetime.now()
-    file_id = str(uuid.uuid4())
-    
-    print(f"\n{'='*80}")
-    print(f"🚀 ULTRA-OPTIMIZED ASYNC PIPELINE")
-    print(f"📄 File: {file_name}")
-    print(f"🔖 Workspace: {workspace_id}")
-    print(f"🆔 Job ID: {job_id}")
-    print(f"{'='*80}\n")
-    
-    # Validate API key
-    if not CLOVA_API_KEY:
-        raise ValueError("CLOVA_API_KEY is not set")
-    
-    # Initialize cache and async client
-    cache = SmartEmbeddingCache(max_size=10000)
-    
-    async with AsyncAPIClient() as client:
-        try:
-            # =================================================================
-            # PHASE 1: Extract PDF
-            # =================================================================
-            print(f"📄 Phase 1: Extracting PDF")
-            full_text, lang = extract_pdf_fast(pdf_url, max_pages=25)
-            print(f"✓ Extracted {len(full_text)} chars, language: {lang}")
-            
-            # =================================================================
-            # PHASE 2: Extract COMPACT Hierarchical Structure
-            # =================================================================
-            print(f"\n📊 Phase 2: Extracting hierarchical structure (max {MAX_SYNTHESIS_LENGTH} chars)")
-            structure = extract_hierarchical_structure_compact(
-                full_text, file_name, lang, 
-                CLOVA_API_KEY, CLOVA_API_URL,
-                max_synthesis_length=MAX_SYNTHESIS_LENGTH
-            )
-            
-            # Validate structure
-            if not structure or not isinstance(structure, dict):
-                raise ValueError(f"Failed to extract structure. Type: {type(structure).__name__}")
-            
-            if not structure.get('domain') and not structure.get('categories'):
-                raise ValueError("Extracted structure is empty")
-            
-            # Translate structure if needed
-            if lang != "en":
-                print(f"🌐 Translating structure from {lang} to English...")
-                texts_to_translate = []
-                domain = structure.get("domain", {})
-                texts_to_translate.extend([domain.get("name", ""), domain.get("synthesis", "")])
-                
-                for cat in structure.get("categories", []):
-                    texts_to_translate.extend([cat.get("name", ""), cat.get("synthesis", "")])
-                    for concept in cat.get("concepts", []):
-                        texts_to_translate.extend([concept.get("name", ""), concept.get("synthesis", "")])
-                        for sub in concept.get("subconcepts", []):
-                            texts_to_translate.extend([sub.get("name", ""), sub.get("synthesis", "")])
-                
-                translated = translate_batch(
-                    [t for t in texts_to_translate if t], 
-                    lang, "en", 
-                    PAPAGO_CLIENT_ID, 
-                    PAPAGO_CLIENT_SECRET
-                )
-                
-                # Reassign translations
-                if translated:
-                    idx = 0
-                    if idx < len(translated):
-                        domain["name"] = translated[idx]
-                        idx += 1
-                    if idx < len(translated):
-                        domain["synthesis"] = translated[idx]
-                        idx += 1
-                    for cat in structure.get("categories", []):
-                        if idx < len(translated):
-                            cat["name"] = translated[idx]
-                            idx += 1
-                        if idx < len(translated):
-                            cat["synthesis"] = translated[idx]
-                            idx += 1
-                        for concept in cat.get("concepts", []):
-                            if idx < len(translated):
-                                concept["name"] = translated[idx]
-                                idx += 1
-                            if idx < len(translated):
-                                concept["synthesis"] = translated[idx]
-                                idx += 1
-                            for sub in concept.get("subconcepts", []):
-                                if idx < len(translated):
-                                    sub["name"] = translated[idx]
-                                    idx += 1
-                                if idx < len(translated):
-                                    sub["synthesis"] = translated[idx]
-                                    idx += 1
-                print(f"✓ Structure translated")
-            
-            # =================================================================
-            # PHASE 3: Pre-compute & Cache ALL Embeddings (ASYNC BATCH)
-            # =================================================================
-            print(f"\n⚡ Phase 3: Pre-computing embeddings (ASYNC BATCH)")
-            
-            all_concept_names = extract_all_concept_names(structure)
-            print(f"   Found {len(all_concept_names)} unique concepts")
-            
-            embeddings_cache = await create_embeddings_batch_async(
-                all_concept_names,
-                CLOVA_API_KEY,
-                CLOVA_EMBEDDING_URL,
-                client,
-                cache,
-                batch_size=EMBEDDING_BATCH_SIZE
-            )
-            
-            cache_stats = cache.get_stats()
-            print(f"   ✓ Cache stats: {cache_stats['hits']} hits, {cache_stats['misses']} misses ({cache_stats['hit_rate']:.1f}% hit rate)")
-            
-            # =================================================================
-            # PHASE 4: Build Graph with Cascading Deduplication (BATCHED)
-            # =================================================================
-            print(f"\n🔗 Phase 4: Building graph with batch writes")
-            
-            with neo4j_driver.session() as session:
-                # Import the original function
-                from src.pipeline.neo4j_graph import create_hierarchical_graph_ultra_aggressive
-                
-                graph_stats = create_hierarchical_graph_ultra_aggressive(
-                    session, workspace_id, structure, file_id, file_name,
-                    embeddings_cache
-                )
-            
-            nodes_created = graph_stats.get('nodes_created', 0)
-            exact_matches = graph_stats.get('exact_matches', 0)
-            high_sim_merges = graph_stats.get('high_similarity_merges', 0)
-            medium_sim_merges = graph_stats.get('medium_similarity_merges', 0)
-            text_fallback_merges = graph_stats.get('text_fallback_merges', 0)
-            total_nodes = graph_stats.get('final_count', 0)
-            
-            merges = exact_matches + high_sim_merges + medium_sim_merges + text_fallback_merges
-            total_concepts = len(all_concept_names)
-            dedup_rate = (merges / total_concepts * 100) if total_concepts > 0 else 0
-            
-            print(f"✓ Created {nodes_created} nodes, merged {merges} ({dedup_rate:.1f}% dedup rate)")
-            
-            # =================================================================
-            # PHASE 5: Process Chunks (ASYNC PARALLEL)
-            # =================================================================
-            chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-            print(f"\n⚡ Phase 5: Processing {len(chunks)} chunks (ASYNC PARALLEL)")
-            
-            chunk_results = await process_chunks_parallel(
-                chunks, structure,
-                CLOVA_API_KEY, CLOVA_API_URL,
-                client,
-                max_text_length=MAX_CHUNK_TEXT_LENGTH
-            )
-            
-            print(f"✓ Processed {len(chunk_results)} chunks")
-            
-            # =================================================================
-            # PHASE 6: Create Qdrant Chunks & Link Evidence (BATCHED)
-            # =================================================================
-            print(f"\n💾 Phase 6: Creating Qdrant chunks and linking evidence")
-            
-            all_qdrant_chunks = []
-            prev_chunk_id = ""
-            prev_embedding = None
-            evidence_count = 0
-            
-            batch_writer = Neo4jBatchWriter(neo4j_driver.session(), batch_size=100)
-            
-            for result in chunk_results:
-                chunk_idx = result.get('chunk_index', 0)
-                if chunk_idx >= len(chunks):
-                    continue
-                
-                original_chunk = chunks[chunk_idx]
-                chunk_id = str(uuid.uuid4())
-                
-                summary = result.get('summary', '')
-                concepts = result.get('concepts', [])
-                topic = result.get('topic', 'General')
-                
-                # Translate if needed
-                if lang != "en":
-                    to_translate = [summary, topic] + concepts
-                    translated = translate_batch(
-                        [t for t in to_translate if t], 
-                        lang, "en", 
-                        PAPAGO_CLIENT_ID, 
-                        PAPAGO_CLIENT_SECRET
-                    )
-                    if translated:
-                        summary = translated[0] if len(translated) > 0 else summary
-                        topic = translated[1] if len(translated) > 1 else topic
-                        concepts = translated[2:] if len(translated) > 2 else concepts
-                
-                # Reuse cached embedding or create new
-                embedding = embeddings_cache.get(summary)
-                if not embedding:
-                    embedding = create_embedding_via_clova(summary, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
-                
-                # Calculate semantic similarity
-                semantic_sim = 0.0
-                if prev_embedding:
-                    semantic_sim = calculate_similarity(prev_embedding, embedding)
-                
-                hierarchy_path = f"{file_name}"
-                if concepts:
-                    hierarchy_path += f" > {concepts[0]}"
-                hierarchy_path += f" > Chunk {chunk_idx+1}"
-                
-                # Link to nodes as evidence (batched)
-                if concepts:
-                    with neo4j_driver.session() as session:
-                        for concept_name in concepts[:2]:
-                            node_result = session.run("""
-                                MATCH (n:KnowledgeNode {workspace_id: $ws})
-                                WHERE toLower(n.name) = toLower($name)
-                                RETURN n.id as node_id
-                                LIMIT 1
-                            """, ws=workspace_id, name=concept_name)
-                            
-                            node_record = node_result.single()
-                            if node_record:
-                                evidence = Evidence(
-                                    SourceId=file_id,
-                                    SourceName=file_name,
-                                    ChunkId=chunk_id,
-                                    Text=original_chunk["text"][:500],
-                                    Page=chunk_idx + 1,
-                                    Confidence=0.7,
-                                    CreatedAt=datetime.now(),
-                                    Language="en",
-                                    SourceLanguage=lang,
-                                    HierarchyPath=hierarchy_path,
-                                    Concepts=concepts,
-                                    KeyClaims=[summary[:200]],
-                                    EvidenceStrength=0.7
-                                )
-                                
-                                # Add to batch writer
-                                from src.pipeline.neo4j_graph import create_evidence_node
-                                create_evidence_node(session, evidence, node_record['node_id'])
-                                evidence_count += 1
-                
-                # Create Qdrant chunk
-                qdrant_chunk = QdrantChunk(
-                    chunk_id=chunk_id,
-                    paper_id=file_id,
-                    page=chunk_idx + 1,
-                    text=original_chunk["text"][:500],
-                    summary=summary,
-                    concepts=concepts[:2],
-                    topic=topic,
-                    workspace_id=workspace_id,
-                    language="en",
-                    source_language=lang,
-                    created_at=now_iso(),
-                    hierarchy_path=hierarchy_path,
-                    chunk_index=chunk_idx,
-                    prev_chunk_id=prev_chunk_id,
-                    next_chunk_id="",
-                    semantic_similarity_prev=semantic_sim,
-                    overlap_with_prev=original_chunk.get("overlap_previous", "")[:200],
-                    key_claims=[],
-                    questions_raised=[],
-                    evidence_strength=0.8
-                )
-                
-                all_qdrant_chunks.append((qdrant_chunk, embedding))
-                
-                # Update previous chunk's next_chunk_id
-                if prev_chunk_id and len(all_qdrant_chunks) > 1:
-                    all_qdrant_chunks[-2][0].next_chunk_id = chunk_id
-                
-                prev_chunk_id = chunk_id
-                prev_embedding = embedding
-                
-                gc.collect()
-            
-            # Flush any remaining batched writes
-            batch_writer.flush_all()
-            
-            print(f"✓ Created {len(all_qdrant_chunks)} chunks, linked {evidence_count} evidence")
-            
-            # =================================================================
-            # PHASE 7: Store Chunks in Qdrant
-            # =================================================================
-            print(f"\n💾 Phase 7: Storing {len(all_qdrant_chunks)} chunks in Qdrant")
-            store_chunks_in_qdrant(qdrant_client, workspace_id, all_qdrant_chunks)
-            print(f"✓ Stored in Qdrant collection: {workspace_id}")
-            
-            # =================================================================
-            # PHASE 8: Resource Discovery (if available)
-            # =================================================================
-            resource_count = 0
-            try:
-                print(f"\n🔍 Phase 8: Discovering academic resources")
-                with neo4j_driver.session() as session:
-                    from src.pipeline.resource_discovery import discover_resources_with_hyperclova
-                    resource_count = discover_resources_with_hyperclova(
-                        session, workspace_id,
-                        CLOVA_API_KEY, CLOVA_API_URL
-                    )
-                    print(f"✓ Found {resource_count} academic resources")
-            except ImportError:
-                print(f"⚠️  Resource discovery module not available, skipping")
-            except Exception as e:
-                print(f"⚠️  Resource discovery failed: {e}")
-            
-            # =================================================================
-            # SUMMARY
-            # =================================================================
-            processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-            
-            print(f"\n{'='*80}")
-            print(f"✅ ULTRA-OPTIMIZED PIPELINE COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
-            print(f"├─ Embedding Cache Hit Rate: {cache_stats['hit_rate']:.1f}%")
-            print(f"├─ API Calls Saved: {cache_stats['hits']}")
-            print(f"├─ Neo4j Nodes Created: {nodes_created}")
-            print(f"├─ Deduplication Rate: {dedup_rate:.1f}%")
-            print(f"├─ Qdrant Chunks: {len(all_qdrant_chunks)}")
-            print(f"├─ Evidence Linked: {evidence_count}")
-            print(f"├─ Academic Resources: {resource_count}")
-            print(f"├─ Language: {lang} → en")
-            print(f"└─ File ID: {file_id}")
-            print(f"{'='*80}\n")
-            
-            return {
-                "status": "completed",
-                "jobId": job_id,
-                "fileId": file_id,
-                "fileName": file_name,
-                "workspaceId": workspace_id,
-                "nodes": total_nodes,
-                "nodesCreated": nodes_created,
-                "nodesMerged": merges,
-                "chunks": len(all_qdrant_chunks),
-                "resources": resource_count,
-                "sourceLanguage": lang,
-                "targetLanguage": "en",
-                "processingTimeMs": processing_time,
-                "deduplicationRate": round(dedup_rate, 1),
-                "evidenceLinked": evidence_count,
-                "cacheStats": cache_stats,
-                "optimizations": {
-                    "asyncProcessing": True,
-                    "embeddingCacheHitRate": cache_stats['hit_rate'],
-                    "parallelChunkProcessing": True,
-                    "batchNeo4jWrites": True,
-                    "reducedOverlap": OVERLAP,
-                    "exactMatches": exact_matches,
-                    "highSimilarityMerges": high_sim_merges,
-                    "mediumSimilarityMerges": medium_sim_merges,
-                    "textFallbackMerges": text_fallback_merges
-                }
-            }
         
-        except Exception as e:
-            error_msg = str(e)
-            traceback.print_exc()
-            print(f"\n❌ ERROR: {error_msg}")
-            
-            return {
-                "status": "failed",
-                "jobId": job_id,
-                "fileId": file_id,
-                "fileName": file_name,
-                "error": error_msg,
-                "traceback": traceback.format_exc()
-            }
-
-
-# ================================
-# MESSAGE HANDLER
-# ================================
-def handle_job_message(message: Dict[str, Any]):
-    """Handle incoming job message from RabbitMQ"""
-    try:
-        print(f"\n📥 Received job message: {json.dumps(message, indent=2)}")
-        
-        # Extract message fields
-        workspace_id = message.get("workspaceId") or message.get("WorkspaceId")
-        file_paths = message.get("filePaths") or message.get("FilePaths", [])
-        job_id = message.get("jobId") or message.get("JobId") or str(uuid.uuid4())
-        
-        if not workspace_id:
-            raise ValueError("Missing workspaceId in message")
-        
-        if not file_paths or len(file_paths) == 0:
-            raise ValueError("Missing or empty filePaths in message")
-        
-        # Process only the first file
-        pdf_url = file_paths[0]
-        file_name = pdf_url.split('/')[-1]
-        
-        print(f"📌 Processing first file: {file_name}")
-        
-        # Use the optimized pipeline (synchronous)
-        result = process_pdf_job_optimized(workspace_id, pdf_url, file_name, job_id)
-        
-        # Push result to Firebase (if available)
-        if firebase_client:
-            print(f"\n🔥 Pushing result to Firebase...")
-            try:
-                firebase_client.push_job_result(job_id, result)
-                print(f"✓ Result pushed to Firebase for job {job_id}")
-            except Exception as e:
-                print(f"⚠️  Failed to push result to Firebase: {e}")
-        else:
-            print(f"\n⚠️  Firebase not available, skipping result push")
-        
-    except Exception as e:
-        error_msg = str(e)
-        traceback.print_exc()
-        print(f"\n❌ Error handling job: {error_msg}")
-        
-        # Try to push error to Firebase (if available)
-        if firebase_client:
-            try:
-                job_id = message.get("jobId") or message.get("JobId") or "unknown"
-                firebase_client.push_job_result(job_id, {
-                    "status": "failed",
-                    "error": error_msg,
-                    "traceback": traceback.format_exc()
-                })
-                print(f"✓ Error pushed to Firebase for job {job_id}")
-            except Exception as e:
-                print(f"⚠️  Failed to push error to Firebase: {e}")
-        else:
-            print("⚠️  Firebase not available, skipping error push")
-
-
-# ================================
-# MAIN
-# ================================
 def main():
     """Main worker loop"""
     print("\n" + "="*80)
-    print("🤖 RabbitMQ Worker Starting (ULTRA-OPTIMIZED VERSION)")
-    print("="*80)
-    print(f"📊 Configuration:")
-    print(f"   - Max Chunks: {MAX_CHUNKS}")
-    print(f"   - Chunk Size: {CHUNK_SIZE}")
-    print(f"   - Overlap: {OVERLAP} chars (optimized from 200)")
-    print(f"   - Embedding Batch Size: {EMBEDDING_BATCH_SIZE}")
-    print(f"   - Max Concurrent Embeddings: {MAX_CONCURRENT_EMBEDDINGS}")
-    print(f"   - Max Concurrent Chunks: {MAX_CONCURRENT_CHUNKS}")
-    print(f"   - API Timeout: {API_TIMEOUT}s")
+    print("🤖 RabbitMQ Worker Starting...")
     print("="*80)
     
-    # Start health check server in a separate thread
-    health_thread = threading.Thread(target=start_health_check_server, daemon=True)
-    health_thread.start()
-
     # Connect to RabbitMQ
     rabbitmq_client = RabbitMQClient(RABBITMQ_CONFIG)
     rabbitmq_client.connect()
@@ -1331,7 +807,7 @@ def main():
     
     try:
         # Start consuming messages
-        rabbitmq_client.consume_messages(QUEUE_NAME, handle_job_message)
+        rabbitmq_client.consume_messages(QUEUE_NAME,handle_job_message )
     except KeyboardInterrupt:
         print("\n\n⚠ Worker interrupted by user")
     except Exception as e:
@@ -1346,3 +822,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

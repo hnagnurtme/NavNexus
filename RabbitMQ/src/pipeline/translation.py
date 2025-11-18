@@ -44,6 +44,6 @@ def translate_batch(texts: List[str], source: str = 'ko', target: str = 'en',
                 print(f"⚠ Translation error: {e}")
                 translated_parts.append(part)
         
-        results.append(" ".join(translated_parts))
+        results.append("".join(translated_parts))
     
     return results
