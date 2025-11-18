@@ -55,9 +55,50 @@
   }
 }
 
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
     overflow-wrap: break-word;
+  }
+
+  .animate-gradient-flow {
+    background-size: 200% 200%;
+    animation: gradient-flow 8s ease infinite;
+  }
+
+  .scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(200, 200, 200, 0.6) rgba(15, 23, 42, 0.6);
+  }
+
+  .scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.75);
+    border-radius: 9999px;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(229, 231, 235, 0.7);
+    border-radius: 9999px;
+  }
+
+  .scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(243, 244, 246, 0.9);
   }
 }
