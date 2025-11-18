@@ -523,7 +523,7 @@ def process_pdf_job_optimized(workspace_id: str, pdf_url: str, file_name: str, j
             print(f"🌐 Translating structure from {lang} to English...")
             # Extract strings from structure for translation
             structure_strings = json.dumps(structure, ensure_ascii=False)
-            translated_strings = translate_batch([structure_strings], lang, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
+            translated_strings = translate_batch([structure_strings], lang, "en", PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
             structure = json.loads(translated_strings[0]) if translated_strings else structure
             print(f"✓ Structure translated")
             # DEBUG: Check structure after translation
