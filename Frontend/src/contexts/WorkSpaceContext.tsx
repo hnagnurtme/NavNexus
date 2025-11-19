@@ -69,14 +69,17 @@ export const WorkSpaceProvider = ({
         description,
         fileIds: files,
       });
-      setIsClicked(prev => !prev);
       if (newWorkSpace.success && newWorkSpace.data) {
         setWorkSpaceData((prev) => [...prev, newWorkSpace.data]);
+        setIsClicked(prev => !prev);
+        ToastNaver.success("Workspace created successfully.");
+      } else {
+        throw new Error(newWorkSpace.message || "Failed to create workspace");
       }
-      ToastNaver.success("Workspace created successfully.");
     } catch (error) {
       ToastNaver.error("Failed to create workspace. Please try again.");
-      console.error("Error creating workspace:", error);  
+      console.error("Error creating workspace:", error);
+      throw error;
     }
   };
   return (
