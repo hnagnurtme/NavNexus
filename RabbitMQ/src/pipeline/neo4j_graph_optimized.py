@@ -261,7 +261,8 @@ def create_hierarchical_graph_with_cascading_dedup(
         """,
         ws=workspace_id
     )
-    initial_count = result.single()['initial_count'] if result.single() else 0
+    record = result.single()
+    initial_count = record['initial_count'] if record else 0
     
     # Level 0: Domain (root)
     domain = structure.get('domain', {})

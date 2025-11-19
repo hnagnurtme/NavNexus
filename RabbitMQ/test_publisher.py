@@ -29,7 +29,7 @@ def main():
         "jobId": f"test-job-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
         "workspaceId": "test-workspace-3", 
         "filePaths": [
-            "https://sg.object.ncloudstorage.com/navnexus/KOREA.pdf"
+            "https://sg.object.ncloudstorage.com/navnexus/SAGSINs.pdf"
         ]
     }
     
