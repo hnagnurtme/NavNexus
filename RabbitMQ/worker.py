@@ -60,9 +60,9 @@ RABBITMQ_CONFIG = {
 QUEUE_NAME = "pdf_jobs_queue"
 
 # API Keys
-PAPAGO_CLIENT_ID = os.getenv("PAPAGO_CLIENT_ID", "n655pea42q")
-PAPAGO_CLIENT_SECRET = os.getenv("PAPAGO_CLIENT_SECRET", "ohkwEANXTPA7yfI8TGZ7KfiR4bNLbJmqIc6l2MUJ")
-CLOVA_API_KEY = os.getenv("CLOVA_API_KEY", "nv-9063a257def64d469cfe961cb502988e5RNo")
+PAPAGO_CLIENT_ID = os.getenv("PAPAGO_CLIENT_ID", "")
+PAPAGO_CLIENT_SECRET = os.getenv("PAPAGO_CLIENT_SECRET", "")
+CLOVA_API_KEY = os.getenv("CLOVA_API_KEY", "")
 
 # Database URLs
 QDRANT_URL = os.getenv("QDRANT_URL", "https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io")

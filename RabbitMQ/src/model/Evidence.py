@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 @dataclass
@@ -13,7 +13,7 @@ class Evidence:
     Text: str = ""
     Page: int = 0
     Confidence: float = 0.0
-    CreatedAt: datetime = field(default_factory=datetime.utcnow)
+    CreatedAt: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     Language: str = "ENG"
     SourceLanguage: str = "ENG"
     HierarchyPath: str = ""
