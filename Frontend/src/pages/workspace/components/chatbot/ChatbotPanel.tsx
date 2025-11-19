@@ -9,14 +9,21 @@ import {
 	X,
 } from "lucide-react";
 import {
+	DEFAULT_NODE_CONTEXT_ID,
 	type ContextItem,
 	type ContextType,
 	type ContextSuggestion,
 	buildDefaultContexts,
 } from "./contextUtils";
 import { type ChatMessage, buildInitialMessage } from "./chatTypes";
+import { chatbotService } from "@/services/chatbot.service";
+import {
+	type ChatbotContextItemPayload,
+	type ChatbotMessageHistoryItem,
+} from "@/types";
 
 interface ChatbotPanelProps {
+	topicId?: string | null;
 	topicName?: string | null;
 	summary?: string | null;
 	evidenceSources?: string[];
@@ -25,6 +32,7 @@ interface ChatbotPanelProps {
 }
 
 export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
+	topicId,
 	topicName,
 	summary,
 	evidenceSources,
@@ -36,8 +44,9 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 	]);
 	const [inputValue, setInputValue] = useState("");
 	const [isThinking, setIsThinking] = useState(false);
+	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [contextItems, setContextItems] = useState<ContextItem[]>(() =>
-		buildDefaultContexts(topicName, evidenceSources)
+		buildDefaultContexts(topicName, evidenceSources, topicId)
 	);
 	const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 	const [isContextMenuOpen, setIsContextMenuOpen] = useState(false);
@@ -60,47 +69,79 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		[topicName]
 	);
 
-	const addAIResponse = (prompt: string) => {
+	const contextPayload = useMemo<ChatbotContextItemPayload[]>(
+		() =>
+			contextItems.map((item) => ({
+				id: item.entityId ?? item.id,
+				entityId: item.entityId,
+				type: item.type,
+				label: item.label,
+			})),
+		[contextItems]
+	);
+
+	const buildHistoryPayload = (
+		history: ChatMessage[]
+	): ChatbotMessageHistoryItem[] =>
+		history.map((message) => ({
+			role: message.role,
+			content: message.content,
+			timestamp: message.timestamp,
+			nodeSnapshot: message.nodeSnapshot ?? null,
+			sourceSnapshot: message.sourceSnapshot ?? null,
+			source: message.source ?? null,
+		}));
+
+	const sendPrompt = async (prompt: string, history: ChatMessage[]) => {
 		setIsThinking(true);
-		setTimeout(() => {
-			const nodeSnapshot = topicName ?? null;
-			const sourceSnapshot = nodeSnapshot
-				? `${nodeSnapshot} dossier`
-				: "Workspace knowledge base";
-			setMessages((prev) => [
-				...prev,
-				{
-					id: `ai-${Date.now()}`,
-					role: "ai",
-					content: `Here is how this connects back to ${
-						topicName ?? "the workspace"
-					}:\n${prompt} — I will outline supporting evidence and next steps as data sources come online.`,
-					source: sourceSnapshot,
-					nodeSnapshot,
-					sourceSnapshot,
-					timestamp: Date.now(),
-				},
-			]);
+		setErrorMessage(null);
+		try {
+			const payload = {
+				prompt,
+				topicId: topicId ?? undefined,
+				contexts: contextPayload,
+				history: buildHistoryPayload(history),
+			};
+			const response = await chatbotService.query(payload);
+			console.log("Your message payload:", payload);
+			console.log("Chatbot response:", response);
+			const aiMessage = response.data.message;
+			const timestamp = Date.now();
+			const normalizedMessage: ChatMessage = {
+				id: aiMessage.id ?? `ai-${timestamp}`,
+				role: "ai",
+				content: aiMessage.content,
+				source: aiMessage.source ?? undefined,
+				timestamp,
+				nodeSnapshot: aiMessage.nodeSnapshot ?? null,
+				sourceSnapshot: aiMessage.sourceSnapshot ?? null,
+			};
+			setMessages((prev) => [...prev, normalizedMessage]);
+		} catch (error) {
+			console.error("Failed to query chatbot", error);
+			setErrorMessage(
+				"The chatbot is unavailable right now. Please try again."
+			);
+		} finally {
 			setIsThinking(false);
-		}, 400);
+		}
 	};
 
 	const handleSend = () => {
 		const trimmed = inputValue.trim();
-		if (!trimmed) return;
+		if (!trimmed || isThinking) return;
 
 		const now = Date.now();
-		setMessages((prev) => [
-			...prev,
-			{
-				id: `user-${now}`,
-				role: "user",
-				content: trimmed,
-				timestamp: now,
-			},
-		]);
+		const outboundMessage: ChatMessage = {
+			id: `user-${now}`,
+			role: "user",
+			content: trimmed,
+			timestamp: now,
+		};
+
+		setMessages((prev) => [...prev, outboundMessage]);
 		setInputValue("");
-		addAIResponse(trimmed);
+		void sendPrompt(trimmed, [...messages, outboundMessage]);
 	};
 
 	const handleKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (
@@ -112,7 +153,11 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		}
 	};
 
-	const handleAddContext = (type: ContextType, presetLabel?: string) => {
+	const handleAddContext = (
+		type: ContextType,
+		presetLabel?: string,
+		presetEntityId?: string
+	) => {
 		if (typeof window === "undefined") return;
 		let resolvedLabel = presetLabel;
 		if (!resolvedLabel) {
@@ -129,11 +174,15 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 			resolvedLabel = value.trim();
 		}
 		if (!resolvedLabel) return;
-		const exists = contextItems.some(
-			(item) =>
-				item.type === type &&
+		const exists = contextItems.some((item) => {
+			if (item.type !== type) return false;
+			if (presetEntityId && item.entityId) {
+				return item.entityId === presetEntityId;
+			}
+			return (
 				item.label.toLowerCase() === resolvedLabel!.toLowerCase()
-		);
+			);
+		});
 		if (exists) return;
 		setContextItems((prev) => [
 			...prev,
@@ -141,6 +190,7 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 				id: `${type}-${Date.now()}`,
 				type,
 				label: resolvedLabel!,
+				entityId: presetEntityId,
 			},
 		]);
 	};
@@ -151,37 +201,37 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 		);
 	};
 
-	const handleContextMenuSelect = (type: ContextType, label?: string) => {
+	const handleContextMenuSelect = (
+		type: ContextType,
+		option: ContextSuggestion
+	) => {
 		setIsContextMenuOpen(false);
-		handleAddContext(type, label);
+		handleAddContext(
+			type,
+			option.label,
+			option.entityId ?? option.id ?? undefined
+		);
 	};
 
 	useEffect(() => {
 		setContextItems((prev) => {
+			const remaining = prev.filter(
+				(item) => item.id !== DEFAULT_NODE_CONTEXT_ID
+			);
 			if (!topicName) {
-				const hasNode = prev.some((item) => item.type === "node");
-				return hasNode
-					? prev.filter((item) => item.type !== "node")
-					: prev;
+				return remaining;
 			}
-			const nodeItem: ContextItem = {
-				id: `node-${topicName}`,
-				type: "node",
-				label: topicName,
-			};
-			const nodeIndex = prev.findIndex((item) => item.type === "node");
-			if (nodeIndex === -1) {
-				return [nodeItem, ...prev];
-			}
-			const existing = prev[nodeIndex];
-			if (existing.label === topicName) {
-				return prev;
-			}
-			const next = [...prev];
-			next[nodeIndex] = nodeItem;
-			return next;
+			return [
+				{
+					id: DEFAULT_NODE_CONTEXT_ID,
+					type: "node",
+					label: topicName,
+					entityId: topicId ?? undefined,
+				},
+				...remaining,
+			];
 		});
-	}, [topicName]);
+	}, [topicId, topicName]);
 
 	return (
 		<div className="flex h-full min-h-0 flex-col rounded-3xl border border-white/10 bg-slate-950/60 p-4 text-white shadow-inner shadow-black/40">
@@ -316,13 +366,13 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 												).map((option) => (
 													<button
 														type="button"
-														key={`${contextMenuType}-${option.id}`}
-														onClick={() =>
-															handleContextMenuSelect(
-																contextMenuType,
-																option.label
-															)
-														}
+															key={`${contextMenuType}-${option.id}`}
+															onClick={() =>
+																handleContextMenuSelect(
+																	contextMenuType,
+																	option
+																)
+															}
 														className="flex w-full items-center justify-between rounded-lg px-2 py-1 text-left hover:bg-white/5"
 													>
 														<span className="max-w-[150px] truncate font-medium">
@@ -394,6 +444,9 @@ export const ChatbotPanel: React.FC<ChatbotPanelProps> = ({
 						<Send className="h-4 w-4" />
 					</button>
 				</div>
+				{errorMessage && (
+					<p className="mt-2 text-xs text-red-400">{errorMessage}</p>
+				)}
 			</div>
 		</div>
 	);

@@ -21,6 +21,8 @@ export const treeService = {
     const { data } = await apiClient.get<GetKnowledgeNodeResponseApiResponse>(
       `/knowledge-tree/${workspaceId}`
     );
+    // Temporary debugging to observe node payloads returned by the API
+    console.log('[treeService] getKnowledgeTree response:', data);
     return data;
   },
 
@@ -35,6 +37,8 @@ export const treeService = {
     const { data } = await apiClient.get<GetKnowledgeNodeResponseApiResponse>(
       `/knowledge-tree/node/${nodeId}`
     );
+    // Temporary debugging to observe node payloads returned by the API
+    console.log('[treeService] getKnowledgeNodeById response:', data);
     return data;
   },
 

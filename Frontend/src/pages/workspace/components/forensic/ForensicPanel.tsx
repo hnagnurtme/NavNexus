@@ -12,11 +12,7 @@ import type { WorkspaceNode } from "../../utils/treeUtils";
 import { ChatbotPanel } from "../chatbot/ChatbotPanel";
 import { EvidenceCard } from "./EvidenceCard";
 import { GapAssistant } from "./GapAssistant";
-
-type ContextSuggestion = {
-	id: string;
-	label: string;
-};
+import type { ContextSuggestion } from "../chatbot/contextUtils";
 
 const collectWorkspaceNodes = (
 	node: WorkspaceNode | null
@@ -33,6 +29,7 @@ const collectWorkspaceNodes = (
 			suggestions.push({
 				id: current.nodeId,
 				label: current.nodeName,
+				entityId: current.nodeId,
 			});
 		}
 		if (current.children && current.children.length > 0) {
@@ -61,6 +58,7 @@ const collectWorkspaceFiles = (
 			suggestions.push({
 				id: evidence.id ?? `${current.nodeId}-${idx}`,
 				label,
+				entityId: evidence.id ?? undefined,
 			});
 		});
 		if (!current.children) return;
@@ -453,6 +451,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 			) : (
 				<div className="flex flex-1 min-h-0 flex-col">
 					<ChatbotPanel
+						topicId={details.nodeId}
 						topicName={details.nodeName}
 						summary={details.description}
 						evidenceSources={evidenceSourceLabels}
