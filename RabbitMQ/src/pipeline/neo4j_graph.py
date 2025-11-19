@@ -14,61 +14,27 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
-def find_best_match(
-    session, 
-    workspace_id: str, 
-    concept_name: str, 
-    embedding: List[float]
-) -> Optional[Dict[str, Any]]:
-    """
-    Cascading search: Exact → Very High (>0.90) → High (>0.80) → Medium (>0.70)
-    """
-    # STAGE 1: Exact name match (case-insensitive, fastest)
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode {workspace_id: $ws})
-        WHERE toLower(n.name) = toLower($name)
-        RETURN n.id as id, n.name as name, 1.0 as sim, 'exact' as match_type
-        LIMIT 1
-        """,
-        ws=workspace_id,
-        name=concept_name
-    )
-    
-    record = result.single()
-    if record:
-        return dict(record)
-    
-    # STAGE 2-4: Semantic similarity with cascading thresholds
-    for threshold, match_type in [(0.90, 'very_high'), (0.80, 'high'), (0.70, 'medium')]:
-        result = session.run(
-            """
-            MATCH (n:KnowledgeNode {workspace_id: $ws})
-            WHERE n.embedding IS NOT NULL
-            WITH n, 
-                 reduce(dot = 0.0, i IN range(0, size(n.embedding)-1) | 
-                     dot + n.embedding[i] * $emb[i]
-                 ) as sim
-            WHERE sim > $threshold
-            RETURN n.id as id, n.name as name, sim, $match_type as match_type
-            ORDER BY sim DESC
-            LIMIT 1
-            """,
-            ws=workspace_id,
-            emb=embedding,
-            threshold=threshold,
-            match_type=match_type
-        )
-        
-        record = result.single()
-        if record:
-            return dict(record)
-    
-    return None
-
-
 def create_evidence_node(session, evidence: Evidence) -> str:
     """Create a separate Evidence node with all fields"""
+    # Convert PascalCase to snake_case for Neo4j
+    evidence_dict = {
+        'id': evidence.Id,
+        'source_id': evidence.SourceId,
+        'source_name': evidence.SourceName,
+        'chunk_id': evidence.ChunkId,
+        'text': evidence.Text,
+        'page': evidence.Page,
+        'confidence': evidence.Confidence,
+        'created_at': evidence.CreatedAt.isoformat() if isinstance(evidence.CreatedAt, datetime) else evidence.CreatedAt,
+        'language': evidence.Language,
+        'source_language': evidence.SourceLanguage,
+        'hierarchy_path': evidence.HierarchyPath,
+        'concepts': evidence.Concepts,
+        'key_claims': evidence.KeyClaims,
+        'questions_raised': evidence.QuestionsRaised,
+        'evidence_strength': evidence.EvidenceStrength
+    }
+
     session.run(
         """
         CREATE (e:Evidence {
@@ -89,13 +55,22 @@ def create_evidence_node(session, evidence: Evidence) -> str:
             evidence_strength: $evidence_strength
         })
         """,
-        **asdict(evidence)
+        **evidence_dict
     )
     return evidence.Id
 
 
 def create_gap_suggestion_node(session, gap_suggestion: GapSuggestion, knowledge_node_id: str):
     """Create a separate GapSuggestion node and link to KnowledgeNode"""
+    # Convert PascalCase to snake_case for Neo4j
+    gap_dict = {
+        'id': gap_suggestion.Id,
+        'suggestion_text': gap_suggestion.SuggestionText,
+        'target_node_id': gap_suggestion.TargetNodeId,
+        'target_file_id': gap_suggestion.TargetFileId,
+        'similarity_score': gap_suggestion.SimilarityScore
+    }
+
     session.run(
         """
         CREATE (g:GapSuggestion {
@@ -109,7 +84,7 @@ def create_gap_suggestion_node(session, gap_suggestion: GapSuggestion, knowledge
         MATCH (n:KnowledgeNode {id: $knowledge_node_id})
         CREATE (n)-[:HAS_SUGGESTION]->(g)
         """,
-        **asdict(gap_suggestion),
+        **gap_dict,
         knowledge_node_id=knowledge_node_id
     )
 

@@ -21,3 +21,10 @@ class Evidence:
     KeyClaims: List[str] = field(default_factory=list)
     QuestionsRaised: List[str] = field(default_factory=list)
     EvidenceStrength: float = 0.0
+
+    # Position tracking fields
+    StartPos: int = 0  # Character position where text starts in original document
+    EndPos: int = 0    # Character position where text ends in original document
+    ChunkIndex: int = 0  # Sequential chunk number
+    HasMore: bool = False  # Whether there are more chunks after this one
+    OverlapLength: int = 0  # Length of overlap with previous chunk

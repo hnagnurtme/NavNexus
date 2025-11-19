@@ -11,3 +11,4 @@ uvicorn
 pika
 PyMuPDF
 aiohttp
+anthropic
