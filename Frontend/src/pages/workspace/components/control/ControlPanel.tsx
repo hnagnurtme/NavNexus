@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ChangeEvent } from "react";
+import { useId, useRef, useState, useEffect, type ChangeEvent } from "react";
 import {
 	Bot,
 	ChevronLeft,
@@ -8,13 +8,18 @@ import {
 	Upload,
 	Link as LinkIcon,
 	Plus,
+	Loader,
+	XCircle,
 } from "lucide-react";
+import { treeService } from "@/services/tree.service";
+import { listenToJobStatus, type JobStatus } from "@/utils/firebase-listener";
 
 interface ControlPanelProps {
 	isBusy: boolean;
 	onSynthesize: () => void;
 	onReset: () => void;
 	onToggleVisibility: () => void;
+	workspaceId?: string; // Add workspaceId prop
 }
 
 interface UploadedFile {
@@ -36,14 +41,179 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	onSynthesize,
 	onReset,
 	onToggleVisibility,
+	workspaceId,
 }) => {
 	const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
 	const [linkInput, setLinkInput] = useState("");
 	const [showLinkInput, setShowLinkInput] = useState(false);
 	const [activeTab, setActiveTab] = useState<"file" | "link">("file");
+	const [isBuilding, setIsBuilding] = useState(false);
+	const [buildStatus, setBuildStatus] = useState<JobStatus | null>(null);
+	const [buildError, setbuildError] = useState<string | null>(null);
+	
 	const inputId = useId();
 	const inputRef = useRef<HTMLInputElement | null>(null);
+	const cleanupRef = useRef<(() => void) | null>(null);
 	const hasItems = uploadedItems.length > 0;
+	
+	// Cleanup Firebase listener on unmount
+	useEffect(() => {
+		return () => {
+			if (cleanupRef.current) {
+				cleanupRef.current();
+			}
+		};
+	}, []);
+
+	/**
+	 * Handle Build Knowledge Graph button click
+	 * Implements the flow described in the issue:
+	 * - Call POST /api/knowledge-tree
+	 * - If status === "SUCCESS": fetch graph immediately
+	 * - If status === "PENDING": show loading and listen to Firebase
+	 */
+	const handleBuildKnowledgeGraph = async () => {
+		if (!workspaceId) {
+			setbuildError("No workspace ID provided");
+			return;
+		}
+
+		if (uploadedItems.length === 0) {
+			setbuildError("No files or links uploaded");
+			return;
+		}
+
+		try {
+			setIsBuilding(true);
+			setbuildError(null);
+			setBuildStatus(null);
+
+			// Prepare file paths from uploaded items
+			const filePaths = uploadedItems.map((item) => {
+				if (item.type === "file") {
+					// For files, we'll need to upload them first
+					// For now, using mock URLs
+					return `https://storage.example.com/${item.name}`;
+				} else {
+					return item.url;
+				}
+			});
+
+			// Call API to create knowledge tree
+			console.log("🚀 Calling createKnowledgeTree API...");
+			const response = await treeService.createKnowledgeTree({
+				workspaceId: workspaceId,
+				filePaths: filePaths,
+			});
+
+			console.log("📥 API Response:", response);
+
+			// Extract status and messageId from response
+			// Response structure: { success, message, data: { messageId, sentAt }, statusCode }
+			const responseData = response.data;
+			if (!responseData) {
+				throw new Error("No data in API response");
+			}
+			
+			const messageId = responseData.messageId;
+			
+			// Determine status based on response structure
+			// Backend returns SUCCESS status when all files already exist
+			// Backend returns PENDING status when files need processing
+			// For now, we'll check if messageId exists to determine PENDING vs SUCCESS
+			const isPending = !!messageId && messageId !== "IMMEDIATE";
+			const status = isPending ? "PENDING" : "SUCCESS";
+
+			if (status === "SUCCESS") {
+				// ✅ Case 1: All files already exist
+				// Fetch graph data immediately
+				console.log("✅ SUCCESS status - fetching graph immediately");
+				
+				setIsBuilding(false);
+				showSuccessToast("Knowledge graph ready!");
+				
+				// Trigger parent component to fetch and display graph
+				onSynthesize();
+				
+			} else if (status === "PENDING") {
+				// ⏳ Case 2: Processing new files
+				// Show loading animation and register Firebase listener
+				console.log("⏳ PENDING status - listening to Firebase for job:", messageId);
+				
+				if (!messageId) {
+					throw new Error("No messageId returned from API");
+				}
+
+				// Register Firebase Realtime Database listener
+				const cleanup = listenToJobStatus(messageId, (jobStatus) => {
+					console.log("🔥 Firebase job status update:", jobStatus);
+					
+					setBuildStatus(jobStatus);
+
+					if (jobStatus.status === "completed") {
+						// Job completed successfully
+						setIsBuilding(false);
+						showSuccessToast("Knowledge graph built successfully!");
+						
+						// Trigger parent component to fetch and display graph
+						onSynthesize();
+						
+					} else if (jobStatus.status === "failed") {
+						// Job failed
+						setIsBuilding(false);
+						setbuildError(
+							jobStatus.error || "Failed to build knowledge graph"
+						);
+						showErrorToast("Failed to build knowledge graph");
+						
+					} else if (jobStatus.status === "partial") {
+						// Job partially completed
+						setIsBuilding(false);
+						showWarningToast(
+							`Graph built with ${jobStatus.failed || 0} failures`
+						);
+						
+						// Still trigger refresh to show partial results
+						onSynthesize();
+					}
+				});
+
+				// Store cleanup function
+				cleanupRef.current = cleanup;
+				
+			} else {
+				// Unknown status
+				throw new Error(`Unknown status from API: ${status}`);
+			}
+
+		} catch (error) {
+			console.error("❌ Error building knowledge graph:", error);
+			setIsBuilding(false);
+			setbuildError(
+				error instanceof Error
+					? error.message
+					: "Unknown error occurred"
+			);
+			showErrorToast("Error building knowledge graph");
+		}
+	};
+
+	// Toast notification helpers
+	const showSuccessToast = (message: string) => {
+		// TODO: Replace with actual toast library (e.g., react-hot-toast, sonner)
+		console.log("✅ SUCCESS:", message);
+		alert(message); // Temporary - replace with proper toast
+	};
+
+	const showErrorToast = (message: string) => {
+		console.error("❌ ERROR:", message);
+		alert(message); // Temporary - replace with proper toast
+	};
+
+	const showWarningToast = (message: string) => {
+		console.warn("⚠️ WARNING:", message);
+		alert(message); // Temporary - replace with proper toast
+	};
 
 	const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
 		const files = Array.from(event.target.files ?? []);
@@ -366,22 +536,87 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 			<footer className="mt-6 space-y-3">
 				<button
 					type="button"
-					onClick={onSynthesize}
-					disabled={isBusy || uploadedItems.length === 0}
+					onClick={handleBuildKnowledgeGraph}
+					disabled={isBuilding || isBusy || uploadedItems.length === 0}
 					className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 py-3 text-sm font-semibold text-white shadow-lg transition enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
 				>
-					<Bot className={isBusy ? "animate-pulse" : ""} size={18} />
-					{isBusy ? "Synthesizing..." : "Build Knowledge Graph"}
+					<Bot className={isBuilding || isBusy ? "animate-pulse" : ""} size={18} />
+					{isBuilding ? "Building..." : isBusy ? "Synthesizing..." : "Build Knowledge Graph"}
 				</button>
 				<button
 					type="button"
 					onClick={onReset}
-					className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3 text-sm font-semibold text-white/70 transition hover:border-white/50 hover:text-white"
+					disabled={isBuilding}
+					className="flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 py-3 text-sm font-semibold text-white/70 transition enabled:hover:border-white/50 enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
 				>
 					<RotateCcw size={16} />
 					Reset Workspace
 				</button>
 			</footer>
+
+			{/* Loading Modal - Show when building knowledge graph */}
+			{isBuilding && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+					<div className="mx-4 max-w-md rounded-2xl border border-white/10 bg-slate-900 p-8 text-center shadow-2xl">
+						<Loader className="mx-auto mb-4 h-16 w-16 animate-spin text-emerald-400" />
+						<h3 className="mb-2 text-xl font-semibold text-white">
+							Building Knowledge Graph...
+						</h3>
+						<p className="mb-4 text-white/60">
+							Processing your documents. This may take a few minutes.
+						</p>
+						
+						{/* Show progress if available */}
+						{buildStatus && buildStatus.totalFiles && (
+							<div className="space-y-2">
+								<div className="flex justify-between text-sm text-white/70">
+									<span>Progress</span>
+									<span>
+										{buildStatus.successful || 0} / {buildStatus.totalFiles}
+									</span>
+								</div>
+								<div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+									<div
+										className="h-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all duration-500"
+										style={{
+											width: `${((buildStatus.successful || 0) / buildStatus.totalFiles) * 100}%`,
+										}}
+									/>
+								</div>
+								{buildStatus.currentFile && (
+									<p className="text-xs text-white/50">
+										Processing file {buildStatus.currentFile} of{" "}
+										{buildStatus.totalFiles}...
+									</p>
+								)}
+							</div>
+						)}
+					</div>
+				</div>
+			)}
+
+			{/* Error Display */}
+			{buildError && (
+				<div className="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 shadow-xl">
+					<div className="flex items-start gap-3">
+						<XCircle className="h-5 w-5 flex-shrink-0 text-rose-400" />
+						<div className="flex-1">
+							<p className="text-sm font-semibold text-rose-300">
+								Build Failed
+							</p>
+							<p className="mt-1 text-xs text-rose-200/80">
+								{buildError}
+							</p>
+						</div>
+						<button
+							onClick={() => setbuildError(null)}
+							className="text-rose-300 hover:text-rose-100"
+						>
+							×
+						</button>
+					</div>
+				</div>
+			)}
 		</aside>
 	);
 };
