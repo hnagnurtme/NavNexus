@@ -38,251 +38,118 @@
       "CreatedAt": "2025-01-20T09:30:00Z",
       "UpdatedAt": "2025-01-20T16:45:00Z",
       "ParentId": "category-computation001"
-    },
-    {
-      "Id": "subconcept-dnn-partition001",
-      "Type": "subconcept",
-      "Name": "DNN Model Partitioning for Edge Inference",
-      "Synthesis": "Deep Neural Network inference tasks can be partitioned at specific layers, with early layers processed locally and later layers offloaded to edge servers. This approach balances computation load and communication overhead, achieving 3.2× faster inference with 45% energy reduction compared to full local or full offloading for real-time object detection applications.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 3,
-      "SourceCount": 1,
-      "TotalConfidence": 0.85,
-      "CreatedAt": "2025-01-20T09:45:00Z",
-      "UpdatedAt": "2025-01-20T09:45:00Z",
-      "ParentId": "concept-partial001"
-    },
-    {
-      "Id": "category-trajectory001",
-      "Type": "category",
-      "Name": "UAV Trajectory Optimization",
-      "Synthesis": "UAV trajectory planning must consider multiple objectives including energy efficiency, coverage maximization, communication quality, and obstacle avoidance. The trajectory affects both communication links (via distance and angle to users) and computation capabilities (via proximity to edge servers). Joint optimization with offloading decisions shows 32% improvement in system throughput.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 1,
-      "SourceCount": 2,
-      "TotalConfidence": 0.88,
-      "CreatedAt": "2025-01-20T10:00:00Z",
-      "UpdatedAt": "2025-01-20T16:45:00Z",
-      "ParentId": "domain-joint-optimization001"
-    },
-    {
-      "Id": "concept-energy-trajectory001",
-      "Type": "concept",
-      "Name": "Energy-Aware Trajectory Planning",
-      "Synthesis": "Energy consumption during UAV flight depends on velocity, acceleration, wind conditions, and payload. Energy-aware trajectory optimization incorporates battery constraints, recharge opportunities, and mission duration requirements. DRL-based approaches achieve 28% longer operational time while maintaining service quality.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 2,
-      "SourceCount": 1,
-      "TotalConfidence": 0.86,
-      "CreatedAt": "2025-01-20T10:15:00Z",
-      "UpdatedAt": "2025-01-20T10:15:00Z",
-      "ParentId": "category-trajectory001"
-    },
-    {
-      "Id": "category-scheduling001",
-      "Type": "category",
-      "Name": "User Scheduling and Task Allocation",
-      "Synthesis": "User scheduling determines which users are served at each time slot and which computational resources (UAV, satellite, ground station) handle their tasks. This involves balancing fairness, priority, quality of service, and system efficiency. Multi-agent reinforcement learning approaches enable distributed scheduling decisions with minimal coordination overhead.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 1,
-      "SourceCount": 2,
-      "TotalConfidence": 0.90,
-      "CreatedAt": "2025-01-20T10:30:00Z",
-      "UpdatedAt": "2025-01-20T16:45:00Z",
-      "ParentId": "domain-joint-optimization001"
-    },
-    {
-      "Id": "concept-priority001",
-      "Type": "concept",
-      "Name": "Priority-Aware Scheduling",
-      "Synthesis": "Priority-aware scheduling differentiates between emergency, real-time, and best-effort tasks, allocating resources based on urgency and importance. Emergency tasks (disaster response, medical applications) receive highest priority with guaranteed latency bounds, while best-effort tasks utilize remaining capacity.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 2,
-      "SourceCount": 1,
-      "TotalConfidence": 0.87,
-      "CreatedAt": "2025-01-20T10:45:00Z",
-      "UpdatedAt": "2025-01-20T10:45:00Z",
-      "ParentId": "category-scheduling001"
-    },
-    {
-      "Id": "category-resource001",
-      "Type": "category",
-      "Name": "Resource Allocation Optimization",
-      "Synthesis": "Resource allocation involves distributing computational resources (CPU cycles, memory), communication resources (bandwidth, power), and storage across SAGIN components. The optimization must consider heterogeneous capabilities of satellites, UAVs, and ground stations, as well as dynamic user demands and network conditions.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 1,
-      "SourceCount": 3,
-      "TotalConfidence": 0.89,
-      "CreatedAt": "2025-01-20T11:00:00Z",
-      "UpdatedAt": "2025-01-20T16:45:00Z",
-      "ParentId": "domain-joint-optimization001"
-    },
-    {
-      "Id": "concept-joint001",
-      "Type": "concept",
-      "Name": "Joint Optimization Frameworks",
-      "Synthesis": "Joint optimization frameworks simultaneously consider offloading, trajectory, scheduling, and resource allocation decisions using multi-objective reinforcement learning. These frameworks capture the complex interdependencies between decisions and achieve Pareto-optimal solutions balancing energy consumption, latency, throughput, and fairness.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 2,
-      "SourceCount": 2,
-      "TotalConfidence": 0.85,
-      "CreatedAt": "2025-01-20T11:15:00Z",
-      "UpdatedAt": "2025-01-20T16:45:00Z",
-      "ParentId": "category-resource001"
-    },
-    {
-      "Id": "subconcept-maddpg001",
-      "Type": "subconcept",
-      "Name": "MADDPG for Multi-Dimensional Optimization",
-      "Synthesis": "Multi-Agent Deep Deterministic Policy Gradient (MADDPG) enables distributed agents (UAVs, satellites, ground stations) to learn coordinated policies for joint optimization. Each agent observes local state information but learns considering the joint action space, achieving 37% better resource utilization than independent learning approaches.",
-      "WorkspaceId": "Reinforcement-Learning",
-      "Level": 3,
-      "SourceCount": 1,
-      "TotalConfidence": 0.83,
-      "CreatedAt": "2025-01-20T11:30:00Z",
-      "UpdatedAt": "2025-01-20T11:30:00Z",
-      "ParentId": "concept-joint001"
     }
   ],
   "evidences": [
     {
       "Id": "evidence-joint-intro001",
       "NodeId": "domain-joint-optimization001",
-      "SourceId": "pdf-joint-optimization-sagin",
-      "SourceName": "Joint Computation Offloading and Resource Allocation in SAGIN with Mobile Edge Computing",
-      "ChunkId": "chunk-015",
-      "Text": "The integration of computation offloading, UAV trajectory planning, user scheduling, and resource allocation presents a complex optimization problem in SAGIN environments. We consider a system with N=50 mobile users, M=8 UAVs equipped with edge servers (computing capacity: 20-50 GFlops), K=6 LEO satellites (computing capacity: 100-200 GFlops), and L=4 ground stations (computing capacity: 500 GFlops-1 TFlops). Each user generates computational tasks characterized by tuple (data_size, computation_required, max_delay), where data_size ∈ [1, 100] MB, computation_required ∈ [0.1, 10] GCycles, and max_delay ∈ [0.1, 5] seconds. The joint optimization problem is formulated as a Markov Game with state space including user locations, task queues, UAV positions, satellite visibility, and resource availability. Our proposed Multi-Agent Proximal Policy Optimization (MAPPO) approach achieves 43% reduction in average task completion time and 31% energy savings compared to decoupled optimization baselines.",
-      "Page": 3,
-      "Confidence": 0.91,
+      "SourceId": "ieee-access-2023-zhang",
+      "SourceName": "Joint Computation Offloading and Resource Allocation in Cloud-Assisted UAV-Enabled Mobile Edge Computing Networks",
+      "ChunkId": "chunk-abstract",
+      "Text": "In this paper, we investigate the joint computation offloading and resource allocation problem in cloud-assisted UAV-enabled mobile edge computing networks. We consider a scenario where a UAV serves as an aerial base station to provide computation offloading opportunities for ground users. The problem is formulated as a mixed-integer nonlinear programming problem aiming to minimize the total energy consumption of both the UAV and users while satisfying the computation latency constraints. To solve this challenging problem, we propose a deep reinforcement learning-based algorithm that can make real-time decisions on computation offloading, resource allocation, and UAV trajectory planning. Simulation results show that our proposed algorithm reduces the total energy consumption by up to 35% compared to baseline schemes.",
+      "Page": 1,
+      "Confidence": 0.92,
       "CreatedAt": "2025-01-20T09:00:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
       "HierarchyPath": "Joint Optimization > Introduction",
-      "Concepts": ["Markov Game", "Multi-Agent RL", "Edge Computing", "Task Characterization"],
+      "Concepts": ["UAV-enabled MEC", "Energy Minimization", "DRL", "Mixed-Integer Programming"],
       "KeyClaims": [
-        "System scale: 50 users, 8 UAVs, 6 satellites, 4 ground stations",
-        "Task parameters: 1-100 MB data, 0.1-10 GCycles computation, 0.1-5s delay bounds",
-        "MAPPO achieves 43% latency reduction and 31% energy savings",
-        "Computing capacity: UAVs 20-50 GFlops, satellites 100-200 GFlops, ground 0.5-1 TFlops"
+        "Joint optimization of computation offloading, resource allocation, and UAV trajectory",
+        "35% energy reduction compared to baseline schemes",
+        "Cloud-assisted UAV MEC architecture",
+        "Real-time decision making using DRL"
       ],
       "QuestionsRaised": [
-        "How does the approach scale with increasing numbers of users and network elements?",
-        "What is the communication overhead of multi-agent coordination?"
+        "How does the approach scale with increasing numbers of users?",
+        "What is the impact of UAV mobility patterns on system performance?"
       ],
-      "EvidenceStrength": 0.89
+      "EvidenceStrength": 0.90
     },
     {
-      "Id": "evidence-dnn-partition002",
-      "NodeId": "subconcept-dnn-partition001",
-      "SourceId": "pdf-edge-inference-sagin",
-      "SourceName": "Adaptive DNN Partitioning for Real-time Inference in UAV-assisted SAGIN",
-      "ChunkId": "chunk-028",
-      "Text": "We propose an adaptive DNN partitioning scheme that dynamically selects the optimal partition point based on network conditions and computational load. For a ResNet-50 model (23.5 million parameters, 4.1 GFLOPs per inference), we evaluate partition points after each of the 16 convolutional blocks. The state space includes: (i) wireless channel quality between user and UAV (SNR: 5-25 dB), (ii) UAV computational load (0-100%), (iii) user device remaining energy (0-100%), (iv) inference latency requirement (100-500 ms). The DRL agent selects from 17 possible actions (full local execution + 16 partition points). Experimental results show that adaptive partitioning achieves 3.2× faster average inference time (142 ms vs 452 ms) and 45% energy reduction compared to full local execution, while maintaining 98.2% of the full model accuracy. The optimal partition point varies significantly with channel conditions: under poor channels (SNR < 10 dB), earlier partitions (blocks 3-5) are preferred to reduce transmission data, while under good channels (SNR > 20 dB), later partitions (blocks 10-13) minimize computational load on user devices.",
+      "Id": "evidence-partial-offload002",
+      "NodeId": "concept-partial001",
+      "SourceId": "ieee-tvt-2022-liu",
+      "SourceName": "Partial Computation Offloading for Real-Time Applications in UAV-Assisted MEC Networks",
+      "ChunkId": "chunk-methodology",
+      "Text": "We propose a partial computation offloading framework that allows fine-grained partitioning of computational tasks between local devices and UAV-mounted edge servers. The optimization problem considers task dependency graphs and aims to minimize the weighted sum of energy consumption and execution delay. For a video analytics application with ResNet-50 model, our DRL-based partial offloading scheme achieves 42% energy savings and 2.8× faster inference compared to binary offloading decisions, while maintaining 96.5% inference accuracy. The system adapts the partition point based on wireless channel conditions and computational load, with optimal partitions ranging from layer 4 to layer 12 in the 16-layer ResNet-50 architecture.",
+      "Page": 4,
+      "Confidence": 0.88,
+      "CreatedAt": "2025-01-20T09:30:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "Joint Optimization > Computation Offloading > Partial Offloading",
+      "Concepts": ["Partial Offloading", "Task Dependency", "ResNet-50", "Video Analytics"],
+      "KeyClaims": [
+        "42% energy savings and 2.8× faster inference vs binary offloading",
+        "96.5% inference accuracy maintained",
+        "Adaptive partition points based on channel conditions",
+        "ResNet-50 model with 16-layer partitioning"
+      ],
+      "QuestionsRaised": [
+        "How to handle complex task dependencies in real-time?",
+        "What is the communication overhead for partial computation results?"
+      ],
+      "EvidenceStrength": 0.86
+    },
+    {
+      "Id": "evidence-sagin-trajectory003",
+      "NodeId": "domain-joint-optimization001",
+      "SourceId": "ieee-commag-2021-wang",
+      "SourceName": "UAV-Enabled Edge Computing: Offloading Optimization and Trajectory Design",
+      "ChunkId": "chunk-results",
+      "Text": "For UAV-enabled edge computing systems, we optimize the UAV trajectory jointly with computation offloading decisions. The UAV's flight trajectory significantly affects both communication quality and energy consumption. Our proposed algorithm, based on multi-agent deep deterministic policy gradient (MADDPG), demonstrates that joint optimization of trajectory and offloading achieves 28% higher energy efficiency compared to separate optimization. The UAV learns to hover near user clusters with high computation demands while maintaining efficient flight paths that minimize propulsion energy. In a scenario with 5 UAVs serving 50 ground users, the joint optimization reduces the average task completion time by 32% while extending UAV operational time by 25%.",
+      "Page": 6,
+      "Confidence": 0.89,
+      "CreatedAt": "2025-01-20T09:05:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "Joint Optimization > UAV Trajectory",
+      "Concepts": ["MADDPG", "Trajectory Design", "Energy Efficiency", "Multi-Agent Systems"],
+      "KeyClaims": [
+        "28% higher energy efficiency with joint optimization",
+        "32% reduction in average task completion time",
+        "25% extension of UAV operational time",
+        "5 UAVs serving 50 ground users scenario"
+      ],
+      "QuestionsRaised": [
+        "How to ensure collision avoidance in multi-UAV systems?",
+        "What is the impact of wind conditions on trajectory optimization?"
+      ],
+      "EvidenceStrength": 0.87
+    },
+    {
+      "Id": "evidence-resource-allocation004",
+      "NodeId": "category-computation001",
+      "SourceId": "springer-mobile-networks-2023-chen",
+      "SourceName": "Dynamic Resource Allocation for Computation Offloading in SAGIN",
+      "ChunkId": "chunk-implementation",
+      "Text": "We develop a dynamic resource allocation framework for computation offloading in Space-Air-Ground Integrated Networks. The framework considers heterogeneous resources across satellites (high latency but extensive coverage), UAVs (low latency but limited endurance), and ground stations (high capacity but fixed locations). Using a deep Q-network (DQN) approach, our system dynamically allocates computational tasks to the most suitable network tier based on task requirements and current network conditions. Experimental results show 40% improvement in resource utilization and 45% reduction in task completion time compared to static allocation strategies. The DQN agent learns to balance load across network tiers while respecting energy constraints of UAVs and satellites.",
       "Page": 5,
       "Confidence": 0.85,
-      "CreatedAt": "2025-01-20T09:45:00Z",
+      "CreatedAt": "2025-01-20T09:20:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
-      "HierarchyPath": "Joint Optimization > Computation Offloading > Partial Offloading > DNN Partitioning",
-      "Concepts": ["DNN Partitioning", "Adaptive Inference", "ResNet-50", "Edge AI"],
+      "HierarchyPath": "Joint Optimization > Computation Offloading > Resource Allocation",
+      "Concepts": ["Dynamic Allocation", "SAGIN Architecture", "DQN", "Heterogeneous Resources"],
       "KeyClaims": [
-        "ResNet-50 model: 23.5M parameters, 4.1 GFLOPs per inference",
-        "17 possible actions: full local + 16 partition points",
-        "3.2× faster inference (142ms vs 452ms) with 45% energy reduction",
-        "98.2% accuracy maintained vs full model",
-        "Partition point selection depends on SNR: early for poor channels, late for good channels"
+        "40% improvement in resource utilization",
+        "45% reduction in task completion time",
+        "Balances load across satellites, UAVs, and ground stations",
+        "Considers energy constraints of aerial platforms"
       ],
       "QuestionsRaised": [
-        "How does the approach generalize to other DNN architectures?",
-        "What is the impact of model compression techniques on partition decisions?"
+        "How to handle resource allocation during network congestion?",
+        "What are the trade-offs between latency and energy consumption?"
       ],
       "EvidenceStrength": 0.83
-    },
-    {
-      "Id": "evidence-trajectory-energy003",
-      "NodeId": "concept-energy-trajectory001",
-      "SourceId": "pdf-uav-trajectory-optimization",
-      "SourceName": "Energy-Efficient UAV Trajectory Planning for Computation Offloading in SAGIN",
-      "ChunkId": "chunk-042",
-      "Text": "UAV energy consumption is modeled as P_total = P_propulsion + P_computation + P_communication, where P_propulsion = P_hover + P_forward. For a DJI Matrice 300 RTK UAV, P_hover = 150W, P_forward = 180W at 10 m/s, P_computation = 20-60W (depending on CPU utilization), and P_communication = 5-15W. The trajectory optimization considers waypoints at 1-second intervals over a 30-minute mission horizon. State features include: UAV position (x,y,z), velocity, remaining battery, user locations, task demands, and wind conditions (speed: 0-15 m/s, direction: 0-360°). The DDPG agent outputs acceleration vectors (Δv_x, Δv_y, Δv_z) and selects service locations. Our approach extends operational time by 28% (from 42 to 54 minutes) while serving 95% of computation requests within latency constraints, compared to shortest-path trajectory baseline.",
-      "Page": 7,
-      "Confidence": 0.86,
-      "CreatedAt": "2025-01-20T10:15:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "ENG",
-      "HierarchyPath": "Joint Optimization > UAV Trajectory > Energy-Aware Planning",
-      "Concepts": ["Energy Consumption Model", "DDPG", "Waypoint Optimization", "Mission Planning"],
-      "KeyClaims": [
-        "Energy model: P_propulsion (hover 150W, forward 180W) + P_computation (20-60W) + P_communication (5-15W)",
-        "DJI Matrice 300 RTK UAV parameters",
-        "28% operational time extension (42→54 minutes)",
-        "95% of tasks served within latency constraints",
-        "Wind conditions (0-15 m/s) considered in trajectory planning"
-      ],
-      "QuestionsRaised": [
-        "How robust is the approach to sudden wind gusts or weather changes?",
-        "Can the model adapt to unexpected obstacles or no-fly zones?"
-      ],
-      "EvidenceStrength": 0.84
-    },
-    {
-      "Id": "evidence-priority-scheduling004",
-      "NodeId": "concept-priority001",
-      "SourceId": "pdf-qos-scheduling-sagin",
-      "SourceName": "Priority-Aware User Scheduling for Mixed-Criticality Applications in SAGIN",
-      "ChunkId": "chunk-035",
-      "Text": "We classify tasks into three priority levels: Emergency (weight=3.0, max_delay=100ms), Real-time (weight=1.5, max_delay=500ms), and Best-effort (weight=1.0, max_delay=5000ms). The scheduling algorithm uses a modified reward function: R = Σ(weight_i × completed_i) - λ × Σ(delay_violation_i) - μ × energy_consumption. For emergency tasks, we implement preemption mechanisms where lower-priority tasks can be interrupted. In scenarios with 30% emergency, 40% real-time, and 30% best-effort traffic mix, our priority-aware DRL scheduler achieves 99.2% on-time completion for emergency tasks (vs 87.5% for round-robin) while maintaining 85.7% utilization for best-effort tasks. The trade-off between fairness and priority enforcement is balanced through careful reward shaping.",
-      "Page": 6,
-      "Confidence": 0.87,
-      "CreatedAt": "2025-01-20T10:45:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "ENG",
-      "HierarchyPath": "Joint Optimization > User Scheduling > Priority-Aware",
-      "Concepts": ["Priority Classification", "Reward Shaping", "Preemption", "QoS Guarantees"],
-      "KeyClaims": [
-        "Three priority levels: Emergency (3.0 weight, 100ms), Real-time (1.5, 500ms), Best-effort (1.0, 5000ms)",
-        "99.2% on-time completion for emergency tasks vs 87.5% round-robin",
-        "85.7% utilization maintained for best-effort tasks",
-        "Traffic mix: 30% emergency, 40% real-time, 30% best-effort"
-      ],
-      "QuestionsRaised": [
-        "How to handle priority inversion scenarios?",
-        "What is the optimal weight assignment for different application types?"
-      ],
-      "EvidenceStrength": 0.85
-    },
-    {
-      "Id": "evidence-maddpg005",
-      "NodeId": "subconcept-maddpg001",
-      "SourceId": "pdf-multi-agent-joint-optimization",
-      "SourceName": "MADDPG for Joint Optimization in Multi-Tier SAGIN",
-      "ChunkId": "chunk-051",
-      "Text": "We deploy MADDPG with 15 agents: 8 UAV agents, 6 satellite agents, and 1 ground station coordinator. Each UAV agent observes: its own position, velocity, battery level, computational load, connected users, and local channel conditions. Satellite agents observe: orbital position, visible ground area, computational load, and inter-satellite link status. The ground coordinator maintains global resource inventory. During training, agents share their observations and actions through a centralized critic that learns the joint action-value function. At execution, agents act based on local observations only. Our approach achieves 37% higher resource utilization (measured by completed tasks per energy unit) compared to independent DDPG agents, with only 12% additional communication overhead for coordination. The learned policies demonstrate emergent cooperative behaviors: UAVs naturally form service clusters in high-demand areas, while satellites handle overflow tasks during UAV recharge cycles.",
-      "Page": 9,
-      "Confidence": 0.83,
-      "CreatedAt": "2025-01-20T11:30:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "ENG",
-      "HierarchyPath": "Joint Optimization > Resource Allocation > Joint Frameworks > MADDPG",
-      "Concepts": ["MADDPG", "Multi-Agent Coordination", "Centralized Training", "Decentralized Execution"],
-      "KeyClaims": [
-        "15 agents: 8 UAVs, 6 satellites, 1 ground coordinator",
-        "37% higher resource utilization vs independent DDPG",
-        "12% communication overhead for coordination",
-        "Emergent behaviors: UAV clustering, satellite overflow handling",
-        "Centralized training with decentralized execution"
-      ],
-      "QuestionsRaised": [
-        "How does the system scale with more agents?",
-        "Can the approach handle agent failures or network partitions?"
-      ],
-      "EvidenceStrength": 0.81
     }
   ],
   "gapSuggestions": [
     {
       "Id": "gap-federated001",
-      "NodeId": "subconcept-dnn-partition001",
+      "NodeId": "concept-partial001",
       "SuggestionText": "Explore federated learning approaches for adaptive DNN partitioning that can learn from multiple users without sharing raw data, improving generalization across different devices and environments",
       "TargetNodeId": "https://arxiv.org/abs/1902.01046",
       "TargetFileId": "",
@@ -290,35 +157,11 @@
     },
     {
       "Id": "gap-robust001",
-      "NodeId": "concept-energy-trajectory001",
-      "SuggestionText": "Investigate robust trajectory optimization under uncertainty using distributional RL or risk-sensitive formulations to handle unpredictable weather conditions and dynamic obstacles",
+      "NodeId": "domain-joint-optimization001",
+      "SuggestionText": "Investigate robust optimization under uncertainty using distributional RL to handle unpredictable network conditions and dynamic user demands in SAGIN",
       "TargetNodeId": "https://arxiv.org/abs/1806.01175",
       "TargetFileId": "",
       "SimilarityScore": 0.79
-    },
-    {
-      "Id": "gap-meta001",
-      "NodeId": "concept-priority001",
-      "SuggestionText": "Develop meta-learning approaches for priority-aware scheduling that can quickly adapt to new task types and priority schemes without retraining from scratch",
-      "TargetNodeId": "https://arxiv.org/abs/2007.09648",
-      "TargetFileId": "",
-      "SimilarityScore": 0.81
-    },
-    {
-      "Id": "gap-hierarchical001",
-      "NodeId": "subconcept-maddpg001",
-      "SuggestionText": "Explore hierarchical multi-agent RL architectures with different timescales for coordination (fast timescale for UAV decisions, slow timescale for satellite coordination)",
-      "TargetNodeId": "https://arxiv.org/abs/1909.12230",
-      "TargetFileId": "",
-      "SimilarityScore": 0.78
-    },
-    {
-      "Id": "gap-transfer001",
-      "NodeId": "concept-joint001",
-      "SuggestionText": "Investigate transfer learning techniques to adapt joint optimization policies from simulated environments to real-world SAGIN deployments with minimal fine-tuning",
-      "TargetNodeId": "https://arxiv.org/abs/2007.03961",
-      "TargetFileId": "",
-      "SimilarityScore": 0.80
     }
   ]
 }

@@ -81,7 +81,7 @@ def main():
     """Main function to convert a specific PDF"""
     
     # The PDF you want to test
-    pdf_url = "https://sg.object.ncloudstorage.com/navnexus/GAP.pdf"
+    pdf_url = "https://arxiv.org/pdf/1902.01046"
     
     # Output filename (optional)
     output_file = "GAP_extracted_text.txt"
