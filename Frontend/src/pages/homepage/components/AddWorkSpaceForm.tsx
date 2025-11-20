@@ -54,7 +54,6 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
 
     try {
       setIsSubmitting(true);
-      await onCreate?.(payload);
       const listUrl = await changeRawCloudinary(files);
       await handleCreateWorkSpace(
         payload.name,
@@ -62,6 +61,7 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
         listUrl
       );
       console.log(listUrl);
+      await onCreate?.(payload);
     } catch (err) {
       console.error("Failed to create workspace", err);
     } finally {
