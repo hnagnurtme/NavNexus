@@ -77,6 +77,7 @@ export const WorkspacePage: React.FC = () => {
 						onSynthesize={actions.buildGraph}
 						onReset={actions.resetWorkspace}
 						onToggleVisibility={actions.toggleControlPanel}
+						workspaceId={workspaceId}
 					/>
 				)}
 				{!isControlPanelVisible && (
