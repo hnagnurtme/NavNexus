@@ -262,7 +262,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 	);
 
 	const travelToNode = useCallback(
-		async (nodeId: string) => {
+		async (nodeId: string, pendingExpandId?: string | null) => {
 			const resolvedNode = await ensureChildrenLoaded(nodeId);
 			if (!resolvedNode) return;
 			await focusNode(nodeId);
@@ -281,7 +281,8 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 					branchOptions: children,
 					awaitingBranch: false,
 					completed: children.length === 0,
-					pendingBranchNodeId: null,
+					pendingBranchNodeId:
+						pendingExpandId === undefined ? null : pendingExpandId,
 				};
 			});
 			highlightNodes([nodeId]);
@@ -301,7 +302,8 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 		}
 
 		if (children.length === 1) {
-			await travelToNode(children[0].nodeId);
+			const parentId = journeyRef.current.currentNodeId;
+			await travelToNode(children[0].nodeId, parentId ?? undefined);
 			return;
 		}
 
@@ -314,14 +316,8 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 
 	const selectJourneyBranch = useCallback(
 		async (nodeId: string) => {
-			await travelToNode(nodeId);
-			setJourney((prev) => {
-				if (!prev.isActive) return prev;
-				return {
-					...prev,
-					pendingBranchNodeId: nodeId,
-				};
-			});
+			const parentId = journeyRef.current.currentNodeId;
+			await travelToNode(nodeId, parentId ?? undefined);
 		},
 		[travelToNode]
 	);

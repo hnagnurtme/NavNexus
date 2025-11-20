@@ -62,17 +62,33 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 		return () => clearTimeout(timer);
 	}, [fitView, nodes.length, edges.length, viewportKey]);
 
-	useEffect(() => {
-		if (!focusedNodeId) return;
+useEffect(() => {
+	if (!focusedNodeId) return;
+	let attempts = 0;
+	let retryHandle: number | null = null;
+	const attemptCenter = () => {
 		const node = getNodes().find((n) => n.id === focusedNodeId);
-		if (!node) return;
-		const targetX = node.position.x + (node.width ?? 0) / 2;
-		const targetY = node.position.y + (node.height ?? 0) / 2;
-		setCenter(targetX, targetY, {
-			zoom: 1.3, // Increased zoom for better focus
-			duration: 800, // Smoother animation
-		});
-	}, [focusedNodeId, getNodes, setCenter]);
+		if (node) {
+			const targetX = node.position.x + (node.width ?? 0) / 2;
+			const targetY = node.position.y + (node.height ?? 0) / 2 + 100;
+			setCenter(targetX, targetY, {
+				zoom: 1.3,
+				duration: 800,
+			});
+			return;
+		}
+		if (attempts < 5) {
+			attempts += 1;
+			retryHandle = window.setTimeout(attemptCenter, 120);
+		}
+	};
+	attemptCenter();
+	return () => {
+		if (retryHandle) {
+			window.clearTimeout(retryHandle);
+		}
+	};
+}, [focusedNodeId, getNodes, setCenter, nodes.length, viewportKey]);
 
 	const enrichedNodes = useMemo(
 		() =>

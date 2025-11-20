@@ -109,7 +109,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 							</div>
 						</div>
 					) : (
-						<div className="animate-fadeIn">
+						<div className="animate-fadeIn ">
 							{/* Normal Journey View */}
 							<header className="mb-4 flex items-center justify-between gap-4">
 								<div>
@@ -168,7 +168,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 									<span
 										key={node.id}
 										className={clsx(
-											"rounded-full border px-3 py-1",
+											"rounded-full border px-3 py-1 truncate max-w-[200px] overflow-hidden whitespace-nowrap",
 											node.id === journey.currentNodeId
 												? "border-emerald-400 bg-emerald-500/20 text-white"
 												: "border-white/10 text-white/70"
