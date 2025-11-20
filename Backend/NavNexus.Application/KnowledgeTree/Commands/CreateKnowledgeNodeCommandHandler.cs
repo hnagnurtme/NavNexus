@@ -2,6 +2,7 @@ using ErrorOr;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using NavNexus.Application.Common.Interfaces.ExternalServices;
+using NavNexus.Application.Common.Interfaces.Repositories;
 using NavNexus.Application.KnowledgeTree.Commands;
 using NavNexus.Application.KnowledgeTree.Results;
 
@@ -10,14 +11,17 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
     public class CreateKnowledgeTreeCommandHandler : IRequestHandler<CreateKnowledgeNodeCommand, ErrorOr<RabbitMqSendingResult>>
     {
         private readonly IRabbitMQService _rabbitMQService;
+        private readonly IKnowledgetreeRepository _knowledgeTreeRepository;
         private readonly ILogger<CreateKnowledgeTreeCommandHandler> _logger;
         private const string PDF_JOBS_QUEUE = "pdf_jobs_queue";
 
         public CreateKnowledgeTreeCommandHandler(
             IRabbitMQService rabbitMQService,
+            IKnowledgetreeRepository knowledgeTreeRepository,
             ILogger<CreateKnowledgeTreeCommandHandler> logger)
         {
             _rabbitMQService = rabbitMQService ?? throw new ArgumentNullException(nameof(rabbitMQService));
+            _knowledgeTreeRepository = knowledgeTreeRepository ?? throw new ArgumentNullException(nameof(knowledgeTreeRepository));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -59,11 +63,98 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                         description: "One or more file paths are invalid");
                 }
 
-                // Tạo payload message
+                // Bước 1: Copy nodes từ workspace khác nếu URL đã tồn tại
+                var totalCopiedNodes = 0;
+                var successfullyCopiedFiles = new List<string>();
+
+                foreach (var filePath in request.FilePaths)
+                {
+                    try
+                    {
+                        _logger.LogInformation(
+                            "Checking if nodes exist for source URL: {FilePath} in other workspaces",
+                            filePath);
+
+                        var copiedNodes = await _knowledgeTreeRepository.CopyNodesAsync(
+                            evidenceSourceId: filePath,
+                            newWorkspaceId: request.WorkspaceId,
+                            cancellationToken);
+
+                        if (copiedNodes.Count > 0)
+                        {
+                            totalCopiedNodes += copiedNodes.Count;
+                            successfullyCopiedFiles.Add(filePath);
+
+                            _logger.LogInformation(
+                                "Successfully copied {Count} nodes from other workspaces for URL: {FilePath}",
+                                copiedNodes.Count,
+                                filePath);
+                        }
+                        else
+                        {
+                            _logger.LogDebug(
+                                "No existing nodes found for URL: {FilePath}, will process as new",
+                                filePath);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log error but continue - copying is optional optimization
+                        _logger.LogWarning(ex,
+                            "Failed to copy existing nodes for URL: {FilePath}, will process as new. Error: {Error}",
+                            filePath,
+                            ex.Message);
+                    }
+                }
+
+                // Lọc ra các files chưa được copy thành công
+                var filesToProcess = request.FilePaths
+                    .Except(successfullyCopiedFiles)
+                    .ToList();
+
+                // Nếu TẤT CẢ files đều đã copy thành công → SUCCESS, không cần RabbitMQ
+                if (filesToProcess.Count == 0)
+                {
+                    _logger.LogInformation(
+                        "All {Count} files already exist in other workspaces. " +
+                        "Total {NodeCount} nodes copied to workspace {WorkspaceId}. " +
+                        "No need to process files via RabbitMQ.",
+                        successfullyCopiedFiles.Count,
+                        totalCopiedNodes,
+                        request.WorkspaceId);
+
+                    var successResult = new RabbitMqSendingResult(
+                        messageId: Guid.NewGuid().ToString(), // Generate ID for tracking
+                        workspaceId: request.WorkspaceId,
+                        sentAt: DateTime.UtcNow,
+                        status: "SUCCESS"); // ✅ SUCCESS vì đã copy xong
+
+                    return successResult;
+                }
+
+                // Có files cần xử lý → Chỉ gửi files chưa có lên RabbitMQ
+                if (totalCopiedNodes > 0)
+                {
+                    _logger.LogInformation(
+                        "Copied {NodeCount} nodes from {CopiedFileCount}/{TotalFileCount} files. " +
+                        "Sending {RemainingFileCount} remaining files to RabbitMQ for processing.",
+                        totalCopiedNodes,
+                        successfullyCopiedFiles.Count,
+                        request.FilePaths.Count,
+                        filesToProcess.Count);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "No files were copied. Sending all {FileCount} files to RabbitMQ for processing.",
+                        filesToProcess.Count);
+                }
+
+                // Bước 2: Tạo payload message - CHỈ gửi files chưa có
                 var messagePayload = new
                 {
                     WorkspaceId = request.WorkspaceId,
-                    FilePaths = request.FilePaths,
+                    FilePaths = filesToProcess, // ✅ CHỈ gửi files chưa copy
                     CreatedAt = DateTime.UtcNow,
                     RequestId = Guid.NewGuid().ToString() // For tracing
                 };
@@ -75,11 +166,15 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
 
                 // Gửi message lên RabbitMQ
                 var jobId = await _rabbitMQService.SendMessageWithJobIdAsync(
-                    PDF_JOBS_QUEUE, 
-                    messagePayload, 
+                    PDF_JOBS_QUEUE,
+                    messagePayload,
                     cancellationToken);
 
-                var result = new RabbitMqSendingResult(jobId, DateTime.UtcNow);
+                var result = new RabbitMqSendingResult(
+                    messageId: jobId,
+                    workspaceId: request.WorkspaceId,
+                    sentAt: DateTime.UtcNow,
+                    status: "PENDING");
 
                 _logger.LogInformation(
                     "Successfully sent message to RabbitMQ - JobId: {JobId}, WorkspaceId: {WorkspaceId}",

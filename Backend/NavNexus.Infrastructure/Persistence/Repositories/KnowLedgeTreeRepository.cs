@@ -192,6 +192,182 @@ public class KnowledgeTreeRepository : IKnowledgetreeRepository
         }
     }
 
+    // Copy nodes from other workspaces when source_id in evidences is the same
+    // Creates new nodes with new IDs and new workspace_id to avoid conflicts
+    public async Task<List<KnowledgeNode>> CopyNodesAsync(string evidenceSourceId, string newWorkspaceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var session = _neo4jConnection.GetAsyncSession();
+
+            // Sao chép nodes từ workspace khác có cùng source_id sang workspace mới
+            // Dùng MERGE để tránh duplicate khi node có nhiều evidences từ các files khác nhau
+            var result = await session.RunAsync(@"
+                // Bước 1: Tìm tất cả nodes từ workspace khác có evidence với source_id này
+                MATCH (originalNode:KnowledgeNode)
+                WHERE originalNode.workspace_id <> $newWorkspaceId
+                MATCH (originalNode)-[:HAS_EVIDENCE]->(originalEvidence:Evidence {source_id: $evidenceSourceId})
+
+                // Bước 2: MERGE node - tạo mới hoặc sử dụng node đã có (dựa trên name + type + workspace_id)
+                WITH originalNode,
+                     collect(DISTINCT originalEvidence) as originalEvidences
+                MERGE (newNode:KnowledgeNode {
+                    name: originalNode.name,
+                    type: originalNode.type,
+                    workspace_id: $newWorkspaceId
+                })
+                ON CREATE SET
+                    newNode.id = originalNode.type + '-' + substring(randomUUID(), 0, 8),
+                    newNode.synthesis = originalNode.synthesis,
+                    newNode.level = originalNode.level,
+                    newNode.source_count = 1,
+                    newNode.total_confidence = originalNode.total_confidence,
+                    newNode.created_at = datetime(),
+                    newNode.updated_at = datetime()
+                ON MATCH SET
+                    newNode.source_count = newNode.source_count + 1,
+                    newNode.synthesis = CASE
+                        WHEN newNode.synthesis <> originalNode.synthesis
+                        THEN newNode.synthesis + '\n\n---\n\n' + originalNode.synthesis
+                        ELSE newNode.synthesis
+                    END,
+                    newNode.updated_at = datetime()
+
+                // Bước 3: Clone evidences cho node (luôn tạo evidences mới cho mỗi source_id)
+                WITH newNode, originalNode, originalEvidences
+                UNWIND originalEvidences as originalEvidence
+
+                // Kiểm tra xem evidence từ source_id này đã tồn tại chưa
+                MERGE (newEvidence:Evidence {
+                    source_id: originalEvidence.source_id,
+                    chunk_id: originalEvidence.chunk_id
+                })
+                ON CREATE SET
+                    newEvidence.id = randomUUID(),
+                    newEvidence.source_name = originalEvidence.source_name,
+                    newEvidence.text = originalEvidence.text,
+                    newEvidence.page = originalEvidence.page,
+                    newEvidence.confidence = originalEvidence.confidence,
+                    newEvidence.created_at = datetime(),
+                    newEvidence.language = originalEvidence.language,
+                    newEvidence.source_language = originalEvidence.source_language,
+                    newEvidence.hierarchy_path = originalEvidence.hierarchy_path,
+                    newEvidence.concepts = originalEvidence.concepts,
+                    newEvidence.key_claims = originalEvidence.key_claims,
+                    newEvidence.questions_raised = originalEvidence.questions_raised,
+                    newEvidence.evidence_strength = originalEvidence.evidence_strength
+
+                // Tạo relationship giữa node và evidence (nếu chưa có)
+                MERGE (newNode)-[:HAS_EVIDENCE]->(newEvidence)
+
+                // Bước 4: Return node với evidences
+                WITH newNode, originalNode, collect(DISTINCT newEvidence) as newEvidences
+                RETURN newNode, newEvidences, originalNode.id as originalNodeId
+                ORDER BY newNode.level, newNode.created_at
+            ", new { evidenceSourceId, newWorkspaceId });
+
+            var processedNodeIds = new HashSet<string>(); // Track nodes đã được process
+            var oldToNewIdMap = new Dictionary<string, string>(); // Map từ old ID -> new ID để tạo relationships sau
+
+            // Collect tất cả nodes đã được tạo/updated
+            await foreach (var record in result.WithCancellation(cancellationToken))
+            {
+                var newNode = record["newNode"].As<INode>();
+                var originalNodeId = record["originalNodeId"].As<string>();
+                var newNodeId = GetStringProperty(newNode, "id");
+
+                // Track mapping từ old ID sang new ID
+                oldToNewIdMap[originalNodeId] = newNodeId;
+                processedNodeIds.Add(newNodeId);
+            }
+
+            // Sau khi MERGE xong, query lại để lấy TẤT CẢ nodes với FULL evidences
+            var copiedNodes = new List<KnowledgeNode>();
+            if (processedNodeIds.Count > 0)
+            {
+                var nodesResult = await session.RunAsync(@"
+                    MATCH (n:KnowledgeNode)
+                    WHERE n.id IN $nodeIds
+                    OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
+                    RETURN n, collect(e) as evidences
+                ", new { nodeIds = processedNodeIds.ToList() });
+
+                await foreach (var record in nodesResult.WithCancellation(cancellationToken))
+                {
+                    var node = record["n"].As<INode>();
+                    var evidences = record["evidences"].As<List<INode>>();
+
+                    var knowledgeNode = MapKnowledgeNodeSimple(node, evidences);
+                    copiedNodes.Add(knowledgeNode);
+                }
+            }
+
+            // Bước 5: Clone relationships giữa các nodes
+            // Tìm relationships giữa các original nodes và tạo lại cho new nodes
+            if (oldToNewIdMap.Count > 0)
+            {
+                // Clone HAS_SUBCATEGORY relationships
+                await session.RunAsync(@"
+                    UNWIND $idMappings as mapping
+                    MATCH (oldParent:KnowledgeNode {id: mapping.oldId})-[:HAS_SUBCATEGORY]->(oldChild:KnowledgeNode)
+                    WHERE oldChild.id IN $oldNodeIds
+                    WITH mapping.newId as newParentId, oldChild.id as oldChildId
+                    UNWIND $idMappings as childMapping
+                    WITH newParentId, oldChildId, childMapping
+                    WHERE childMapping.oldId = oldChildId
+                    MATCH (newParent:KnowledgeNode {id: newParentId})
+                    MATCH (newChild:KnowledgeNode {id: childMapping.newId})
+                    MERGE (newParent)-[:HAS_SUBCATEGORY]->(newChild)
+                ", new
+                {
+                    oldNodeIds = oldToNewIdMap.Keys.ToList(),
+                    idMappings = oldToNewIdMap.Select(kvp => new { oldId = kvp.Key, newId = kvp.Value }).ToList()
+                });
+
+                // Clone CONTAINS_CONCEPT relationships
+                await session.RunAsync(@"
+                    UNWIND $idMappings as mapping
+                    MATCH (oldParent:KnowledgeNode {id: mapping.oldId})-[:CONTAINS_CONCEPT]->(oldChild:KnowledgeNode)
+                    WHERE oldChild.id IN $oldNodeIds
+                    WITH mapping.newId as newParentId, oldChild.id as oldChildId
+                    UNWIND $idMappings as childMapping
+                    WITH newParentId, oldChildId, childMapping
+                    WHERE childMapping.oldId = oldChildId
+                    MATCH (newParent:KnowledgeNode {id: newParentId})
+                    MATCH (newChild:KnowledgeNode {id: childMapping.newId})
+                    MERGE (newParent)-[:CONTAINS_CONCEPT]->(newChild)
+                ", new
+                {
+                    oldNodeIds = oldToNewIdMap.Keys.ToList(),
+                    idMappings = oldToNewIdMap.Select(kvp => new { oldId = kvp.Key, newId = kvp.Value }).ToList()
+                });
+
+                // Clone HAS_DETAIL relationships
+                await session.RunAsync(@"
+                    UNWIND $idMappings as mapping
+                    MATCH (oldParent:KnowledgeNode {id: mapping.oldId})-[:HAS_DETAIL]->(oldChild:KnowledgeNode)
+                    WHERE oldChild.id IN $oldNodeIds
+                    WITH mapping.newId as newParentId, oldChild.id as oldChildId
+                    UNWIND $idMappings as childMapping
+                    WITH newParentId, oldChildId, childMapping
+                    WHERE childMapping.oldId = oldChildId
+                    MATCH (newParent:KnowledgeNode {id: newParentId})
+                    MATCH (newChild:KnowledgeNode {id: childMapping.newId})
+                    MERGE (newParent)-[:HAS_DETAIL]->(newChild)
+                ", new
+                {
+                    oldNodeIds = oldToNewIdMap.Keys.ToList(),
+                    idMappings = oldToNewIdMap.Select(kvp => new { oldId = kvp.Key, newId = kvp.Value }).ToList()
+                });
+            }
+
+            return copiedNodes;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error while copying nodes with source_id '{evidenceSourceId}' to workspace '{newWorkspaceId}': {ex.Message}", ex);
+        }
+    }
     private KnowledgeNode MapKnowledgeNode(INode node, List<INode> evidences, List<INode> childrenNodes, List<INode> suggestions)
     {
         var knowledgeNode = new KnowledgeNode
