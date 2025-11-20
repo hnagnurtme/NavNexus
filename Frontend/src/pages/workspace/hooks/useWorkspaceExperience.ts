@@ -63,6 +63,18 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 	const focusNode = useCallback(
 		async (nodeId: string) => {
 			if (!workspaceId) return;
+
+			// Skip API call for virtual root - use tree data instead
+			if (nodeId === 'virtual-root') {
+				const virtualNode = tree;
+				if (virtualNode) {
+					setDetails(virtualNode);
+					setSelectedNodeId(nodeId);
+					setError(null);
+				}
+				return;
+			}
+
 			setIsNodeLoading(true);
 			setLoadingNodeId(nodeId);
 			try {
@@ -84,7 +96,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 				setLoadingNodeId(null);
 			}
 		},
-		[workspaceId]
+		[workspaceId, tree]
 	);
 
 	const highlightNodes = useCallback((nodeIds: string[], duration = 3200) => {
@@ -158,17 +170,50 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 		setError(null);
 
 		try {
-			// Fetch the root node with all children from API
+			// Fetch the root nodes with all children from API
 			const response = await treeService.getKnowledgeTree(workspaceId);
-			if (response.data) {
-				const rootNode = transformToKnowledgeNodeUI(response.data, {
-					isExpanded: true,
-					childrenLoaded: true,
-				});
+			if (response.data?.rootNode && response.data.rootNode.length > 0) {
+				const rootNodes = response.data.rootNode;
 
-				setTree(rootNode);
+				// If multiple root nodes, create a virtual root to contain them
+				let displayRoot: KnowledgeNodeUI;
+
+				if (rootNodes.length === 1) {
+					// Single root: use it directly
+					displayRoot = transformToKnowledgeNodeUI(rootNodes[0], {
+						isExpanded: true,
+						childrenLoaded: true,
+					});
+				} else {
+					// Multiple roots: create virtual root
+					const transformedRoots = rootNodes.map(node =>
+						transformToKnowledgeNodeUI(node, {
+							isExpanded: false,
+							childrenLoaded: true,
+						})
+					);
+
+					displayRoot = {
+						nodeId: 'virtual-root',
+						nodeName: 'Knowledge Domains',
+						description: `Workspace contains ${rootNodes.length} knowledge domains`,
+						tags: ['workspace'],
+						level: -1,
+						sourceCount: rootNodes.reduce((sum, n) => sum + n.sourceCount, 0),
+						evidences: [],
+						gapSuggestions: [],
+						createdAt: new Date().toISOString(),
+						updatedAt: new Date().toISOString(),
+						hasChildren: true,
+						children: transformedRoots,
+						isExpanded: true,
+						childrenLoaded: true,
+					};
+				}
+
+				setTree(displayRoot);
 				setView("active");
-				await focusNode(rootNode.nodeId);
+				await focusNode(displayRoot.nodeId);
 			}
 		} catch (err) {
 			console.error(err);

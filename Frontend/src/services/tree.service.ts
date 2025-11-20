@@ -1,6 +1,7 @@
 import { apiClient } from './api.service';
-import type { 
+import type {
   GetKnowledgeNodeResponseApiResponse,
+  RootKnowledgeTreeApiResponse,
   CreatedKnowledgetreeRequest,
   RabbitMqSendingResponseApiResponse
 } from '@/types';
@@ -11,14 +12,18 @@ import type {
  */
 export const treeService = {
   /**
-   * Get knowledge tree root node with all its children (recursive)
+   * Get knowledge tree root nodes with metadata
    * Endpoint: GET /api/knowledge-tree/{workspaceId}
-   * 
+   *
+   * NEW RESPONSE FORMAT:
+   * Returns { totalNodes, rootNode: [] } where rootNode is an array of root nodes
+   * Each node contains full nested children with all details
+   *
    * @param workspaceId - The workspace ID
-   * @returns Root node with nested childNodes array
+   * @returns Array of root nodes with full nested children and total node count
    */
-  async getKnowledgeTree(workspaceId: string): Promise<GetKnowledgeNodeResponseApiResponse> {
-    const { data } = await apiClient.get<GetKnowledgeNodeResponseApiResponse>(
+  async getKnowledgeTree(workspaceId: string): Promise<RootKnowledgeTreeApiResponse> {
+    const { data } = await apiClient.get<RootKnowledgeTreeApiResponse>(
       `/knowledge-tree/${workspaceId}`
     );
     // Temporary debugging to observe node payloads returned by the API

@@ -160,16 +160,47 @@ export const useWorkspaceGraph = (
 
 		setGalaxyState((prev) => ({ ...prev, loading: true, error: null }));
 		try {
-			// Fetch the root node with all its children from API
+			// Fetch the root nodes with all children from API
 			const response = await treeService.getKnowledgeTree(workspaceId);
-			if (!response.data) {
-				throw new Error("No data in response");
+			if (!response.data?.rootNode || response.data.rootNode.length === 0) {
+				throw new Error("No root nodes in response");
 			}
 
-			const rootNode = transformToKnowledgeNodeUI(response.data, {
-				isExpanded: true,
-				childrenLoaded: true,
-			});
+			const rootNodes = response.data.rootNode;
+			let rootNode: KnowledgeNodeUI;
+
+			if (rootNodes.length === 1) {
+				// Single root: use it directly
+				rootNode = transformToKnowledgeNodeUI(rootNodes[0], {
+					isExpanded: true,
+					childrenLoaded: true,
+				});
+			} else {
+				// Multiple roots: create virtual root
+				const transformedRoots = rootNodes.map(node =>
+					transformToKnowledgeNodeUI(node, {
+						isExpanded: false,
+						childrenLoaded: true,
+					})
+				);
+
+				rootNode = {
+					nodeId: 'virtual-root',
+					nodeName: 'Knowledge Domains',
+					description: `Workspace contains ${rootNodes.length} knowledge domains`,
+					tags: ['workspace'],
+					level: -1,
+					sourceCount: rootNodes.reduce((sum, n) => sum + n.sourceCount, 0),
+					evidences: [],
+					gapSuggestions: [],
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					hasChildren: true,
+					children: transformedRoots,
+					isExpanded: true,
+					childrenLoaded: true,
+				};
+			}
 
 			// Recursively register all descendants in the node registry
 			const registerDescendants = (node: KnowledgeNodeUI) => {
@@ -367,14 +398,45 @@ export const useWorkspaceGraph = (
 		try {
 			// Fetch the full tree from API
 			const response = await treeService.getKnowledgeTree(workspaceId);
-			if (!response.data) {
-				throw new Error("No data in response");
+			if (!response.data?.rootNode || response.data.rootNode.length === 0) {
+				throw new Error("No root nodes in response");
 			}
 
-			const rootNode = transformToKnowledgeNodeUI(response.data, {
-				isExpanded: true,
-				childrenLoaded: true,
-			});
+			const rootNodes = response.data.rootNode;
+			let rootNode: KnowledgeNodeUI;
+
+			if (rootNodes.length === 1) {
+				// Single root: use it directly
+				rootNode = transformToKnowledgeNodeUI(rootNodes[0], {
+					isExpanded: true,
+					childrenLoaded: true,
+				});
+			} else {
+				// Multiple roots: create virtual root
+				const transformedRoots = rootNodes.map(node =>
+					transformToKnowledgeNodeUI(node, {
+						isExpanded: false,
+						childrenLoaded: true,
+					})
+				);
+
+				rootNode = {
+					nodeId: 'virtual-root',
+					nodeName: 'Knowledge Domains',
+					description: `Workspace contains ${rootNodes.length} knowledge domains`,
+					tags: ['workspace'],
+					level: -1,
+					sourceCount: rootNodes.reduce((sum, n) => sum + n.sourceCount, 0),
+					evidences: [],
+					gapSuggestions: [],
+					createdAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+					hasChildren: true,
+					children: transformedRoots,
+					isExpanded: true,
+					childrenLoaded: true,
+				};
+			}
 
 			// Flatten the tree for query view
 			const nodes: KnowledgeNodeUI[] = [];

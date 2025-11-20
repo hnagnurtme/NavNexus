@@ -21,38 +21,68 @@ def create_embedding_via_clova(text: str, clova_api_key: str, clova_embedding_ur
     data = {"text": text}
     
     try:
-        response = requests.post(clova_embedding_url, json=data, headers=headers, timeout=10)
+        response = requests.post(clova_embedding_url, json=data, headers=headers, timeout=15)
         if response.status_code == 200:
             result = response.json()
             embedding = result.get("embedding", [])
             
-            if len(embedding) >= 384:
-                step = len(embedding) // 384
-                reduced = [embedding[i] for i in range(0, len(embedding), step)][:384]
-                
-                norm = sum(x*x for x in reduced) ** 0.5
-                if norm > 0:
-                    reduced = [x / norm for x in reduced]
-                
-                return reduced
+            if not embedding:
+                return create_hash_embedding(text)
+            
+            # Fixed dimension reduction using mean pooling
+            if len(embedding) > 384:
+                # Use mean pooling instead of sampling
+                pool_size = len(embedding) // 384
+                reduced = []
+                for i in range(384):
+                    start = i * pool_size
+                    end = min((i + 1) * pool_size, len(embedding))
+                    chunk = embedding[start:end]
+                    reduced.append(sum(chunk) / len(chunk))
+                embedding = reduced
+            elif len(embedding) < 384:
+                # Pad with zeros
+                embedding = embedding + [0.0] * (384 - len(embedding))
+            
+            # Normalize
+            norm = sum(x*x for x in embedding) ** 0.5
+            if norm > 0:
+                embedding = [x / norm for x in embedding]
             
             return embedding
     
     except Exception as e:
-        print(f"⚠ Embedding API error: {e}")
+        print(f"⚠️ Embedding API error: {e}")
     
     return create_hash_embedding(text)
 
 
 def create_hash_embedding(text: str, dim: int = 384) -> List[float]:
     """Fallback: Deterministic embedding from text hash"""
-    hashes = []
-    for i in range(dim // 32 + 1):
-        h = hashlib.sha256(f"{text}_{i}".encode()).digest()
-        hashes.extend(h)
+    # Enhanced hash embedding with multiple hash functions
+    vectors = []
     
-    embedding = [(b / 127.5) - 1.0 for b in hashes[:dim]]
+    # Hash 1: Full text
+    h1 = hashlib.sha256(text.encode()).digest()
+    v1 = [(b / 127.5) - 1.0 for b in h1[:dim//3]]
     
+    # Hash 2: Normalized text
+    clean_text = text.lower().strip()
+    h2 = hashlib.sha256(clean_text.encode()).digest()
+    v2 = [(b / 127.5) - 1.0 for b in h2[:dim//3]]
+    
+    # Hash 3: Text length based
+    h3 = hashlib.sha256(str(len(text)).encode()).digest()
+    v3 = [(b / 127.5) - 1.0 for b in h3[:dim//3]]
+    
+    # Combine
+    embedding = v1 + v2 + v3
+    if len(embedding) < dim:
+        embedding += [0.0] * (dim - len(embedding))
+    else:
+        embedding = embedding[:dim]
+    
+    # Normalize
     norm = sum(x*x for x in embedding) ** 0.5
     if norm > 0:
         embedding = [x / norm for x in embedding]
@@ -64,4 +94,11 @@ def calculate_similarity(vec1: List[float], vec2: List[float]) -> float:
     """Cosine similarity"""
     v1 = np.array(vec1)
     v2 = np.array(vec2)
-    return float(np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2)))
+    dot_product = np.dot(v1, v2)
+    norm1 = np.linalg.norm(v1)
+    norm2 = np.linalg.norm(v2)
+    
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+    
+    return float(dot_product / (norm1 * norm2))

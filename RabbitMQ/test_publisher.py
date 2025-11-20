@@ -27,9 +27,9 @@ def main():
     # Sample test message
     test_message = {
         "jobId": f"test-job-{datetime.now().strftime('%Y%m%d-%H%M%S')}",
-        "workspaceId": "test-workspace-3", 
+        "workspaceId": "test-workspace-4", 
         "filePaths": [
-            "https://sg.object.ncloudstorage.com/navnexus/KOREA.pdf"
+            "https://sg.object.ncloudstorage.com/navnexus/SAGSINs.pdf"
         ]
     }
     

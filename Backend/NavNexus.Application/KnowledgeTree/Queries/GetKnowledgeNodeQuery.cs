@@ -6,4 +6,4 @@ namespace NavNexus.Application.KnowledgeTree.Queries;
 
 public record GetKnowledgeNodeQuery(
     string WorkspaceId
-) : IRequest<ErrorOr<GetKnowledgeNodeResult>>;
+) : IRequest<ErrorOr<GetRootKnowledgeNodeResult>>;

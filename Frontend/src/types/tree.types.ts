@@ -11,6 +11,31 @@ export type RabbitMqSendingResponse = components['schemas']['RabbitMqSendingResp
 export type RabbitMqSendingResponseApiResponse = components['schemas']['RabbitMqSendingResponseApiResponse'];
 
 // ========================================
+// Root Knowledge Tree Types (New API Format)
+// ========================================
+
+/**
+ * Data payload for root knowledge tree response
+ * Backend returns array of root nodes with full nested children
+ */
+export interface RootKnowledgeTreeData {
+  totalNodes: number;
+  rootNode: GetKnowledgeNodeResponse[]; // Array of root nodes (from backend List<>)
+}
+
+/**
+ * Complete API response for root knowledge tree
+ */
+export interface RootKnowledgeTreeApiResponse {
+  success: boolean;
+  message: string;
+  data: RootKnowledgeTreeData;
+  statusCode: number;
+  meta?: string;
+  errorCode?: string;
+}
+
+// ========================================
 // UI-Specific Types
 // ========================================
 

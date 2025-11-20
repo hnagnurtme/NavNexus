@@ -56,18 +56,21 @@ def batch_create_embeddings(
     Returns:
         Dictionary mapping text -> embedding vector
     """
-    # Deduplicate texts (case-sensitive)
+    # Enhanced deduplication (case-insensitive)
     unique_texts = []
     seen = set()
     
     for text in texts:
-        if text and text.strip() and text not in seen:
-            unique_texts.append(text)
-            seen.add(text)
+        if text and text.strip():
+            normalized = text.strip().lower()
+            if normalized not in seen:
+                unique_texts.append(text)
+                seen.add(normalized)
     
     print(f"📊 Embedding cache: {len(texts)} texts → {len(unique_texts)} unique")
     
     embeddings_cache = {}
+    failed_count = 0
     
     # Process in batches
     for i in range(0, len(unique_texts), batch_size):
@@ -79,12 +82,18 @@ def batch_create_embeddings(
         for text in batch:
             try:
                 embedding = create_embedding_via_clova(text, clova_api_key, clova_embedding_url)
-                embeddings_cache[text] = embedding
+                if embedding and len(embedding) == 384:
+                    embeddings_cache[text] = embedding
+                else:
+                    print(f"  ⚠️  Invalid embedding for '{text[:50]}...'")
+                    failed_count += 1
+                    embeddings_cache[text] = [0.0] * 384
             except Exception as e:
                 print(f"  ⚠️  Failed to embed '{text[:50]}...': {e}")
-                # Use zero vector as fallback
+                failed_count += 1
                 embeddings_cache[text] = [0.0] * 384
     
-    print(f"✓ Created {len(embeddings_cache)} embeddings")
+    success_count = len(embeddings_cache) - failed_count
+    print(f"✓ Created {success_count} embeddings, {failed_count} failed")
     
     return embeddings_cache
