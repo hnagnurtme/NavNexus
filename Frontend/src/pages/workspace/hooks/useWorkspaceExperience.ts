@@ -30,6 +30,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 	const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 	const [details, setDetails] = useState<KnowledgeNodeUI | null>(null);
 	const [isBuilding, setIsBuilding] = useState(false);
+	const [isJobBuilding, setIsJobBuilding] = useState(false);
 	const [isNodeLoading, setIsNodeLoading] = useState(false);
 	const [loadingNodeId, setLoadingNodeId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -367,6 +368,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 		selectedNodeId,
 		details,
 		isBuilding,
+		isJobBuilding,
 		isNodeLoading,
 		loadingNodeId,
 		error,
@@ -388,6 +390,7 @@ export const useWorkspaceExperience = (workspaceId?: string) => {
 			restartJourney,
 			highlightNodes,
 			clearPendingBranchNode,
+			setJobBuildingState: setIsJobBuilding,
 		},
 	};
 };

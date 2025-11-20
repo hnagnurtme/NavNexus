@@ -1,4 +1,5 @@
 import { useId, useRef, useState, useEffect, type ChangeEvent } from "react";
+import { toast } from "react-hot-toast";
 import {
 	Bot,
 	ChevronLeft,
@@ -19,6 +20,7 @@ interface ControlPanelProps {
 	onSynthesize: () => void;
 	onReset: () => void;
 	onToggleVisibility: () => void;
+	onBuildStateChange?: (isBuilding: boolean) => void;
 	workspaceId?: string; // Add workspaceId prop
 }
 
@@ -41,6 +43,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	onSynthesize,
 	onReset,
 	onToggleVisibility,
+	onBuildStateChange,
 	workspaceId,
 }) => {
 	const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
@@ -56,14 +59,34 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const hasItems = uploadedItems.length > 0;
 	
+	const cleanupListener = () => {
+		if (cleanupRef.current) {
+			cleanupRef.current();
+			cleanupRef.current = null;
+		}
+	};
+
 	// Cleanup Firebase listener on unmount
 	useEffect(() => {
 		return () => {
-			if (cleanupRef.current) {
-				cleanupRef.current();
-			}
+			cleanupListener();
 		};
 	}, []);
+
+	const setGlobalBuildState = (state: boolean) => {
+		onBuildStateChange?.(state);
+	};
+
+	const determineBackendStatus = (
+		message?: string | null,
+		messageId?: string
+	): "SUCCESS" | "PENDING" => {
+		const normalized = message?.trim().toUpperCase();
+		if (normalized === "SUCCESS") return "SUCCESS";
+		if (normalized === "PENDING") return "PENDING";
+		const pending = !!messageId && messageId !== "IMMEDIATE";
+		return pending ? "PENDING" : "SUCCESS";
+	};
 
 	/**
 	 * Handle Build Knowledge Graph button click
@@ -75,18 +98,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	const handleBuildKnowledgeGraph = async () => {
 		if (!workspaceId) {
 			setbuildError("No workspace ID provided");
+			showErrorToast("Workspace not detected. Please reload and try again.");
 			return;
 		}
 
 		if (uploadedItems.length === 0) {
 			setbuildError("No files or links uploaded");
+			showWarningToast("Upload at least one file or link before building.");
 			return;
 		}
 
 		try {
+			cleanupListener();
 			setIsBuilding(true);
 			setbuildError(null);
 			setBuildStatus(null);
+			setGlobalBuildState(true);
 
 			// Prepare file paths from uploaded items
 			const filePaths = uploadedItems.map((item) => {
@@ -115,14 +142,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 				throw new Error("No data in API response");
 			}
 			
-			const messageId = responseData.messageId;
-			
-			// Determine status based on response structure
-			// Backend returns SUCCESS status when all files already exist
-			// Backend returns PENDING status when files need processing
-			// For now, we'll check if messageId exists to determine PENDING vs SUCCESS
-			const isPending = !!messageId && messageId !== "IMMEDIATE";
-			const status = isPending ? "PENDING" : "SUCCESS";
+			const messageId = responseData.messageId ?? undefined;
+			const status = determineBackendStatus(response.message, messageId);
 
 			if (status === "SUCCESS") {
 				// ✅ Case 1: All files already exist
@@ -130,6 +151,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 				console.log("✅ SUCCESS status - fetching graph immediately");
 				
 				setIsBuilding(false);
+				setGlobalBuildState(false);
 				showSuccessToast("Knowledge graph ready!");
 				
 				// Trigger parent component to fetch and display graph
@@ -152,7 +174,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
 					if (jobStatus.status === "completed") {
 						// Job completed successfully
+						cleanupListener();
 						setIsBuilding(false);
+						setGlobalBuildState(false);
 						showSuccessToast("Knowledge graph built successfully!");
 						
 						// Trigger parent component to fetch and display graph
@@ -160,7 +184,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 						
 					} else if (jobStatus.status === "failed") {
 						// Job failed
+						cleanupListener();
 						setIsBuilding(false);
+						setGlobalBuildState(false);
 						setbuildError(
 							jobStatus.error || "Failed to build knowledge graph"
 						);
@@ -168,7 +194,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 						
 					} else if (jobStatus.status === "partial") {
 						// Job partially completed
+						cleanupListener();
 						setIsBuilding(false);
+						setGlobalBuildState(false);
 						showWarningToast(
 							`Graph built with ${jobStatus.failed || 0} failures`
 						);
@@ -188,7 +216,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
 		} catch (error) {
 			console.error("❌ Error building knowledge graph:", error);
+			cleanupListener();
 			setIsBuilding(false);
+			setGlobalBuildState(false);
 			setbuildError(
 				error instanceof Error
 					? error.message
@@ -200,19 +230,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
 	// Toast notification helpers
 	const showSuccessToast = (message: string) => {
-		// TODO: Replace with actual toast library (e.g., react-hot-toast, sonner)
-		console.log("✅ SUCCESS:", message);
-		alert(message); // Temporary - replace with proper toast
+		toast.success(message);
 	};
 
 	const showErrorToast = (message: string) => {
-		console.error("❌ ERROR:", message);
-		alert(message); // Temporary - replace with proper toast
+		toast.error(message);
 	};
 
 	const showWarningToast = (message: string) => {
-		console.warn("⚠️ WARNING:", message);
-		alert(message); // Temporary - replace with proper toast
+		toast(message, {
+			icon: "⚠️",
+		});
 	};
 
 	const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {

@@ -22,6 +22,7 @@ export const WorkspacePage: React.FC = () => {
 		selectedNodeId,
 		details,
 		isBuilding,
+		isJobBuilding,
 		isNodeLoading,
 		loadingNodeId,
 		error,
@@ -71,15 +72,16 @@ export const WorkspacePage: React.FC = () => {
 				</div>
 			)}
 			<div className="relative flex h-full gap-4 p-4">
-				{isControlPanelVisible && (
-					<ControlPanel
-						isBusy={isBuilding}
-						onSynthesize={actions.buildGraph}
-						onReset={actions.resetWorkspace}
-						onToggleVisibility={actions.toggleControlPanel}
-						workspaceId={workspaceId}
-					/>
-				)}
+		{isControlPanelVisible && (
+			<ControlPanel
+				isBusy={isBuilding || isJobBuilding}
+				onSynthesize={actions.buildGraph}
+				onReset={actions.resetWorkspace}
+				onToggleVisibility={actions.toggleControlPanel}
+				onBuildStateChange={actions.setJobBuildingState}
+				workspaceId={workspaceId}
+			/>
+		)}
 				{!isControlPanelVisible && (
 					<button
 						type="button"
@@ -107,11 +109,11 @@ export const WorkspacePage: React.FC = () => {
 						</div>
 					</div>
 
-					<WorkspaceCanvas
-						workspaceId={workspaceId}
-						view={view}
-						viewMode={viewMode}
-						isBuilding={isBuilding}
+				<WorkspaceCanvas
+					workspaceId={workspaceId}
+					view={view}
+					viewMode={viewMode}
+					isBuilding={isBuilding || isJobBuilding}
 						isNodeLoading={isNodeLoading}
 						loadingNodeName={loadingNodeName}
 						selectedNodeId={selectedNodeId}
