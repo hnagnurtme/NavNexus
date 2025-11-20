@@ -93,7 +93,7 @@ def publish_single_file_test():
     publish_test_message(
         workspace_id="test_workspace_001",
         file_paths=[
-            "https://sg.object.ncloudstorage.com/navnexus/SAGSINs.pdf"
+            "https://arxiv.org/pdf/2506.15207"
         ],
         job_id="single_file_test"
     )
