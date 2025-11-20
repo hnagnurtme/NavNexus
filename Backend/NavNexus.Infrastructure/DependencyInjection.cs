@@ -105,7 +105,9 @@ public static class DependencyInjection
         services.AddHttpClient<IClovaNlpService, ClovaNlpService>();
         services.AddHttpClient<IPapagoTranslationService, PapagoTranslationService>();
         services.AddHttpClient<IQdrantService, QdrantService>();
-        services.AddHttpClient<ILlmService, LlmService>();
+
+        services.Configure<HyperClovaSettings>(configuration.GetSection("HyperClova"));
+        services.AddHttpClient<ILlmService, HyperClovaService>();
         
         // RabbitMQ Service với error handling
         AddRabbitMq(services, configuration);
