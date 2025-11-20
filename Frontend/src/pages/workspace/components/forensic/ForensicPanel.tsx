@@ -187,8 +187,8 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 
 			{activeTab === "insights" ? (
 				<>
-					<div className="border-b border-white/10 pb-4">
-						<div className="mb-4 flex items-start justify-between gap-3">
+					<div className="border-b border-white/10 pb-2">
+						<div className="mb-2 flex items-start justify-between gap-3">
 							<div className="min-w-0 flex-1">
 								<div className="flex items-center gap-2">
 									<h2 className="text-xl font-bold leading-tight text-white">
@@ -203,36 +203,40 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 							</div>
 						</div>
 
-						<div className="space-y-3">
-							{details.tags && details.tags.length > 0 ? (
-								<div className="flex flex-wrap gap-2">
-									{details.tags.map((tag, idx) => (
-										<span
-											key={idx}
-											className="rounded-full border border-blue-500/30 bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-200"
-										>
-											{tag}
+						<div className="space-y-2">
+							<div className="mt-2 flex items-center justify-between gap-4 text-xs">
+								<div className="flex flex-1 flex-wrap items-center gap-2 text-white/80">
+									{details.tags && details.tags.length > 0 ? (
+										<>
+											{details.tags.map((tag, idx) => (
+												<span
+													key={idx}
+													className="rounded-full border border-blue-500/30 bg-blue-500/20 px-3 py-1 text-[11px] font-medium text-blue-200"
+												>
+													{tag}
+												</span>
+											))}
+										</>
+									) : (
+										<span className="text-white/40">
+											No tags available
 										</span>
-									))}
+									)}
 								</div>
-							) : (
-								<p className="text-xs text-white/40">
-									No tags available
-								</p>
-							)}
-							<div className="flex items-center gap-4 text-xs text-white/50">
-								<div className="flex items-center gap-1.5">
-									<FileText width={14} height={14} />
-									<span>
-										{details.sourceCount}{" "}
-										{details.sourceCount === 1
-											? "source"
-											: "sources"}
-									</span>
-								</div>
-								<div className="flex items-center gap-1.5">
-									<Target width={14} height={14} />
-									<span>Level {details.level}</span>
+								<div className="flex items-center gap-4 whitespace-nowrap text-white/60">
+									<div className="flex items-center gap-1.5">
+										<FileText width={14} height={14} />
+										<span>
+											{details.sourceCount}{" "}
+											{details.sourceCount === 1
+												? "source"
+												: "sources"}
+										</span>
+									</div>
+									<div className="flex items-center gap-1.5">
+										<Target width={14} height={14} />
+										<span>Level {details.level}</span>
+									</div>
 								</div>
 							</div>
 						</div>
@@ -254,7 +258,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						</button>
 					</div>
 
-					<section className="scrollbar mt-4 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
+					<section className="scrollbar mt-2 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
 						{[
 							{
 								id: "ai",

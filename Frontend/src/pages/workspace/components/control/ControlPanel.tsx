@@ -309,7 +309,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	};
 
 	return (
-		<aside className="relative flex  overflow-y-scroll w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-white shadow-2xl backdrop-blur-xl">
+		<aside className="relative flex w-96 flex-col overflow-y-auto rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-white shadow-2xl backdrop-blur-xl scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
 			<header className="mb-6 flex items-center justify-between">
 				<div className="flex items-center gap-3">
 					<Bot className="text-emerald-400" size={28} />

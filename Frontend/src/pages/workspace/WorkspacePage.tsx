@@ -103,7 +103,7 @@ export const WorkspacePage: React.FC = () => {
 							<p className="text-xs uppercase tracking-[0.5em] text-white/50">
 								Workspace
 							</p>
-							<h1 className="text-3xl font-semibold text-white">
+						<h1 className="text-2xl font-semibold text-white">
 								NavNexus Knowledge Journey
 							</h1>
 						</div>
