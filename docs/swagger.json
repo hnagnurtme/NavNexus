@@ -213,6 +213,56 @@
         }
       }
     },
+    "/api/chatbot/query": {
+      "post": {
+        "tags": [
+          "Chatbot"
+        ],
+        "summary": "Query Chatbot",
+        "description": "Send a query to the chatbot and receive a response.",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatbotQueryRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatbotQueryRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatbotQueryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotQueryResponseDataApiResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotQueryResponseDataApiResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotQueryResponseDataApiResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -248,17 +298,17 @@
             "content": {
               "text/plain": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                  "$ref": "#/components/schemas/GetRootKnowledgeResponseApiResponse"
                 }
               },
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                  "$ref": "#/components/schemas/GetRootKnowledgeResponseApiResponse"
                 }
               },
               "text/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/GetKnowledgeNodeResponseApiResponse"
+                  "$ref": "#/components/schemas/GetRootKnowledgeResponseApiResponse"
                 }
               }
             }
@@ -556,6 +606,267 @@
         },
         "additionalProperties": false
       },
+      "ChatCitationItem": {
+        "required": [
+          "id",
+          "label",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "snippet": {
+            "type": "string",
+            "nullable": true
+          },
+          "confidence": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatContextItem": {
+        "required": [
+          "id",
+          "label",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "entityId": {
+            "type": "string",
+            "nullable": true
+          },
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatHistoryItem": {
+        "required": [
+          "content",
+          "role",
+          "timestamp"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "nodeSnapshot": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceSnapshot": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatSuggestionItem": {
+        "required": [
+          "id",
+          "prompt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotMessageResponse": {
+        "required": [
+          "content",
+          "id",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "nullable": true
+          },
+          "role": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
+          },
+          "nodeSnapshot": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceSnapshot": {
+            "type": "string",
+            "nullable": true
+          },
+          "citations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatCitationItem"
+            },
+            "nullable": true
+          },
+          "suggestions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatSuggestionItem"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotQueryRequest": {
+        "required": [
+          "prompt"
+        ],
+        "type": "object",
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspaceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "topicId": {
+            "type": "string",
+            "nullable": true
+          },
+          "contexts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatContextItem"
+            },
+            "nullable": true
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatHistoryItem"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotQueryResponseData": {
+        "required": [
+          "message",
+          "usage"
+        ],
+        "type": "object",
+        "properties": {
+          "message": {
+            "$ref": "#/components/schemas/ChatbotMessageResponse"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/ChatbotUsage"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotQueryResponseDataApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ChatbotQueryResponseData"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meta": {
+            "nullable": true
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotUsage": {
+        "required": [
+          "completionTokens",
+          "promptTokens",
+          "totalTokens"
+        ],
+        "type": "object",
+        "properties": {
+          "promptTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "completionTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalTokens": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
       "CreateWorkspaceRequest": {
         "required": [
           "name"
@@ -803,6 +1114,53 @@
         },
         "additionalProperties": false
       },
+      "GetRootKnowledgeResponse": {
+        "required": [
+          "rootNode"
+        ],
+        "type": "object",
+        "properties": {
+          "totalNodes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "rootNode": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GetKnowledgeNodeResponse"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GetRootKnowledgeResponseApiResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/GetRootKnowledgeResponse"
+          },
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "meta": {
+            "nullable": true
+          },
+          "errorCode": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginRequest": {
         "required": [
           "email",
@@ -843,11 +1201,21 @@
       "RabbitMqSendingResponse": {
         "required": [
           "messageId",
-          "sentAt"
+          "sentAt",
+          "status",
+          "workspaceId"
         ],
         "type": "object",
         "properties": {
           "messageId": {
+            "type": "string",
+            "nullable": true
+          },
+          "workspaceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
             "type": "string",
             "nullable": true
           },
