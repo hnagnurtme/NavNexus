@@ -1,157 +1,465 @@
-import { useMemo, useState } from 'react';
-import { BrainCircuit, FileText, Loader2, Sparkles } from 'lucide-react';
-import type { NodeDetailsResponse } from '@/types';
-import type { WorkspaceNode } from '../../utils/treeUtils';
-import { EvidenceCard } from './EvidenceCard';
-import { GapAssistant } from './GapAssistant';
-import { SuggestedDocuments } from './SuggestedDocuments';
+import { useEffect, useMemo, useState } from "react";
+import {
+	AlertTriangle,
+	ChevronDown,
+	FileText,
+	Loader2,
+	Sparkles,
+	Target,
+} from "lucide-react";
+import type { KnowledgeNodeUI } from "@/types";
+import type { WorkspaceNode } from "../../utils/treeUtils";
+import { ChatbotPanel } from "../chatbot/ChatbotPanel";
+import { EvidenceCard } from "./EvidenceCard";
+import { GapAssistant } from "./GapAssistant";
+import type { ContextSuggestion } from "../chatbot/contextUtils";
+
+const collectWorkspaceNodes = (
+	node: WorkspaceNode | null
+): ContextSuggestion[] => {
+	if (!node) return [];
+	const stack: WorkspaceNode[] = [node];
+	const suggestions: ContextSuggestion[] = [];
+	const seen = new Set<string>();
+	while (stack.length) {
+		const current = stack.pop();
+		if (!current) continue;
+		if (!seen.has(current.nodeId)) {
+			seen.add(current.nodeId);
+			suggestions.push({
+				id: current.nodeId,
+				label: current.nodeName,
+				entityId: current.nodeId,
+			});
+		}
+		if (current.children && current.children.length > 0) {
+			for (const child of current.children) {
+				stack.push(child);
+			}
+		}
+	}
+	return suggestions;
+};
+
+const collectWorkspaceFiles = (
+	node: WorkspaceNode | null
+): ContextSuggestion[] => {
+	if (!node) return [];
+	const suggestions: ContextSuggestion[] = [];
+	const seen = new Set<string>();
+	const traverse = (current: WorkspaceNode) => {
+		(current.evidences ?? []).forEach((evidence, idx) => {
+			const label =
+				evidence.sourceName?.trim() ||
+				evidence.id ||
+				`Source ${idx + 1}`;
+			if (!label || seen.has(label)) return;
+			seen.add(label);
+			suggestions.push({
+				id: evidence.id ?? `${current.nodeId}-${idx}`,
+				label,
+				entityId: evidence.id ?? undefined,
+			});
+		});
+		if (!current.children) return;
+		current.children.forEach(traverse);
+	};
+	traverse(node);
+	return suggestions;
+};
 
 interface ForensicPanelProps {
-  details: NodeDetailsResponse | null;
-  selectedNode: WorkspaceNode | null;
-  isLoading: boolean;
-  journeyActive: boolean;
-  onStartJourney: (nodeId: string) => void;
-  onHighlightRelated: (nodeIds: string[]) => void;
+	details: KnowledgeNodeUI | null;
+	tree: WorkspaceNode | null;
+	selectedNode: WorkspaceNode | null;
+	isLoading: boolean;
+	journeyActive: boolean;
+	onStartJourney: (nodeId: string) => void;
+	onHighlightRelated: (nodeIds: string[]) => void;
 }
 
 export const ForensicPanel: React.FC<ForensicPanelProps> = ({
-  details,
-  selectedNode,
-  isLoading,
-  journeyActive,
-  onStartJourney,
-  onHighlightRelated,
+	details,
+	tree,
+	selectedNode,
+	isLoading,
+	journeyActive,
+	onStartJourney,
 }) => {
-  const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>([]);
-  const comparisonReady = selectedEvidenceIds.length === 2;
+	const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>(
+		[]
+	);
+	const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+		ai: true,
+		node: true,
+		gaps: true,
+		evidence: true,
+	});
+	const [activeTab, setActiveTab] = useState<"insights" | "chatbot">(
+		"insights"
+	);
+	const comparisonReady = selectedEvidenceIds.length === 2;
+	const hasGapSuggestions = (details?.gapSuggestions?.length ?? 0) > 0;
 
-  const selectedEvidenceText = useMemo(() => {
-    if (!details) return null;
-    return details.evidence.filter((ev) => selectedEvidenceIds.includes(ev.id));
-  }, [details, selectedEvidenceIds]);
+	useEffect(() => {
+		setOpenSections({
+			ai: true,
+			node: true,
+			gaps: hasGapSuggestions,
+			evidence: true,
+		});
+		setSelectedEvidenceIds([]);
+	}, [details?.nodeId, hasGapSuggestions]);
 
-  if (!details) {
-    return (
-      <aside className="flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-center text-white/70 shadow-2xl backdrop-blur-xl">
-        <div className="flex flex-1 flex-col items-center justify-center gap-4">
-          <FileText width={42} height={42} className="text-white/40" />
-          <p>Select a node on the canvas to inspect AI synthesis, evidence, and travel options.</p>
-        </div>
-      </aside>
-    );
-  }
+	const selectedEvidenceText = useMemo(() => {
+		if (!details) return null;
+		return (details.evidences ?? []).filter(
+			(ev) => ev.id && selectedEvidenceIds.includes(ev.id)
+		);
+	}, [details, selectedEvidenceIds]);
 
-  return (
-    <aside className="flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-white shadow-2xl backdrop-blur-xl">
-      <header className="mb-4">
-        <p className="text-xs uppercase tracking-[0.4em] text-white/50">Forensic Panel</p>
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-semibold text-white">{details.name}</h2>
-            <p className="text-xs uppercase tracking-[0.4em] text-white/50">{details.type}</p>
-          </div>
-          <div className="flex gap-2">
-            {details.aiSuggestion.isGap && (
-              <span className="rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200">
-                Gap
-              </span>
-            )}
-            {details.aiSuggestion.isCrossroads && (
-              <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-200">
-                Crossroad
-              </span>
-            )}
-          </div>
-        </div>
-      </header>
+	const evidenceSourceLabels = useMemo(() => {
+		if (!details?.evidences) return [];
+		return details.evidences
+			.map(
+				(ev, idx) =>
+					ev.sourceName?.trim() || ev.id || `Source ${idx + 1}`
+			)
+			.filter((label): label is string => Boolean(label));
+	}, [details]);
 
-      <section className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/80">
-        <div className="mb-3 flex items-center gap-2 text-white">
-          <BrainCircuit width={18} height={18} />
-          <h3 className="text-xs font-semibold uppercase tracking-widest">AI Synthesis</h3>
-        </div>
-        <p className="leading-relaxed text-white/80">{details.synthesis}</p>
-      </section>
+	const nodeContextOptions = useMemo(
+		() => collectWorkspaceNodes(tree),
+		[tree]
+	);
 
-      <section className="mt-4 flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="flex-1 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-emerald-200 transition hover:border-emerald-400/80"
-          disabled={!selectedNode || !selectedNode.hasChildren || journeyActive}
-          onClick={() => selectedNode && onStartJourney(selectedNode.id)}
-        >
-          Start Journey
-        </button>
-        <button
-          type="button"
-          className="flex-1 rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-cyan-200 transition hover:border-cyan-400/80"
-          disabled={!selectedNode || !(selectedNode.children?.length || 0)}
-          onClick={() =>
-            selectedNode?.children &&
-            onHighlightRelated(selectedNode.children.map((child) => child.id))
-          }
-        >
-          Highlight Branches
-        </button>
-      </section>
+	const fileContextOptions = useMemo(
+		() => collectWorkspaceFiles(tree),
+		[tree]
+	);
 
-      {details.aiSuggestion.isGap && (
-        <div className="mt-4">
-          <GapAssistant suggestion={details.aiSuggestion} topicName={details.name} />
-        </div>
-      )}
+	const toggleSection = (sectionId: string) => {
+		setOpenSections((prev) => ({
+			...prev,
+			[sectionId]: !prev[sectionId],
+		}));
+	};
 
-      <section className="mt-4 flex-1 space-y-3 overflow-y-auto pr-3">
-        <div className="flex items-center gap-2 text-white">
-          <Sparkles width={16} height={16} />
-          <h3 className="text-xs font-semibold uppercase tracking-widest">Evidence</h3>
-        </div>
-        <div className="space-y-3">
-          {details.evidence.map((evidence) => (
-            <EvidenceCard
-              key={evidence.id}
-              evidence={evidence}
-              selected={selectedEvidenceIds.includes(evidence.id)}
-              disabled={selectedEvidenceIds.length >= 2 && !selectedEvidenceIds.includes(evidence.id)}
-              onToggle={() =>
-                setSelectedEvidenceIds((prev) =>
-                  prev.includes(evidence.id)
-                    ? prev.filter((id) => id !== evidence.id)
-                    : prev.length >= 2
-                      ? prev
-                      : [...prev, evidence.id],
-                )
-              }
-            />
-          ))}
-        </div>
+	if (!details) {
+		return (
+			<aside className="flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-center text-white/70 shadow-2xl backdrop-blur-xl">
+				<div className="flex flex-1 flex-col items-center justify-center gap-4">
+					<FileText
+						width={42}
+						height={42}
+						className="text-white/40"
+					/>
+					<p>
+						Select a node on the canvas to inspect AI synthesis,
+						evidence, and travel options.
+					</p>
+				</div>
+			</aside>
+		);
+	}
 
-        {comparisonReady && selectedEvidenceText && (
-          <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 p-4 text-sm text-cyan-50">
-            <p className="text-xs uppercase tracking-[0.4em] text-cyan-200">Comparison</p>
-            <ul className="mt-2 list-disc space-y-1 pl-4 text-cyan-100">
-              {selectedEvidenceText.map((evidence) => (
-                <li key={evidence.id}>{evidence.sourceTitle}</li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-cyan-100/80">
-              TODO: Missing AI comparison service endpoint. Hook here when available.
-            </p>
-          </div>
-        )}
+	return (
+		<aside className="flex h-full w-96 flex-col rounded-3xl border border-white/10 bg-slate-900/70 p-6 text-white shadow-2xl backdrop-blur-xl">
+			<div className="mb-4 flex items-center gap-2 rounded-full bg-white/5 p-1">
+				{[
+					{ id: "insights" as const, label: "Insights" },
+					{ id: "chatbot" as const, label: "AI Chatbot" },
+				].map((tab) => (
+					<button
+						key={tab.id}
+						type="button"
+						onClick={() => setActiveTab(tab.id)}
+						className={`flex-1 rounded-full px-3 py-1.5 text-center text-xs font-semibold uppercase tracking-[0.3em] transition ${
+							activeTab === tab.id
+								? "bg-gradient-to-r from-cyan-500/30 to-emerald-500/30 text-white shadow-lg shadow-cyan-500/20"
+								: "text-white/50 hover:text-white"
+						}`}
+					>
+						{tab.label}
+					</button>
+				))}
+			</div>
 
-        {details.aiSuggestion.suggestedDocuments && details.aiSuggestion.suggestedDocuments.length > 0 && (
-          <SuggestedDocuments documents={details.aiSuggestion.suggestedDocuments} />
-        )}
-      </section>
+			{activeTab === "insights" ? (
+				<>
+					<div className="border-b border-white/10 pb-4">
+						<div className="mb-4 flex items-start justify-between gap-3">
+							<div className="min-w-0 flex-1">
+								<div className="flex items-center gap-2">
+									<h2 className="text-xl font-bold leading-tight text-white">
+										{details.nodeName}
+									</h2>
+									{hasGapSuggestions && (
+										<span className="flex-shrink-0 rounded-full border border-amber-500/30 bg-amber-500/20 px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-300">
+											GAP
+										</span>
+									)}
+								</div>
+							</div>
+						</div>
 
-      {isLoading && (
-        <div className="mt-4 flex items-center gap-3 text-xs uppercase tracking-[0.4em] text-white/50">
-          <Loader2 className="h-4 w-4 animate-spin text-emerald-300" />
-          Loading…
-        </div>
-      )}
-    </aside>
-  );
+						<div className="space-y-3">
+							{details.tags && details.tags.length > 0 ? (
+								<div className="flex flex-wrap gap-2">
+									{details.tags.map((tag, idx) => (
+										<span
+											key={idx}
+											className="rounded-full border border-blue-500/30 bg-blue-500/20 px-3 py-1 text-xs font-medium text-blue-200"
+										>
+											{tag}
+										</span>
+									))}
+								</div>
+							) : (
+								<p className="text-xs text-white/40">
+									No tags available
+								</p>
+							)}
+							<div className="flex items-center gap-4 text-xs text-white/50">
+								<div className="flex items-center gap-1.5">
+									<FileText width={14} height={14} />
+									<span>
+										{details.sourceCount}{" "}
+										{details.sourceCount === 1
+											? "source"
+											: "sources"}
+									</span>
+								</div>
+								<div className="flex items-center gap-1.5">
+									<Target width={14} height={14} />
+									<span>Level {details.level}</span>
+								</div>
+							</div>
+						</div>
+						<button
+							type="button"
+							className="mt-4 inline-flex items-center gap-1 rounded-full border border-emerald-400/70 bg-emerald-500/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-100 transition hover:border-emerald-300 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+							disabled={
+								!selectedNode ||
+								!selectedNode.hasChildren ||
+								journeyActive
+							}
+							onClick={() =>
+								selectedNode &&
+								onStartJourney(selectedNode.nodeId)
+							}
+						>
+							<span aria-hidden="true">🚀</span>
+							Start Journey
+						</button>
+					</div>
+
+					<section className="scrollbar mt-4 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin scrollbar-track-slate-900/60 scrollbar-thumb-cyan-500/40 hover:scrollbar-thumb-cyan-400/60">
+						{[
+							{
+								id: "ai",
+								title: "AI Synthesis",
+								icon: Sparkles,
+								content: (
+									<div className="space-y-3 text-sm text-white/80">
+										<p>
+											{details.description ||
+												"No AI synthesis available for this node yet."}
+										</p>
+									</div>
+								),
+							},
+							{
+								id: "gaps",
+								title: "Gap Suggestions",
+								icon: AlertTriangle,
+								content:
+									hasGapSuggestions &&
+									details.gapSuggestions ? (
+										<GapAssistant
+											suggestions={details.gapSuggestions}
+											topicName={details.nodeName}
+										/>
+									) : (
+										<p className="text-sm text-amber-200/80">
+											No gap suggestions detected.
+										</p>
+									),
+							},
+							{
+								id: "evidence",
+								title: "Evidence",
+								icon: FileText,
+								content:
+									details.evidences &&
+									details.evidences.length > 0 ? (
+										<div className="space-y-3">
+											{details.evidences.map(
+												(evidence, idx) => (
+													<EvidenceCard
+														key={evidence.id || idx}
+														evidence={evidence}
+														selected={
+															evidence.id
+																? selectedEvidenceIds.includes(
+																		evidence.id
+																  )
+																: false
+														}
+														disabled={
+															selectedEvidenceIds.length >=
+																2 &&
+															(!evidence.id ||
+																!selectedEvidenceIds.includes(
+																	evidence.id
+																))
+														}
+														onToggle={() => {
+															const id =
+																evidence.id;
+															if (!id) return;
+															setSelectedEvidenceIds(
+																(prev) =>
+																	prev.includes(
+																		id
+																	)
+																		? prev.filter(
+																				(
+																					selected
+																				) =>
+																					selected !==
+																					id
+																		  )
+																		: prev.length >=
+																		  2
+																		? prev
+																		: [
+																				...prev,
+																				id,
+																		  ]
+															);
+														}}
+													/>
+												)
+											)}
+
+											{comparisonReady &&
+												selectedEvidenceText && (
+													<div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 p-4 text-sm text-cyan-50">
+														<p className="text-xs uppercase tracking-[0.4em] text-cyan-200">
+															Comparison
+														</p>
+														<ul className="mt-2 list-disc space-y-1 pl-4 text-cyan-100">
+															{selectedEvidenceText.map(
+																(
+																	evidence,
+																	idx
+																) => (
+																	<li
+																		key={
+																			evidence.id ||
+																			idx
+																		}
+																	>
+																		{evidence.sourceName ||
+																			"Unknown Source"}
+																	</li>
+																)
+															)}
+														</ul>
+														<p className="mt-2 text-xs text-cyan-100/80">
+															TODO: Missing AI
+															comparison service
+															endpoint. Hook here
+															when available.
+														</p>
+													</div>
+												)}
+										</div>
+									) : (
+										<p className="text-sm text-white/50">
+											No evidence available.
+										</p>
+									),
+							},
+						].map((section) => {
+							const Icon = section.icon;
+							const isOpen = openSections[section.id];
+							const isAISynthesis = section.id === "ai";
+							const containerClass = isAISynthesis
+								? "border-cyan-300/50 bg-gradient-to-br from-slate-950/80 via-teal-900/60 to-cyan-900/40 animate-gradient-flow"
+								: "border-white/10 bg-white/5";
+							const headerTextClass = isAISynthesis
+								? "text-xs font-semibold uppercase tracking-widest text-cyan-100"
+								: "text-xs font-semibold uppercase tracking-widest text-white";
+							const iconClass = isAISynthesis
+								? "text-cyan-200"
+								: "text-white/70";
+							const contentBorderClass = isAISynthesis
+								? "border-cyan-400/30 text-cyan-50/90"
+								: "border-white/10 text-white/80";
+							return (
+								<div
+									key={section.id}
+									className={`rounded-2xl border ${containerClass}`}
+								>
+									<button
+										type="button"
+										className="flex w-full items-center justify-between px-4 py-3 text-left"
+										onClick={() =>
+											toggleSection(section.id)
+										}
+										aria-expanded={isOpen}
+									>
+										<div className="flex items-center gap-3">
+											<Icon
+												width={16}
+												height={16}
+												className={iconClass}
+											/>
+											<span className={headerTextClass}>
+												{section.title}
+											</span>
+										</div>
+										<ChevronDown
+											width={16}
+											height={16}
+											className={`text-white/60 transition-transform ${
+												isOpen ? "rotate-180" : ""
+											}`}
+										/>
+									</button>
+									{isOpen && (
+										<div
+											className={`border-t p-4 text-sm ${contentBorderClass}`}
+										>
+											{section.content}
+										</div>
+									)}
+								</div>
+							);
+						})}
+					</section>
+
+					{isLoading && (
+						<div className="mt-4 flex items-center gap-3 text-xs uppercase tracking-[0.4em] text-white/50">
+							<Loader2 className="h-4 w-4 animate-spin text-emerald-300" />
+							Loading…
+						</div>
+					)}
+				</>
+			) : (
+				<div className="flex flex-1 min-h-0 flex-col">
+					<ChatbotPanel
+						topicId={details.nodeId}
+						topicName={details.nodeName}
+						summary={details.description}
+						evidenceSources={evidenceSourceLabels}
+						nodeSuggestions={nodeContextOptions}
+						fileSuggestions={fileContextOptions}
+					/>
+				</div>
+			)}
+		</aside>
+	);
 };

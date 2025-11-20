@@ -77,9 +77,9 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 								{journey.branchOptions.map((option) => (
 									<button
 										type="button"
-										key={option.id}
+										key={option.nodeId}
 										onClick={() =>
-											onSelectBranch(option.id)
+											onSelectBranch(option.nodeId)
 										}
 										className="
                 rounded-2xl border border-white/10 bg-white/5 p-3 text-left 
@@ -94,7 +94,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 											{option.type}
 										</p> */}
 										<h5 className="mt-1 text-base font-semibold">
-											{option.name}
+											{option.nodeName}
 										</h5>
 										{/* <p className="mt-2 text-xs text-white/60">
 											{option.childrenLoaded
@@ -118,12 +118,21 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 									</p>
 									<h3 className="text-2xl font-semibold">
 										{currentNode
-											? currentNode.name
+											? currentNode.nodeName
 											: "Exploration"}
 									</h3>
-									<p className="text-xs uppercase tracking-[0.4em] text-white/50">
-										{currentNode?.type}
-									</p>
+									{currentNode?.tags && currentNode.tags.length > 0 && (
+										<div className="mt-1 flex flex-wrap gap-1">
+											{currentNode.tags.map((tag, idx) => (
+												<span 
+													key={idx} 
+													className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70"
+												>
+													{tag}
+												</span>
+											))}
+										</div>
+									)}
 								</div>
 								<button
 									type="button"

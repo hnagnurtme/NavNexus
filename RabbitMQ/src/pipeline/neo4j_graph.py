@@ -1,10 +1,11 @@
-"""Neo4j knowledge graph operations - Semantic Merge Version"""
+"""Optimized Neo4j knowledge graph operations with proper entity structure"""
 import json
 import uuid
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timezone
 from dataclasses import asdict
 
+from ..model.KnowledgeNode import KnowledgeNode
 from ..model.Evidence import Evidence
 from ..model.GapSuggestion import GapSuggestion
 
@@ -13,158 +14,27 @@ def now_iso():
     return datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
 
 
-def normalize_concept_name(name: str) -> str:
-    """Normalize concept name for matching"""
-    return name.lower().strip().replace("  ", " ")
+def create_evidence_node(session, evidence: Evidence) -> str:
+    """Create a separate Evidence node with all fields"""
+    # Convert PascalCase to snake_case for Neo4j
+    evidence_dict = {
+        'id': evidence.Id,
+        'source_id': evidence.SourceId,
+        'source_name': evidence.SourceName,
+        'chunk_id': evidence.ChunkId,
+        'text': evidence.Text,
+        'page': evidence.Page,
+        'confidence': evidence.Confidence,
+        'created_at': evidence.CreatedAt.isoformat() if isinstance(evidence.CreatedAt, datetime) else evidence.CreatedAt,
+        'language': evidence.Language,
+        'source_language': evidence.SourceLanguage,
+        'hierarchy_path': evidence.HierarchyPath,
+        'concepts': evidence.Concepts,
+        'key_claims': evidence.KeyClaims,
+        'questions_raised': evidence.QuestionsRaised,
+        'evidence_strength': evidence.EvidenceStrength
+    }
 
-
-def calculate_text_similarity(text1: str, text2: str) -> float:
-    """Simple text similarity using word overlap"""
-    words1 = set(normalize_concept_name(text1).split())
-    words2 = set(normalize_concept_name(text2).split())
-    
-    if not words1 or not words2:
-        return 0.0
-    
-    intersection = words1.intersection(words2)
-    union = words1.union(words2)
-    
-    return len(intersection) / len(union) if union else 0.0
-
-
-def find_or_merge_node_semantic(session, workspace_id: str, name: str, type: str, level: int,
-                                embedding_func=None, similarity_threshold: float = 0.85) -> Tuple[str, bool]:
-    """
-    Find existing node using semantic similarity or create new one.
-    Returns (node_id, is_existing)
-    """
-    
-    normalized_name = normalize_concept_name(name)
-    
-    # STEP 1: Try exact normalized match first (fast)
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode)
-        WHERE n.workspace_id = $workspace_id 
-        AND n.type = $type 
-        AND n.level = $level
-        AND toLower(trim(n.name)) = $normalized_name
-        RETURN n.id as id, n.name as name
-        LIMIT 1
-        """,
-        workspace_id=workspace_id,
-        type=type,
-        level=level,
-        normalized_name=normalized_name
-    )
-    
-    record = result.single()
-    if record:
-        print(f"  ✓ Exact match: '{name}' → '{record['name']}'")
-        return record["id"], True
-    
-    # STEP 2: Try semantic matching with existing nodes of same type/level
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode)
-        WHERE n.workspace_id = $workspace_id 
-        AND n.type = $type 
-        AND n.level = $level
-        RETURN n.id as id, n.name as name
-        """,
-        workspace_id=workspace_id,
-        type=type,
-        level=level
-    )
-    
-    candidates = [dict(record) for record in result]
-    
-    if candidates and embedding_func:
-        # Use embedding similarity
-        target_embedding = embedding_func(name)
-        
-        best_match = None
-        best_score = 0.0
-        
-        for candidate in candidates:
-            candidate_embedding = embedding_func(candidate["name"])
-            similarity = calculate_embedding_similarity(target_embedding, candidate_embedding)
-            
-            if similarity > best_score:
-                best_score = similarity
-                best_match = candidate
-        
-        if best_match and best_score >= similarity_threshold:
-            print(f"  ✓ Semantic match ({best_score:.2f}): '{name}' → '{best_match['name']}'")
-            return best_match["id"], True
-    
-    else:
-        # Fallback to text similarity
-        best_match = None
-        best_score = 0.0
-        
-        for candidate in candidates:
-            similarity = calculate_text_similarity(name, candidate["name"])
-            
-            if similarity > best_score:
-                best_score = similarity
-                best_match = candidate
-        
-        if best_match and best_score >= similarity_threshold:
-            print(f"  ✓ Text match ({best_score:.2f}): '{name}' → '{best_match['name']}'")
-            return best_match["id"], True
-    
-    # STEP 3: Create new node if no match
-    node_id = f"{type}-{uuid.uuid4().hex[:8]}"
-    session.run(
-        """
-        CREATE (n:KnowledgeNode {
-            id: $id,
-            name: $name,
-            type: $type,
-            level: $level,
-            workspace_id: $workspace_id,
-            synthesis: '',
-            source_count: 0,
-            total_confidence: 0.0,
-            created_at: $created_at,
-            updated_at: $created_at
-        })
-        """,
-        id=node_id,
-        name=name,
-        type=type,
-        level=level,
-        workspace_id=workspace_id,
-        created_at=now_iso()
-    )
-    
-    print(f"  + New node: '{name}'")
-    return node_id, False
-
-
-# def calculate_embedding_similarity(emb1: List[float], emb2: List[float]) -> float:
-#     """Calculate cosine similarity between two embeddings"""
-#     if not emb1 or not emb2 or len(emb1) != len(emb2):
-#         return 0.0
-    
-#     dot_product = sum(a * b for a, b in zip(emb1, emb2))
-#     norm1 = sum(a * a for a in emb1) ** 0.5
-#     norm2 = sum(b * b for b in emb2) ** 0.5
-    
-#     if norm1 == 0 or norm2 == 0:
-#         return 0.0
-    
-#     return dot_product / (norm1 * norm2)
-
-
-def create_evidence_node(session, evidence: Evidence, node_id: str) -> str:
-    """Create Evidence node and link to KnowledgeNode"""
-    
-    evidence_id = f"evidence-{uuid.uuid4().hex[:8]}"
-    
-    created_at = evidence.CreatedAt.isoformat() if hasattr(evidence.CreatedAt, 'isoformat') else str(evidence.CreatedAt)
-    
     session.run(
         """
         CREATE (e:Evidence {
@@ -185,55 +55,22 @@ def create_evidence_node(session, evidence: Evidence, node_id: str) -> str:
             evidence_strength: $evidence_strength
         })
         """,
-        id=evidence_id,
-        source_id=evidence.SourceId,
-        source_name=evidence.SourceName,
-        chunk_id=evidence.ChunkId,
-        text=evidence.Text,
-        page=evidence.Page,
-        confidence=evidence.Confidence,
-        created_at=created_at,
-        language=getattr(evidence, 'Language', 'ENG'),
-        source_language=getattr(evidence, 'SourceLanguage', 'ENG'),
-        hierarchy_path=getattr(evidence, 'HierarchyPath', ''),
-        concepts=getattr(evidence, 'Concepts', []),
-        key_claims=getattr(evidence, 'KeyClaims', []),
-        questions_raised=getattr(evidence, 'QuestionsRaised', []),
-        evidence_strength=getattr(evidence, 'EvidenceStrength', 0.0)
+        **evidence_dict
     )
-    
-    # Create HAS_EVIDENCE relationship
-    session.run(
-        """
-        MATCH (n:KnowledgeNode {id: $node_id})
-        MATCH (e:Evidence {id: $evidence_id})
-        MERGE (n)-[:HAS_EVIDENCE]->(e)
-        """,
-        node_id=node_id,
-        evidence_id=evidence_id
-    )
-    
-    # Update node statistics
-    session.run(
-        """
-        MATCH (n:KnowledgeNode {id: $node_id})
-        SET n.source_count = n.source_count + 1,
-            n.total_confidence = n.total_confidence + $confidence,
-            n.updated_at = $updated_at
-        """,
-        node_id=node_id,
-        confidence=evidence.Confidence,
-        updated_at=now_iso()
-    )
-    
-    return evidence_id
+    return evidence.Id
 
 
-def create_gap_suggestion_node(session, suggestion: GapSuggestion, node_id: str) -> str:
-    """Create GapSuggestion node and link to KnowledgeNode"""
-    
-    suggestion_id = f"suggestion-{uuid.uuid4().hex[:8]}"
-    
+def create_gap_suggestion_node(session, gap_suggestion: GapSuggestion, knowledge_node_id: str):
+    """Create a separate GapSuggestion node and link to KnowledgeNode"""
+    # Convert PascalCase to snake_case for Neo4j
+    gap_dict = {
+        'id': gap_suggestion.Id,
+        'suggestion_text': gap_suggestion.SuggestionText,
+        'target_node_id': gap_suggestion.TargetNodeId,
+        'target_file_id': gap_suggestion.TargetFileId,
+        'similarity_score': gap_suggestion.SimilarityScore
+    }
+
     session.run(
         """
         CREATE (g:GapSuggestion {
@@ -243,310 +80,433 @@ def create_gap_suggestion_node(session, suggestion: GapSuggestion, node_id: str)
             target_file_id: $target_file_id,
             similarity_score: $similarity_score
         })
+        WITH g
+        MATCH (n:KnowledgeNode {id: $knowledge_node_id})
+        CREATE (n)-[:HAS_SUGGESTION]->(g)
         """,
-        id=suggestion_id,
-        suggestion_text=suggestion.SuggestionText,
-        target_node_id=suggestion.TargetNodeId,
-        target_file_id=suggestion.TargetFileId,
-        similarity_score=suggestion.SimilarityScore
+        **gap_dict,
+        knowledge_node_id=knowledge_node_id
+    )
+
+
+def create_knowledge_node(
+    session,
+    knowledge_node: KnowledgeNode,
+    evidence: Evidence,
+    embedding: List[float]
+) -> str:
+    """Create KnowledgeNode with linked Evidence node"""
+    
+    # Create KnowledgeNode with proper fields
+    session.run(
+        """
+        CREATE (n:KnowledgeNode {
+            id: $id,
+            type: $type,
+            name: $name,
+            synthesis: $synthesis,
+            workspace_id: $workspace_id,
+            level: $level,
+            source_count: $source_count,
+            total_confidence: $total_confidence,
+            created_at: $created_at,
+            updated_at: $updated_at,
+            embedding: $embedding
+        })
+        """,
+        id=knowledge_node.Id,
+        type=knowledge_node.Type,
+        name=knowledge_node.Name,
+        synthesis=knowledge_node.Synthesis,
+        workspace_id=knowledge_node.WorkspaceId,
+        level=knowledge_node.Level,
+        source_count=knowledge_node.SourceCount,
+        total_confidence=knowledge_node.TotalConfidence,
+        created_at=knowledge_node.CreatedAt,
+        updated_at=knowledge_node.UpdatedAt,
+        embedding=embedding
     )
     
-    # Create HAS_SUGGESTION relationship
+    # Create Evidence node and establish relationship
+    evidence_id = create_evidence_node(session, evidence)
+    
     session.run(
         """
         MATCH (n:KnowledgeNode {id: $node_id})
-        MATCH (g:GapSuggestion {id: $suggestion_id})
-        MERGE (n)-[:HAS_SUGGESTION]->(g)
+        MATCH (e:Evidence {id: $evidence_id})
+        CREATE (n)-[:HAS_EVIDENCE]->(e)
         """,
-        node_id=node_id,
-        suggestion_id=suggestion_id
+        node_id=knowledge_node.Id,
+        evidence_id=evidence_id
     )
     
-    return suggestion_id
+    return knowledge_node.Id
 
 
-def add_evidence_to_node(session, node_id: str, evidence: Evidence):
-    """Add evidence to existing node by creating Evidence node"""
-    return create_evidence_node(session, evidence, node_id)
+def update_knowledge_node_after_merge(
+    session,
+    node_id: str,
+    new_synthesis: str,
+    source_name: str
+):
+    """Update KnowledgeNode after merging with new evidence"""
+    session.run(
+        """
+        MATCH (n:KnowledgeNode {id: $id})
+        SET n.synthesis = CASE 
+                WHEN size(n.synthesis) > 0 
+                THEN n.synthesis + '\\n\\n[' + $source_name + '] ' + $new_synthesis
+                ELSE '[' + $source_name + '] ' + $new_synthesis
+            END,
+            n.source_count = n.source_count + 1,
+            n.updated_at = datetime()
+        """,
+        id=node_id,
+        new_synthesis=new_synthesis,
+        source_name=source_name
+    )
 
 
-def is_leaf_node(session, node_id: str) -> bool:
-    """Check if node is a leaf node (has no children)"""
+def create_or_merge_knowledge_node(
+    session,
+    workspace_id: str,
+    knowledge_node: KnowledgeNode,
+    evidence: Evidence,
+    embedding: List[float]
+) -> Optional[str]:
+    """
+    Create new KnowledgeNode or merge into existing with proper entity structure
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        knowledge_node: KnowledgeNode object
+        evidence: Evidence object  
+        embedding: Pre-computed embedding vector
+    
+    Returns:
+        Node ID (str) or None if failed
+    """
+    
+    if not knowledge_node.Name or not knowledge_node.Name.strip():
+        return None
+    
+    if not embedding:
+        print(f"    ⚠️  No embedding for '{knowledge_node.Name}', skipping")
+        return None
+    
+    # Try to find existing match
+    match = find_best_match(session, workspace_id, knowledge_node.Name, embedding)
+    
+    if match:
+        # MERGE: Update existing node and create new evidence
+        node_id = match['id']
+        match_type = match['match_type']
+        similarity = match['sim']
+        
+        # Update the existing KnowledgeNode
+        update_knowledge_node_after_merge(
+            session, node_id, knowledge_node.Synthesis, evidence.SourceName
+        )
+        
+        # Create new Evidence node and link to existing KnowledgeNode
+        evidence_id = create_evidence_node(session, evidence)
+        session.run(
+            """
+            MATCH (n:KnowledgeNode {id: $node_id})
+            MATCH (e:Evidence {id: $evidence_id})
+            CREATE (n)-[:HAS_EVIDENCE]->(e)
+            """,
+            node_id=node_id,
+            evidence_id=evidence_id
+        )
+        
+        print(f"    ♻️  MERGE ({match_type}, sim={similarity:.2f}): '{knowledge_node.Name}' → '{match['name']}'")
+        
+        return node_id
+    
+    else:
+        # CREATE: New KnowledgeNode with Evidence
+        knowledge_node.Id = f"{knowledge_node.Type}-{uuid.uuid4().hex[:8]}"
+        knowledge_node.SourceCount = 1  # Initial source count
+        
+        node_id = create_knowledge_node(session, knowledge_node, evidence, embedding)
+        print(f"    ✨ CREATE: '{knowledge_node.Name}'")
+        
+        return node_id
+
+
+def create_parent_child_relationship(
+    session,
+    parent_id: str,
+    child_id: str,
+    relationship_type: str
+):
+    """Create hierarchical relationship between KnowledgeNodes"""
+    
+    relationship_map = {
+        'domain_to_category': 'HAS_SUBCATEGORY',
+        'category_to_concept': 'CONTAINS_CONCEPT', 
+        'concept_to_subconcept': 'HAS_DETAIL'
+    }
+    
+    cypher_relationship = relationship_map.get(relationship_type, 'HAS_SUBCATEGORY')
+    
+    session.run(
+        f"""
+        MATCH (parent:KnowledgeNode {{id: $parent_id}})
+        MATCH (child:KnowledgeNode {{id: $child_id}})
+        MERGE (parent)-[:{cypher_relationship}]->(child)
+        """,
+        parent_id=parent_id,
+        child_id=child_id
+    )
+
+
+def create_hierarchical_knowledge_graph(
+    session,
+    workspace_id: str,
+    structure: Dict,
+    file_id: str,
+    file_name: str,
+    embeddings_cache: Dict[str, List[float]]
+) -> Dict[str, Any]:
+    """
+    Create hierarchical knowledge graph with proper entity structure
+    
+    STRATEGY:
+    - Create separate Evidence nodes for each KnowledgeNode
+    - Maintain proper relationships between entities
+    - Support cascading deduplication
+    
+    Args:
+        session: Neo4j session
+        workspace_id: Workspace ID
+        structure: Hierarchical structure from LLM
+        file_id: Source file ID
+        file_name: Source file name
+        embeddings_cache: Pre-computed embeddings {name: vector}
+    
+    Returns:
+        Dict with statistics about node creation/merging
+    """
+    
+    stats = {
+        'nodes_created': 0,
+        'evidence_created': 0,
+        'exact_matches': 0,
+        'high_similarity_merges': 0,
+        'medium_similarity_merges': 0,
+        'final_count': 0,
+        'node_ids': []
+    }
+    
+    # Track initial count
     result = session.run(
         """
-        MATCH (n:KnowledgeNode {id: $node_id})
-        OPTIONAL MATCH (n)-[:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->(child)
-        RETURN count(child) as child_count
+        MATCH (n:KnowledgeNode {workspace_id: $ws})
+        RETURN count(n) as initial_count
         """,
-        node_id=node_id
+        ws=workspace_id
     )
-    
     record = result.single()
-    return record and record["child_count"] == 0
+    initial_count = record['initial_count'] if record else 0
+    
+    # Level 0: Domain (root)
+    domain = structure.get('domain', {})
+    domain_id = None
+    
+    if domain.get('name'):
+        # Create KnowledgeNode for domain
+        domain_node = KnowledgeNode(
+            Name=domain['name'],
+            Synthesis=domain.get('synthesis', ''),
+            Type='domain',
+            Level=0,
+            WorkspaceId=workspace_id
+        )
+        
+        # Create Evidence for domain
+        domain_evidence = Evidence(
+            SourceId=file_id,
+            SourceName=file_name,
+            Text=domain.get('synthesis', '')
+        )
+        
+        domain_embedding = embeddings_cache.get(domain['name'])
+        if domain_embedding is not None:
+            domain_id = create_or_merge_knowledge_node(
+                session, workspace_id, domain_node, domain_evidence, domain_embedding
+            )
+        else:
+            print(f"    ⚠️  No embedding for domain '{domain_node.Name}', skipping")
+            domain_id = None
+        
+        if domain_id:
+            stats['node_ids'].append(domain_id)
+            stats['evidence_created'] += 1
+    
+    # Level 1: Categories
+    for cat in structure.get('categories', []):
+        if not cat.get('name'):
+            continue
+        
+        # Create KnowledgeNode for category
+        category_node = KnowledgeNode(
+            Name=cat['name'],
+            Synthesis=cat.get('synthesis', ''),
+            Type='category',
+            Level=1,
+            WorkspaceId=workspace_id
+        )
+        
+        # Create Evidence for category
+        category_evidence = Evidence(
+            SourceId=file_id,
+            SourceName=file_name,
+            Text=cat.get('synthesis', '')
+        )
+        
+        category_embedding = embeddings_cache.get(cat['name'])
+        if category_embedding is not None:
+            cat_id = create_or_merge_knowledge_node(
+                session, workspace_id, category_node, category_evidence, category_embedding
+            )
+        else:
+            print(f"    ⚠️  No embedding for category '{category_node.Name}', skipping")
+            continue
+        
+        if cat_id:
+            stats['node_ids'].append(cat_id)
+            stats['evidence_created'] += 1
+            
+            # Link to domain
+            if domain_id:
+                create_parent_child_relationship(
+                    session, domain_id, cat_id, 'domain_to_category'
+                )
+        
+        # Level 2: Concepts
+        for concept in cat.get('concepts', []):
+            if not concept.get('name'):
+                continue
+            
+            # Create KnowledgeNode for concept
+            concept_node = KnowledgeNode(
+                Name=concept['name'],
+                Synthesis=concept.get('synthesis', ''),
+                Type='concept',
+                Level=2,
+                WorkspaceId=workspace_id
+            )
+            
+            # Create Evidence for concept
+            concept_evidence = Evidence(
+                SourceId=file_id,
+                SourceName=file_name,
+                Text=concept.get('synthesis', '')
+            )
+            
+            concept_embedding = embeddings_cache.get(concept['name'])
+            if concept_embedding is not None:
+                concept_id = create_or_merge_knowledge_node(
+                    session, workspace_id, concept_node, concept_evidence, concept_embedding
+                )
+            else:
+                print(f"    ⚠️  No embedding for concept '{concept_node.Name}', skipping")
+                continue
+            
+            if concept_id:
+                stats['node_ids'].append(concept_id)
+                stats['evidence_created'] += 1
+                
+                # Link to category
+                if cat_id:
+                    create_parent_child_relationship(
+                        session, cat_id, concept_id, 'category_to_concept'
+                    )
+            
+            # Level 3: Subconcepts
+            for sub in concept.get('subconcepts', []):
+                if not sub.get('name'):
+                    continue
+                
+                # Create KnowledgeNode for subconcept
+                subconcept_node = KnowledgeNode(
+                    Name=sub['name'],
+                    Synthesis=sub.get('synthesis', ''),
+                    Type='subconcept',
+                    Level=3,
+                    WorkspaceId=workspace_id
+                )
+                
+                # Create Evidence for subconcept
+                subconcept_evidence = Evidence(
+                    SourceId=file_id,
+                    SourceName=file_name,
+                    Text=sub.get('synthesis', '')
+                )
+                
+                subconcept_embedding = embeddings_cache.get(sub['name'])
+                if subconcept_embedding is not None:
+                    sub_id = create_or_merge_knowledge_node(
+                        session, workspace_id, subconcept_node, subconcept_evidence, subconcept_embedding
+                    )
+                else:
+                    print(f"    ⚠️  No embedding for subconcept '{subconcept_node.Name}', skipping")
+                    continue
+                
+                
+                if sub_id:
+                    stats['node_ids'].append(sub_id)
+                    stats['evidence_created'] += 1
+                    
+                    # Link to concept
+                    if concept_id:
+                        create_parent_child_relationship(
+                            session, concept_id, sub_id, 'concept_to_subconcept'
+                        )
+    
+    # Calculate final statistics
+    result = session.run(
+        """
+        MATCH (n:KnowledgeNode {workspace_id: $ws})
+        RETURN count(n) as total
+        """,
+        ws=workspace_id
+    )
+    stats['final_count'] = result.single()['total']
+    stats['nodes_created'] = stats['final_count'] - initial_count
+    
+    # Calculate merge statistics
+    unique_nodes = set(stats['node_ids'])
+    total_processed = len(stats['node_ids'])
+    stats['exact_matches'] = total_processed - len(unique_nodes)
+    
+    return stats
 
 
-def update_node_synthesis_smart(session, node_id: str, new_synthesis: str, 
-                                source_name: str, clova_api_key: str, clova_api_url: str):
-    """
-    Smart synthesis update that merges perspectives from multiple sources.
-    Keeps track of which source said what.
-    """
-    from .llm_analysis import call_llm_compact
+def add_gap_suggestions_to_node(
+    session,
+    knowledge_node_id: str,
+    gap_suggestions: List[GapSuggestion]
+):
+    """Add GapSuggestion nodes to a KnowledgeNode"""
+    for gap_suggestion in gap_suggestions:
+        create_gap_suggestion_node(session, gap_suggestion, knowledge_node_id)
+
+
+def get_knowledge_node_with_evidence(
+    session,
+    node_id: str
+) -> Optional[Tuple[KnowledgeNode, List[Evidence]]]:
+    """Retrieve KnowledgeNode with all its Evidence nodes"""
     
     result = session.run(
         """
         MATCH (n:KnowledgeNode {id: $node_id})
         OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
-        RETURN n.synthesis as current_synthesis,
-               collect(DISTINCT e.source_name) as sources
-        """,
-        node_id=node_id
-    )
-    
-    record = result.single()
-    if not record:
-        return
-    
-    current = record["current_synthesis"]
-    existing_sources = [s for s in record["sources"] if s]
-    
-    # If first synthesis, just set it
-    if not current:
-        session.run(
-            """
-            MATCH (n:KnowledgeNode {id: $node_id})
-            SET n.synthesis = $synthesis,
-                n.updated_at = $updated_at
-            """,
-            node_id=node_id,
-            synthesis=f"[{source_name}] {new_synthesis}",
-            updated_at=now_iso()
-        )
-        return
-    
-    # Merge with existing synthesis
-    merge_prompt = f"""You are synthesizing knowledge from multiple sources.
-
-Current synthesis (from {len(existing_sources)} sources):
-{current}
-
-New perspective from [{source_name}]:
-{new_synthesis}
-
-Create a unified synthesis that:
-1. Integrates all perspectives
-2. Highlights agreements and differences
-3. Attributes key points to sources
-4. Max 3-4 sentences
-
-Return JSON:
-{{"unified": "synthesis text here", "key_insights": ["insight 1", "insight 2"]}}"""
-    
-    result = call_llm_compact(merge_prompt, max_tokens=400, 
-                             clova_api_key=clova_api_key, 
-                             clova_api_url=clova_api_url)
-    
-    unified = result.get("unified", f"{current}\n\n[{source_name}] {new_synthesis}")
-    
-    session.run(
-        """
-        MATCH (n:KnowledgeNode {id: $node_id})
-        SET n.synthesis = $synthesis,
-            n.updated_at = $updated_at
-        """,
-        node_id=node_id,
-        synthesis=unified,
-        updated_at=now_iso()
-    )
-
-
-def create_hierarchical_graph(session, workspace_id: str, structure: Dict, 
-                              file_id: str, file_name: str, lang: str,
-                              clova_api_key: str, clova_api_url: str,
-                              embedding_func=None) -> List[str]:
-    """
-    Create hierarchical graph from structure with SEMANTIC MERGING.
-    Uses embedding similarity to merge nodes across documents.
-    """
-    
-    now = now_iso()
-    all_node_ids = []
-    
-    print(f"\n🔗 Building knowledge graph for: {file_name}")
-    
-    # Level 0: Domain (root)
-    domain_data = structure.get("domain", {})
-    domain_name = domain_data.get("name", "Document Domain")
-    
-    print(f"\n📁 Domain: {domain_name}")
-    domain_id, is_existing = find_or_merge_node_semantic(
-        session, workspace_id, domain_name, "domain", 0, embedding_func
-    )
-    all_node_ids.append(domain_id)
-    
-    # Add domain evidence
-    domain_evidence = Evidence(
-        SourceId=file_id,
-        SourceName=file_name,
-        ChunkId="",
-        Text=domain_data.get("synthesis", ""),
-        Page=1,
-        Confidence=0.9,
-        CreatedAt=datetime.fromisoformat(now.replace('Z', '+00:00')),
-        Language=lang,
-        SourceLanguage=lang,
-        HierarchyPath=domain_name,
-        KeyClaims=[domain_data.get("synthesis", "")]
-    )
-    add_evidence_to_node(session, domain_id, domain_evidence)
-    update_node_synthesis_smart(session, domain_id, domain_data.get("synthesis", ""),
-                                file_name, clova_api_key, clova_api_url)
-    
-    # Level 1: Categories
-    for cat_data in structure.get("categories", []):
-        cat_name = cat_data.get("name", "")
-        if not cat_name:
-            continue
-        
-        print(f"  📂 Category: {cat_name}")
-        cat_id, is_existing = find_or_merge_node_semantic(
-            session, workspace_id, cat_name, "category", 1, embedding_func
-        )
-        all_node_ids.append(cat_id)
-        
-        # Link to domain
-        session.run(
-            """
-            MATCH (parent:KnowledgeNode {id: $parent_id})
-            MATCH (child:KnowledgeNode {id: $child_id})
-            MERGE (parent)-[:HAS_SUBCATEGORY]->(child)
-            """,
-            parent_id=domain_id,
-            child_id=cat_id
-        )
-        
-        # Add evidence
-        cat_hierarchy = f"{domain_name} > {cat_name}"
-        cat_evidence = Evidence(
-            SourceId=file_id,
-            SourceName=file_name,
-            ChunkId="",
-            Text=cat_data.get("synthesis", ""),
-            Page=1,
-            Confidence=0.85,
-            CreatedAt=datetime.fromisoformat(now.replace('Z', '+00:00')),
-            Language=lang,
-            SourceLanguage=lang,
-            HierarchyPath=cat_hierarchy,
-            KeyClaims=[cat_data.get("synthesis", "")]
-        )
-        add_evidence_to_node(session, cat_id, cat_evidence)
-        update_node_synthesis_smart(session, cat_id, cat_data.get("synthesis", ""),
-                                    file_name, clova_api_key, clova_api_url)
-        
-        # Level 2: Concepts
-        for concept_data in cat_data.get("concepts", []):
-            concept_name = concept_data.get("name", "")
-            if not concept_name:
-                continue
-            
-            print(f"    💡 Concept: {concept_name}")
-            concept_id, is_existing = find_or_merge_node_semantic(
-                session, workspace_id, concept_name, "concept", 2, embedding_func
-            )
-            all_node_ids.append(concept_id)
-            
-            # Link to category
-            session.run(
-                """
-                MATCH (parent:KnowledgeNode {id: $parent_id})
-                MATCH (child:KnowledgeNode {id: $child_id})
-                MERGE (parent)-[:CONTAINS_CONCEPT]->(child)
-                """,
-                parent_id=cat_id,
-                child_id=concept_id
-            )
-            
-            # Add evidence
-            concept_hierarchy = f"{cat_hierarchy} > {concept_name}"
-            concept_evidence = Evidence(
-                SourceId=file_id,
-                SourceName=file_name,
-                ChunkId="",
-                Text=concept_data.get("synthesis", ""),
-                Page=1,
-                Confidence=0.8,
-                CreatedAt=datetime.fromisoformat(now.replace('Z', '+00:00')),
-                Language=lang,
-                SourceLanguage=lang,
-                HierarchyPath=concept_hierarchy,
-                Concepts=[concept_name],
-                KeyClaims=[concept_data.get("synthesis", "")]
-            )
-            add_evidence_to_node(session, concept_id, concept_evidence)
-            update_node_synthesis_smart(session, concept_id, concept_data.get("synthesis", ""),
-                                        file_name, clova_api_key, clova_api_url)
-            
-            # Level 3: Subconcepts
-            for subconcept_data in concept_data.get("subconcepts", []):
-                subconcept_name = subconcept_data.get("name", "")
-                if not subconcept_name:
-                    continue
-                
-                print(f"      🔸 Subconcept: {subconcept_name}")
-                subconcept_id, is_existing = find_or_merge_node_semantic(
-                    session, workspace_id, subconcept_name, "subconcept", 3, embedding_func
-                )
-                all_node_ids.append(subconcept_id)
-                
-                # Link to concept
-                session.run(
-                    """
-                    MATCH (parent:KnowledgeNode {id: $parent_id})
-                    MATCH (child:KnowledgeNode {id: $child_id})
-                    MERGE (parent)-[:HAS_DETAIL]->(child)
-                    """,
-                    parent_id=concept_id,
-                    child_id=subconcept_id
-                )
-                
-                # Add evidence
-                subconcept_hierarchy = f"{concept_hierarchy} > {subconcept_name}"
-                subconcept_evidence = Evidence(
-                    SourceId=file_id,
-                    SourceName=file_name,
-                    ChunkId="",
-                    Text=subconcept_data.get("evidence", subconcept_data.get("synthesis", "")),
-                    Page=1,
-                    Confidence=0.75,
-                    CreatedAt=datetime.fromisoformat(now.replace('Z', '+00:00')),
-                    Language=lang,
-                    SourceLanguage=lang,
-                    HierarchyPath=subconcept_hierarchy,
-                    Concepts=[concept_name, subconcept_name],
-                    KeyClaims=[subconcept_data.get("evidence", "")],
-                    EvidenceStrength=0.75
-                )
-                add_evidence_to_node(session, subconcept_id, subconcept_evidence)
-                update_node_synthesis_smart(session, subconcept_id, subconcept_data.get("synthesis", ""),
-                                           file_name, clova_api_key, clova_api_url)
-    
-    print(f"✓ Graph built: {len(all_node_ids)} nodes")
-    return all_node_ids
-
-
-def get_node_with_relationships(session, node_id: str) -> Optional[Dict]:
-    """Get node with all its relationships"""
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode {id: $node_id})
-        OPTIONAL MATCH (n)-[:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->(child:KnowledgeNode)
-        OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(evidence:Evidence)
-        OPTIONAL MATCH (n)-[:HAS_SUGGESTION]->(suggestion:GapSuggestion)
-        RETURN n,
-               collect(DISTINCT child) as children,
-               collect(DISTINCT evidence) as evidences,
-               collect(DISTINCT suggestion) as suggestions
+        RETURN n, collect(e) as evidences
         """,
         node_id=node_id
     )
@@ -555,365 +515,43 @@ def get_node_with_relationships(session, node_id: str) -> Optional[Dict]:
     if not record:
         return None
     
-    return {
-        "node": dict(record["n"]),
-        "children": [dict(c) for c in record["children"] if c],
-        "evidences": [dict(e) for e in record["evidences"] if e],
-        "suggestions": [dict(s) for s in record["suggestions"] if s]
-    }
-"""Post-processing deduplication phase using LLM"""
-import json
-from typing import Dict, List, Tuple
-from datetime import datetime
-
-
-def batch_deduplicate_nodes(session, workspace_id: str, clova_api_key: str, 
-                            clova_api_url: str, embedding_func) -> Dict:
-    """
-    Phase 6: Intelligent deduplication using LLM to identify semantic duplicates.
-    Scans all nodes once and merges similar ones.
-    """
-    from .llm_analysis import call_llm_compact
+    node_data = record['n']
+    evidence_nodes = record['evidences']
     
-    print(f"\n🔍 Phase 6: Post-processing deduplication")
+    # Convert to KnowledgeNode object
+    knowledge_node = KnowledgeNode(
+        Id=node_data.get('id', ''),
+        Type=node_data.get('type', ''),
+        Name=node_data.get('name', ''),
+        Synthesis=node_data.get('synthesis', ''),
+        WorkspaceId=node_data.get('workspace_id', ''),
+        Level=node_data.get('level', 0),
+        SourceCount=node_data.get('source_count', 0),
+        TotalConfidence=node_data.get('total_confidence', 0.0),
+        CreatedAt=node_data.get('created_at', datetime.now(timezone.utc)),
+        UpdatedAt=node_data.get('updated_at', datetime.now(timezone.utc))
+    )
     
-    results = {
-        "scanned": 0,
-        "merged": 0,
-        "merge_groups": []
-    }
-    
-    # Process by level and type to avoid cross-level merging
-    levels = [
-        ("domain", 0),
-        ("category", 1),
-        ("concept", 2),
-        ("subconcept", 3)
-    ]
-    
-    for node_type, level in levels:
-        print(f"\n  Scanning {node_type} (level {level})...")
-        
-        # Get all nodes of this type
-        result = session.run(
-            """
-            MATCH (n:KnowledgeNode {workspace_id: $workspace_id, type: $type, level: $level})
-            RETURN n.id as id, n.name as name, n.synthesis as synthesis
-            ORDER BY n.name
-            """,
-            workspace_id=workspace_id,
-            type=node_type,
-            level=level
+    # Convert to Evidence objects
+    evidences = []
+    for evidence_data in evidence_nodes:
+        evidence = Evidence(
+            Id=evidence_data.get('id', ''),
+            SourceId=evidence_data.get('source_id', ''),
+            SourceName=evidence_data.get('source_name', ''),
+            ChunkId=evidence_data.get('chunk_id', ''),
+            Text=evidence_data.get('text', ''),
+            Page=evidence_data.get('page', 0),
+            Confidence=evidence_data.get('confidence', 0.0),
+            CreatedAt=evidence_data.get('created_at', datetime.now(timezone.utc)),
+            Language=evidence_data.get('language', 'ENG'),
+            SourceLanguage=evidence_data.get('source_language', 'ENG'),
+            HierarchyPath=evidence_data.get('hierarchy_path', ''),
+            Concepts=evidence_data.get('concepts', []),
+            KeyClaims=evidence_data.get('key_claims', []),
+            QuestionsRaised=evidence_data.get('questions_raised', []),
+            EvidenceStrength=evidence_data.get('evidence_strength', 0.0)
         )
-        
-        nodes = [dict(record) for record in result]
-        results["scanned"] += len(nodes)
-        
-        if len(nodes) < 2:
-            continue
-        
-        # Find duplicates using LLM in batches
-        merge_groups = find_duplicate_groups_llm(nodes, clova_api_key, clova_api_url, embedding_func)
-        
-        # Execute merges
-        for group in merge_groups:
-            if len(group) < 2:
-                continue
-            
-            # Pick canonical node (first one or one with most evidences)
-            canonical_id = pick_canonical_node(session, group)
-            to_merge = [nid for nid in group if nid != canonical_id]
-            
-            print(f"    Merging {len(to_merge)} nodes into {canonical_id}")
-            
-            for merge_id in to_merge:
-                merge_nodes(session, canonical_id, merge_id)
-                results["merged"] += 1
-            
-            results["merge_groups"].append({
-                "canonical": canonical_id,
-                "merged": to_merge
-            })
+        evidences.append(evidence)
     
-    print(f"\n  ✓ Scanned {results['scanned']} nodes, merged {results['merged']} duplicates")
-    return results
-
-
-def find_duplicate_groups_llm(nodes: List[Dict], clova_api_key: str, 
-                              clova_api_url: str, embedding_func) -> List[List[str]]:
-    """
-    Use LLM to identify groups of semantically similar nodes.
-    Returns list of groups, where each group is list of node IDs to merge.
-    """
-    from .llm_analysis import call_llm_compact
-    
-    if len(nodes) < 2:
-        return []
-    
-    # STEP 1: Quick embedding-based filtering
-    # Group nodes that are very similar (>0.90 similarity)
-    candidate_groups = []
-    processed = set()
-    
-    for i, node_a in enumerate(nodes):
-        if node_a["id"] in processed:
-            continue
-        
-        group = [node_a["id"]]
-        emb_a = embedding_func(node_a["name"])
-        
-        for j, node_b in enumerate(nodes[i+1:], i+1):
-            if node_b["id"] in processed:
-                continue
-            
-            emb_b = embedding_func(node_b["name"])
-            similarity = calculate_embedding_similarity(emb_a, emb_b)
-            
-            if similarity > 0.90:  # Very high threshold
-                group.append(node_b["id"])
-                processed.add(node_b["id"])
-        
-        if len(group) > 1:
-            candidate_groups.append(group)
-        processed.add(node_a["id"])
-    
-    if not candidate_groups:
-        return []
-    
-    # STEP 2: LLM validation for each candidate group
-    # Batch multiple groups into one LLM call
-    validated_groups = []
-    
-    for batch_start in range(0, len(candidate_groups), 5):  # Process 5 groups at a time
-        batch = candidate_groups[batch_start:batch_start+5]
-        
-        # Prepare LLM prompt
-        groups_data = []
-        for group_idx, group in enumerate(batch):
-            group_nodes = [n for n in nodes if n["id"] in group]
-            groups_data.append({
-                "group_id": group_idx,
-                "nodes": [{"id": n["id"], "name": n["name"], "synthesis": n.get("synthesis", "")} for n in group_nodes]
-            })
-        
-        prompt = f"""Analyze these groups of potentially duplicate concept nodes. For each group, determine if the nodes are truly referring to the SAME concept and should be merged.
-
-Groups to analyze:
-{json.dumps(groups_data, indent=2, ensure_ascii=False)}
-
-Rules:
-- Merge if: Same core concept, just different wording (e.g., "ML" vs "Machine Learning", "Neural Nets" vs "Neural Networks")
-- Keep separate if: Related but distinct concepts (e.g., "Supervised Learning" vs "Unsupervised Learning")
-- Keep separate if: Different levels of specificity (e.g., "AI" vs "Deep Learning")
-
-Return JSON array of groups to merge:
-{{
-  "merge_groups": [
-    {{
-      "group_id": 0,
-      "should_merge": true,
-      "reason": "Same concept, different names",
-      "node_ids": ["id1", "id2"]
-    }}
-  ]
-}}"""
-        
-        result = call_llm_compact(prompt, max_tokens=1000, 
-                                 clova_api_key=clova_api_key, 
-                                 clova_api_url=clova_api_url)
-        
-        # Parse LLM decision
-        merge_decisions = result.get("merge_groups", [])
-        for decision in merge_decisions:
-            if decision.get("should_merge", False):
-                node_ids = decision.get("node_ids", [])
-                if len(node_ids) > 1:
-                    validated_groups.append(node_ids)
-                    print(f"      ✓ Merge: {decision.get('reason', 'No reason')}")
-    
-    return validated_groups
-
-
-def calculate_embedding_similarity(emb1: List[float], emb2: List[float]) -> float:
-    """Calculate cosine similarity"""
-    if not emb1 or not emb2 or len(emb1) != len(emb2):
-        return 0.0
-    
-    dot_product = sum(a * b for a, b in zip(emb1, emb2))
-    norm1 = sum(a * a for a in emb1) ** 0.5
-    norm2 = sum(b * b for b in emb2) ** 0.5
-    
-    if norm1 == 0 or norm2 == 0:
-        return 0.0
-    
-    return dot_product / (norm1 * norm2)
-
-
-def pick_canonical_node(session, node_ids: List[str]) -> str:
-    """
-    Pick the best node to keep from a group.
-    Criteria: most evidences, then earliest created
-    """
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode)
-        WHERE n.id IN $node_ids
-        OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
-        WITH n, count(e) as evidence_count
-        RETURN n.id as id, 
-               n.name as name,
-               evidence_count, 
-               n.created_at as created_at
-        ORDER BY evidence_count DESC, created_at ASC
-        LIMIT 1
-        """,
-        node_ids=node_ids
-    )
-    
-    record = result.single()
-    if record:
-        print(f"      Canonical: {record['name']} ({record['evidence_count']} evidences)")
-        return record["id"]
-    
-    return node_ids[0]  # Fallback
-
-
-def merge_nodes(session, canonical_id: str, merge_id: str):
-    """
-    Merge merge_id into canonical_id:
-    1. Move all evidences
-    2. Move all child relationships
-    3. Move all parent relationships
-    4. Move all suggestions
-    5. Update synthesis
-    6. Delete merged node
-    """
-    
-    # 1. Move evidences
-    session.run(
-        """
-        MATCH (merge:KnowledgeNode {id: $merge_id})-[r:HAS_EVIDENCE]->(e:Evidence)
-        MATCH (canonical:KnowledgeNode {id: $canonical_id})
-        DELETE r
-        MERGE (canonical)-[:HAS_EVIDENCE]->(e)
-        """,
-        canonical_id=canonical_id,
-        merge_id=merge_id
-    )
-    
-    # 2. Move child relationships
-    session.run(
-        """
-        MATCH (merge:KnowledgeNode {id: $merge_id})-[r:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->(child)
-        MATCH (canonical:KnowledgeNode {id: $canonical_id})
-        DELETE r
-        MERGE (canonical)-[:CONTAINS_CONCEPT]->(child)
-        """,
-        canonical_id=canonical_id,
-        merge_id=merge_id
-    )
-    
-    # 3. Move parent relationships
-    session.run(
-        """
-        MATCH (parent)-[r:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->(merge:KnowledgeNode {id: $merge_id})
-        MATCH (canonical:KnowledgeNode {id: $canonical_id})
-        DELETE r
-        MERGE (parent)-[:CONTAINS_CONCEPT]->(canonical)
-        """,
-        canonical_id=canonical_id,
-        merge_id=merge_id
-    )
-    
-    # 4. Move suggestions
-    session.run(
-        """
-        MATCH (merge:KnowledgeNode {id: $merge_id})-[r:HAS_SUGGESTION]->(g:GapSuggestion)
-        MATCH (canonical:KnowledgeNode {id: $canonical_id})
-        DELETE r
-        MERGE (canonical)-[:HAS_SUGGESTION]->(g)
-        """,
-        canonical_id=canonical_id,
-        merge_id=merge_id
-    )
-    
-    # 5. Update canonical node statistics
-    session.run(
-        """
-        MATCH (canonical:KnowledgeNode {id: $canonical_id})
-        OPTIONAL MATCH (canonical)-[:HAS_EVIDENCE]->(e:Evidence)
-        WITH canonical, count(DISTINCT e) as evidence_count, sum(e.confidence) as total_conf
-        SET canonical.source_count = evidence_count,
-            canonical.total_confidence = total_conf,
-            canonical.updated_at = $updated_at
-        """,
-        canonical_id=canonical_id,
-        updated_at=datetime.now().isoformat()
-    )
-    
-    # 6. Delete merged node
-    session.run(
-        """
-        MATCH (n:KnowledgeNode {id: $merge_id})
-        DETACH DELETE n
-        """,
-        merge_id=merge_id
-    )
-
-
-def deduplicate_across_workspace(session, workspace_id: str, clova_api_key: str,
-                                 clova_api_url: str, embedding_func) -> Dict:
-    """
-    Smart deduplication that handles common patterns:
-    - Abbreviations: "ML" → "Machine Learning"
-    - Synonyms: "Neural Nets" → "Neural Networks"
-    - Case variations: "deep learning" → "Deep Learning"
-    """
-    
-    print(f"\n🧹 Smart Deduplication Across Workspace")
-    
-    # Common abbreviation mappings (you can expand this)
-    common_patterns = {
-        "ml": "machine learning",
-        "ai": "artificial intelligence",
-        "nn": "neural network",
-        "cnn": "convolutional neural network",
-        "rnn": "recurrent neural network",
-        "nlp": "natural language processing",
-        "cv": "computer vision",
-        "dl": "deep learning"
-    }
-    
-    results = batch_deduplicate_nodes(session, workspace_id, 
-                                     clova_api_key, clova_api_url, 
-                                     embedding_func)
-    
-    return results
-
-
-def get_deduplication_report(session, workspace_id: str) -> Dict:
-    """Get statistics after deduplication"""
-    
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode {workspace_id: $workspace_id})
-        OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
-        WITH n, count(DISTINCT e.source_id) as source_count
-        RETURN n.type as type,
-               count(n) as node_count,
-               sum(CASE WHEN source_count > 1 THEN 1 ELSE 0 END) as merged_count,
-               avg(source_count) as avg_sources_per_node
-        ORDER BY n.type
-        """,
-        workspace_id=workspace_id
-    )
-    
-    stats = {}
-    for record in result:
-        stats[record["type"]] = {
-            "total_nodes": record["node_count"],
-            "merged_nodes": record["merged_count"],
-            "avg_sources": round(record["avg_sources_per_node"], 2)
-        }
-    
-    return stats
+    return knowledge_node, evidences

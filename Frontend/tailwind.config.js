@@ -1,3 +1,5 @@
+import scrollbar from 'tailwind-scrollbar';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -25,8 +27,33 @@ export default {
       },
       animation: {
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'slide-in-left': 'slideInLeft 0.3s ease-out',
+        'slide-in-right': 'slideInRight 0.3s ease-out',
+        'bounce-subtle': 'bounceSubtle 0.5s ease-out',
+        'glow': 'glow 2s ease-in-out infinite',
+      },
+      keyframes: {
+        slideInLeft: {
+          '0%': { transform: 'translateX(-30px)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        slideInRight: {
+          '0%': { transform: 'translateX(30px)', opacity: '0' },
+          '100%': { transform: 'translateX(0)', opacity: '1' },
+        },
+        bounceSubtle: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.05)' },
+        },
+        glow: {
+          '0%, 100%': { boxShadow: '0 0 5px rgba(34, 197, 94, 0.2)' },
+          '50%': { boxShadow: '0 0 20px rgba(34, 197, 94, 0.6)' },
+        },
+      },
+      scale: {
+        '102': '1.02',
       },
     },
   },
-  plugins: [],
+  plugins: [scrollbar({ nocompatible: true })],
 }

@@ -30,12 +30,12 @@ public class KnowledgeNodeController : ControllerBase
 
     [HttpGet("{workspaceId}")]
     [SwaggerOperation(Summary = "Get Knowledge Node", Description = "Retrieve a knowledge node by its ID within a specified workspace.")]
-    [ProducesResponseType(typeof(ApiResponse<GetKnowledgeNodeResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<GetRootKnowledgeResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetKnowledgeNode( [FromRoute] string workspaceId)
     {
         var query = new GetKnowledgeNodeQuery(workspaceId);
         var result = await _mediator.Send(query);
-        var response = result.MapTo<GetKnowledgeNodeResult, GetKnowledgeNodeResponse>(_mapper);
+        var response = result.MapTo<GetRootKnowledgeNodeResult, GetRootKnowledgeResponse>(_mapper);
         return OK.HandleResult(response, "Knowledge node retrieved successfully");
     }
 

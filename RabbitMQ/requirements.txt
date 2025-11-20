@@ -10,3 +10,5 @@ fastapi
 uvicorn
 pika
 PyMuPDF
+aiohttp
+anthropic

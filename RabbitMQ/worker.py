@@ -1,41 +1,58 @@
 """
-RabbitMQ Worker for processing PDF jobs
-Listens to queue "pdf_jobs_queue" and processes PDF documents through the pipeline
+Enhanced RabbitMQ Worker for processing PDF jobs
+Integrates with main_pipeline.py for consistent processing logic
+
+IMPROVEMENTS:
+- ✅ Processes ALL files in batch (no data loss)
+- ✅ Proper error handling and retry logic
+- ✅ Uses main_pipeline.py for consistency
+- ✅ Health checks and monitoring
+- ✅ Graceful shutdown
+- ✅ Progress tracking per file
+- ✅ Structured logging
+- ✅ Connection pooling
 """
 import os
 import sys
 import json
-import uuid
-import gc
+import time
+import signal
+import logging
 import traceback
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Add src to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
+# RabbitMQ and Firebase clients
 from src.rabbitmq_client import RabbitMQClient
 from src.handler.firebase import FirebaseClient
 
-# Pipeline modules
-from src.pipeline.pdf_extraction import extract_pdf_fast
-from src.pipeline.chunking import create_smart_chunks
-from src.pipeline.embedding import create_embedding_via_clova, calculate_similarity
-from src.pipeline.translation import translate_batch
-from src.pipeline.llm_analysis import extract_hierarchical_structure, process_chunk_batch
-from src.pipeline.neo4j_graph import create_hierarchical_graph, add_evidence_to_node, now_iso
-from src.pipeline.qdrant_storage import store_chunks_in_qdrant
+# Main pipeline - SINGLE SOURCE OF TRUTH
+from src.pipeline.main_pipeline import process_pdf_to_knowledge_graph
 
-from src.model.Evidence import Evidence
-from src.model.QdrantChunk import QdrantChunk
-
-# External dependencies
+# Database connections
 from neo4j import GraphDatabase
 from qdrant_client import QdrantClient
 
 # ================================
 # CONFIGURATION
 # ================================
+
+# Logging setup
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('worker.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('PDFWorker')
+
+# RabbitMQ Configuration
 RABBITMQ_CONFIG = {
     "Host": os.getenv("RABBITMQ_HOST", "chameleon-01.lmq.cloudamqp.com"),
     "Username": os.getenv("RABBITMQ_USERNAME", "odgfvgev"),
@@ -43,868 +60,484 @@ RABBITMQ_CONFIG = {
     "VirtualHost": os.getenv("RABBITMQ_VHOST", "odgfvgev")
 }
 
-QUEUE_NAME = "pdf_jobs_queue"
+QUEUE_NAME = os.getenv("QUEUE_NAME", "pdf_jobs_queue")
 
-# API Keys
-PAPAGO_CLIENT_ID = os.getenv("PAPAGO_CLIENT_ID", "")
-PAPAGO_CLIENT_SECRET = os.getenv("PAPAGO_CLIENT_SECRET", "")
-CLOVA_API_KEY = os.getenv("CLOVA_API_KEY", "")
-
-# Database URLs
+# Database Configuration
 QDRANT_URL = os.getenv("QDRANT_URL", "https://4d5d9646-deff-46bb-82c5-1322542a487e.eu-west-2-0.aws.cloud.qdrant.io")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhY2Nlc3MiOiJtIiwiZXhwIjoxNzY4MjE5NzE1fQ.A-Ma6ZzfzR1EYnf3_YuUWPhXmAU-xJU2ZA-OL6oECJw")
 
-NEO4J_URL = os.getenv("NEO4J_URL", "neo4j+ssc://daa013e6.databases.neo4j.io")
+NEO4J_URL = os.getenv("NEO4J_URL", "neo4j+s://daa013e6.databases.neo4j.io")
 NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "DTG0IyhifivaD2GwRoyIz4VPapRF0JdjoVsMfT9ggiY")
 
-# Firebase
+# Firebase Configuration
 FIREBASE_SERVICE_ACCOUNT = os.getenv("FIREBASE_SERVICE_ACCOUNT", "serviceAccountKey.json")
 FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL", "https://navnexus-default-rtdb.firebaseio.com/")
 
-# CLOVA
-CLOVA_MODEL = "HCX-005"
-CLOVA_API_URL = f"https://clovastudio.stream.ntruss.com/v3/chat-completions/{CLOVA_MODEL}"
-CLOVA_EMBEDDING_URL = "https://clovastudio.stream.ntruss.com/testapp/v1/api-tools/embedding/clir-emb-dolphin"
+# Worker Configuration
+MAX_CONCURRENT_FILES = int(os.getenv("MAX_CONCURRENT_FILES", "3"))
+MAX_RETRY_ATTEMPTS = int(os.getenv("MAX_RETRY_ATTEMPTS", "3"))
+RETRY_DELAY = int(os.getenv("RETRY_DELAY", "5"))  # seconds
 
-# Pipeline settings
-MAX_CHUNKS = int(os.getenv("MAX_CHUNKS", "12"))
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "2000"))
-OVERLAP = int(os.getenv("OVERLAP", "400"))
-BATCH_SIZE = 3
+# Graceful shutdown flag
+shutdown_requested = False
 
-# ================================
-# INITIALIZE CLIENTS
-# ================================
-print("🔧 Initializing clients...")
 
-# Check for Firebase service account key
-if not os.path.exists(FIREBASE_SERVICE_ACCOUNT):
-    print("="*80)
-    print("🔥 Firebase Service Account Key Not Found!")
-    print(f"Error: The file '{FIREBASE_SERVICE_ACCOUNT}' was not found.")
-    print("Please ensure that your 'serviceAccountKey.json' is placed in the root directory")
-    print("of the RabbitMQ project, or set the 'FIREBASE_SERVICE_ACCOUNT' environment")
-    print("variable to the correct path.")
-    print("You can obtain this file from your Firebase project settings.")
-    print("="*80)
-    sys.exit(1)
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully"""
+    global shutdown_requested
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    shutdown_requested = True
 
-qdrant_client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
-neo4j_driver = GraphDatabase.driver(NEO4J_URL, auth=(NEO4J_USER, NEO4J_PASSWORD))
-firebase_client = FirebaseClient(FIREBASE_SERVICE_ACCOUNT, FIREBASE_DATABASE_URL)
 
-print("✓ Connected to Qdrant, Neo4j & Firebase")
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 # ================================
-# MAIN PROCESSING FUNCTION
+# DATABASE CLIENT INITIALIZATION
 # ================================
-# def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
-#     """Process a single PDF through the pipeline"""
-#     start_time = datetime.now()
-#     file_id = str(uuid.uuid4())
-    
-#     print(f"\n{'='*80}")
-#     print(f"🚀 PROCESSING PDF JOB")
-#     print(f"📄 File: {file_name}")
-#     print(f"🔖 Workspace: {workspace_id}")
-#     print(f"🆔 Job ID: {job_id}")
-#     print(f"{'='*80}\n")
-    
-#     try:
-#         # =================================================================
-#         # PHASE 1: Extract PDF
-#         # =================================================================
-#         print(f"📄 Phase 1: Extracting PDF")
-#         full_text, lang = extract_pdf_fast(pdf_url, max_pages=25)
-#         print(f"✓ Extracted {len(full_text)} chars, language: {lang}")
-        
-#         # =================================================================
-#         # PHASE 2: Extract + Translate Hierarchical Structure
-#         # =================================================================
-#         print(f"\n📊 Phase 2: Extracting hierarchical structure")
-#         structure = extract_hierarchical_structure(full_text, file_name, lang, CLOVA_API_KEY, CLOVA_API_URL)
-        
-#         # Translate entire structure to English if needed
-#         if lang != "en":
-#             print(f"🌐 Translating structure from {lang} to English...")
-#             structure = translate_structure_to_english(structure, lang, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
-#             print(f"✓ Structure translated")
-        
-#         # =================================================================
-#         # PHASE 3: Create Neo4j Knowledge Graph with Semantic Merging
-#         # =================================================================
-#         print(f"\n🔗 Phase 3: Creating hierarchical knowledge graph with semantic merging")
-        
-#         # Create embedding function for semantic matching
-#         def create_concept_embedding(text: str):
-#             return create_embedding_via_clova(text, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
-        
-#         with neo4j_driver.session() as session:
-#             node_ids = create_hierarchical_graph(
-#                 session, workspace_id, structure, file_id, file_name, lang,
-#                 CLOVA_API_KEY, CLOVA_API_URL,
-#                 embedding_func=create_concept_embedding
-#             )
-#             print(f"✓ Created/updated {len(node_ids)} nodes in Neo4j")
-        
-#         # =================================================================
-#         # PHASE 4: Process Chunks for Qdrant
-#         # =================================================================
-#         chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-#         print(f"\n⚡ Phase 4: Processing {len(chunks)} chunks for Qdrant")
-        
-#         all_qdrant_chunks = []
-#         accumulated_concepts = []
-#         prev_embedding = None
-#         prev_chunk_id = ""
-        
-#         for batch_start in range(0, len(chunks), BATCH_SIZE):
-#             batch_end = min(batch_start + BATCH_SIZE, len(chunks))
-#             batch = chunks[batch_start:batch_end]
-            
-#             print(f"  Processing batch {batch_start//BATCH_SIZE + 1}/{(len(chunks)-1)//BATCH_SIZE + 1}...")
-            
-#             batch_result = process_chunk_batch(batch, lang, accumulated_concepts, 
-#                                               CLOVA_API_KEY, CLOVA_API_URL)
-            
-#             for chunk_data in batch_result.get("chunks", []):
-#                 chunk_idx = chunk_data.get("chunk_index", 0)
-#                 if chunk_idx >= len(chunks):
-#                     continue
-                
-#                 original_chunk = chunks[chunk_idx]
-#                 chunk_id = str(uuid.uuid4())
-                
-#                 # Extract chunk analysis
-#                 concepts_data = chunk_data.get("concepts", [])
-#                 summary = chunk_data.get("summary", "")
-#                 claims = chunk_data.get("key_claims", [])
-#                 questions = chunk_data.get("questions", [])
-#                 topic = chunk_data.get("topic", "General")
-                
-#                 # Translate chunk content if needed
-#                 if lang != "en":
-#                     to_translate = [summary, topic] + claims + questions
-#                     to_translate.extend([c.get("name", "") for c in concepts_data])
-                    
-#                     translated = translate_batch([t for t in to_translate if t], lang, "en", 
-#                                                 PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
-                    
-#                     if translated:
-#                         idx = 0
-#                         summary = translated[idx] if idx < len(translated) else summary
-#                         idx += 1
-#                         topic = translated[idx] if idx < len(translated) else topic
-#                         idx += 1
-                        
-#                         claims = translated[idx:idx+len(claims)] if idx+len(claims) <= len(translated) else claims
-#                         idx += len(claims)
-                        
-#                         questions = translated[idx:idx+len(questions)] if idx+len(questions) <= len(translated) else questions
-#                         idx += len(questions)
-                        
-#                         # Translate concept names
-#                         for i, c in enumerate(concepts_data):
-#                             if idx + i < len(translated):
-#                                 c["name"] = translated[idx + i]
-                
-#                 # Update accumulated concepts
-#                 accumulated_concepts.extend([c.get("name", "") for c in concepts_data])
-#                 accumulated_concepts = list(set(accumulated_concepts))[-50:]  # Keep last 50 unique
-                
-#                 # Create embedding from summary
-#                 embedding = create_embedding_via_clova(summary, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
-                
-#                 # Calculate semantic similarity with previous chunk
-#                 semantic_sim = 0.0
-#                 if prev_embedding:
-#                     semantic_sim = calculate_similarity(prev_embedding, embedding)
-                
-#                 # Build hierarchy path
-#                 hierarchy_path = f"{file_name}"
-#                 if concepts_data:
-#                     hierarchy_path += f" > {concepts_data[0].get('name', 'Chunk')}"
-#                 hierarchy_path += f" > Chunk {chunk_idx+1}"
-                
-#                 # Create Qdrant chunk with all fields
-#                 qdrant_chunk = QdrantChunk(
-#                     chunk_id=chunk_id,
-#                     paper_id=file_id,
-#                     page=chunk_idx + 1,
-#                     text=original_chunk["text"][:500],
-#                     summary=summary,
-#                     concepts=[c.get("name", "") for c in concepts_data if c.get("name")],
-#                     topic=topic,
-#                     workspace_id=workspace_id,
-#                     language="en",
-#                     source_language=lang,
-#                     created_at=now_iso(),
-#                     hierarchy_path=hierarchy_path,
-#                     chunk_index=chunk_idx,
-#                     prev_chunk_id=prev_chunk_id,
-#                     next_chunk_id="",  # Will be updated
-#                     semantic_similarity_prev=semantic_sim,
-#                     overlap_with_prev=original_chunk.get("overlap_previous", "")[:200],
-#                     key_claims=claims,
-#                     questions_raised=questions,
-#                     evidence_strength=0.8
-#                 )
-                
-#                 all_qdrant_chunks.append((qdrant_chunk, embedding))
-                
-#                 # Update previous chunk's next_chunk_id
-#                 if prev_chunk_id and len(all_qdrant_chunks) > 1:
-#                     all_qdrant_chunks[-2][0].next_chunk_id = chunk_id
-                
-#                 prev_chunk_id = chunk_id
-#                 prev_embedding = embedding
-            
-#             gc.collect()
-        
-#         print(f"✓ Processed {len(all_qdrant_chunks)} chunks")
-        
-#         # =================================================================
-#         # PHASE 5: Store Chunks in Qdrant
-#         # =================================================================
-#         print(f"\n💾 Phase 5: Storing {len(all_qdrant_chunks)} chunks in Qdrant")
-#         store_chunks_in_qdrant(qdrant_client, workspace_id, all_qdrant_chunks)
-#         print(f"✓ Stored in Qdrant collection: {workspace_id}")
-        
-#         # =================================================================
-#         # PHASE 6: Gap Analysis & Suggestions
-#         # =================================================================
-#         print(f"\n🔍 Phase 6: Analyzing knowledge gaps")
-#         with neo4j_driver.session() as session:
-#             gap_count = analyze_and_add_gaps(
-#                 session, workspace_id, file_id, 
-#                 CLOVA_API_KEY, CLOVA_API_URL
-#             )
-#             print(f"✓ Added {gap_count} gap suggestions to leaf nodes")
-        
-#         # =================================================================
-#         # SUMMARY
-#         # =================================================================
-#         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-        
-#         print(f"\n{'='*80}")
-#         print(f"✅ COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
-#         print(f"├─ Neo4j Nodes: {len(node_ids)}")
-#         print(f"├─ Qdrant Chunks: {len(all_qdrant_chunks)}")
-#         print(f"├─ Gap Suggestions: {gap_count}")
-#         print(f"├─ Language: {lang} → en")
-#         print(f"└─ File ID: {file_id}")
-#         print(f"{'='*80}\n")
-        
-#         return {
-#             "status": "completed",
-#             "jobId": job_id,
-#             "fileId": file_id,
-#             "fileName": file_name,
-#             "workspaceId": workspace_id,
-#             "nodes": len(node_ids),
-#             "chunks": len(all_qdrant_chunks),
-#             "gaps": gap_count,
-#             "sourceLanguage": lang,
-#             "targetLanguage": "en",
-#             "processingTimeMs": processing_time
-#         }
-    
-#     except Exception as e:
-#         error_msg = str(e)
-#         traceback.print_exc()
-#         print(f"\n❌ ERROR: {error_msg}")
-        
-#         return {
-#             "status": "failed",
-#             "jobId": job_id,
-#             "fileId": file_id,
-#             "fileName": file_name,
-#             "error": error_msg,
-#             "traceback": traceback.format_exc()
-#         }
+
+class DatabaseClients:
+    """Singleton for database clients with connection pooling"""
+
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(DatabaseClients, cls).__new__(cls)
+        return cls._instance
+
+    def __init__(self):
+        if not DatabaseClients._initialized:
+            self._initialize_clients()
+            DatabaseClients._initialized = True
+
+    def _initialize_clients(self):
+        """Initialize database clients with proper configuration"""
+        logger.info("🔧 Initializing database clients...")
+
+        try:
+            # Neo4j with connection pooling
+            self.neo4j_driver = GraphDatabase.driver(
+                NEO4J_URL,
+                auth=(NEO4J_USER, NEO4J_PASSWORD),
+                max_connection_lifetime=3600,  # 1 hour
+                max_connection_pool_size=50,
+                connection_acquisition_timeout=60
+            )
+
+            # Test Neo4j connection
+            with self.neo4j_driver.session() as session:
+                session.run("RETURN 1")
+            logger.info("✓ Neo4j connected")
+
+            # Qdrant client
+            self.qdrant_client = QdrantClient(
+                url=QDRANT_URL,
+                api_key=QDRANT_API_KEY,
+                timeout=60
+            )
+            logger.info("✓ Qdrant connected")
+
+            # Firebase client
+            if not os.path.exists(FIREBASE_SERVICE_ACCOUNT):
+                raise FileNotFoundError(
+                    f"Firebase service account key not found: {FIREBASE_SERVICE_ACCOUNT}"
+                )
+
+            self.firebase_client = FirebaseClient(
+                FIREBASE_SERVICE_ACCOUNT,
+                FIREBASE_DATABASE_URL
+            )
+            logger.info("✓ Firebase connected")
+
+            logger.info("✅ All database clients initialized successfully")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize database clients: {e}")
+            raise
+
+    def close(self):
+        """Close all database connections"""
+        logger.info("🔌 Closing database connections...")
+
+        try:
+            if hasattr(self, 'neo4j_driver'):
+                self.neo4j_driver.close()
+                logger.info("✓ Neo4j connection closed")
+        except Exception as e:
+            logger.error(f"Error closing Neo4j: {e}")
+
+        logger.info("✅ All connections closed")
 
 
-# # =================================================================
-# # HELPER FUNCTIONS
-# # =================================================================
+# ================================
+# FILE PROCESSING WITH RETRY
+# ================================
 
-# def translate_structure_to_english(structure: Dict, source_lang: str, 
-#                                    client_id: str, client_secret: str) -> Dict:
-#     """Translate entire structure to English in one batch"""
-#     texts_to_translate = []
-    
-#     # Collect all texts
-#     domain = structure.get("domain", {})
-#     texts_to_translate.extend([
-#         domain.get("name", ""),
-#         domain.get("synthesis", "")
-#     ])
-    
-#     for cat in structure.get("categories", []):
-#         texts_to_translate.extend([
-#             cat.get("name", ""),
-#             cat.get("synthesis", "")
-#         ])
-        
-#         for concept in cat.get("concepts", []):
-#             texts_to_translate.extend([
-#                 concept.get("name", ""),
-#                 concept.get("synthesis", "")
-#             ])
-            
-#             for sub in concept.get("subconcepts", []):
-#                 texts_to_translate.extend([
-#                     sub.get("name", ""),
-#                     sub.get("synthesis", ""),
-#                     sub.get("evidence", "")
-#                 ])
-    
-#     # Translate batch
-#     translated = translate_batch([t for t in texts_to_translate if t], 
-#                                 source_lang, "en", client_id, client_secret)
-    
-#     if not translated:
-#         return structure
-    
-#     # Reassign translations
-#     idx = 0
-#     domain["name"] = translated[idx] if idx < len(translated) else domain.get("name", "")
-#     idx += 1
-#     domain["synthesis"] = translated[idx] if idx < len(translated) else domain.get("synthesis", "")
-#     idx += 1
-    
-#     for cat in structure.get("categories", []):
-#         cat["name"] = translated[idx] if idx < len(translated) else cat.get("name", "")
-#         idx += 1
-#         cat["synthesis"] = translated[idx] if idx < len(translated) else cat.get("synthesis", "")
-#         idx += 1
-        
-#         for concept in cat.get("concepts", []):
-#             concept["name"] = translated[idx] if idx < len(translated) else concept.get("name", "")
-#             idx += 1
-#             concept["synthesis"] = translated[idx] if idx < len(translated) else concept.get("synthesis", "")
-#             idx += 1
-            
-#             for sub in concept.get("subconcepts", []):
-#                 sub["name"] = translated[idx] if idx < len(translated) else sub.get("name", "")
-#                 idx += 1
-#                 sub["synthesis"] = translated[idx] if idx < len(translated) else sub.get("synthesis", "")
-#                 idx += 1
-#                 sub["evidence"] = translated[idx] if idx < len(translated) else sub.get("evidence", "")
-#                 idx += 1
-    
-#     return structure
+def process_single_file_with_retry(
+    workspace_id: str,
+    pdf_url: str,
+    job_id: str,
+    db_clients: DatabaseClients,
+    attempt: int = 1
+) -> Dict[str, Any]:
+    """
+    Process a single PDF file with retry logic
+
+    Args:
+        workspace_id: Workspace identifier
+        pdf_url: URL of PDF to process
+        job_id: Job identifier
+        db_clients: Database clients instance
+        attempt: Current attempt number
+
+    Returns:
+        Processing result dictionary
+    """
+    file_name = pdf_url.split('/')[-1]
+
+    logger.info(f"📄 Processing file {file_name} (attempt {attempt}/{MAX_RETRY_ATTEMPTS})")
+
+    try:
+        # Call main pipeline (SINGLE SOURCE OF TRUTH)
+        result = process_pdf_to_knowledge_graph(
+            workspace_id=workspace_id,
+            pdf_url=pdf_url,
+            file_name=file_name,
+            job_id=f"{job_id}_file_{file_name}",
+            neo4j_driver=db_clients.neo4j_driver,
+            qdrant_client=db_clients.qdrant_client,
+            config=None  # Use default config from main_pipeline
+        )
+
+        # Add file-specific metadata
+        result['pdf_url'] = pdf_url
+        result['file_name'] = file_name
+        result['attempts'] = attempt
+
+        logger.info(f"✅ Successfully processed {file_name}")
+        return result
+
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"❌ Error processing {file_name} (attempt {attempt}): {error_msg}")
+
+        # Retry logic
+        if attempt < MAX_RETRY_ATTEMPTS:
+            wait_time = RETRY_DELAY * (2 ** (attempt - 1))  # Exponential backoff
+            logger.info(f"⏳ Retrying in {wait_time}s...")
+            time.sleep(wait_time)
+
+            return process_single_file_with_retry(
+                workspace_id, pdf_url, job_id, db_clients, attempt + 1
+            )
+        else:
+            logger.error(f"❌ Failed to process {file_name} after {MAX_RETRY_ATTEMPTS} attempts")
+            return {
+                "status": "failed",
+                "pdf_url": pdf_url,
+                "file_name": file_name,
+                "error": error_msg,
+                "attempts": attempt,
+                "traceback": traceback.format_exc()
+            }
 
 
-# def analyze_and_add_gaps(session, workspace_id: str, file_id: str,
-#                          clova_api_key: str, clova_api_url: str) -> int:
-#     """Analyze knowledge gaps and add suggestions to leaf nodes"""
-#     from src.pipeline.llm_analysis import call_llm_compact
-#     from src.pipeline.neo4j_graph import GapSuggestion, create_gap_suggestion_node
-    
-#     # Find all leaf nodes
-#     result = session.run(
-#         """
-#         MATCH (n:KnowledgeNode {workspace_id: $workspace_id})
-#         WHERE NOT (n)-[:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->()
-#         RETURN n.id as node_id, n.name as node_name, n.synthesis as synthesis
-#         """,
-#         workspace_id=workspace_id
-#     )
-    
-#     leaf_nodes = [dict(record) for record in result]
-#     gap_count = 0
-    
-#     for node in leaf_nodes:
-#         node_id = node["node_id"]
-#         node_name = node["node_name"]
-#         synthesis = node["synthesis"]
-        
-#         if not synthesis:
-#             continue
-        
-#         # Generate gap suggestions using LLM
-#         gap_prompt = f"""Analyze this knowledge node and suggest 2-3 specific questions or topics that would deepen understanding:
+def process_files_batch(
+    workspace_id: str,
+    file_paths: List[str],
+    job_id: str,
+    db_clients: DatabaseClients
+) -> Dict[str, Any]:
+    """
+    Process multiple files with concurrent execution
 
-# Node: {node_name}
-# Content: {synthesis}
+    Args:
+        workspace_id: Workspace identifier
+        file_paths: List of PDF URLs to process
+        job_id: Job identifier
+        db_clients: Database clients instance
 
-# Return JSON:
-# {{"suggestions": ["question 1", "question 2", "question 3"]}}"""
-        
-#         result = call_llm_compact(gap_prompt, max_tokens=200, 
-#                                  clova_api_key=clova_api_key, 
-#                                  clova_api_url=clova_api_url)
-        
-#         suggestions = result.get("suggestions", [])
-        
-#         # Create GapSuggestion nodes
-#         for suggestion_text in suggestions[:3]:  # Max 3
-#             gap = GapSuggestion(
-#                 SuggestionText=suggestion_text,
-#                 TargetNodeId=node_id,
-#                 TargetFileId=file_id,
-#                 SimilarityScore=0.0
-#             )
-            
-#             create_gap_suggestion_node(session, gap, node_id)
-#             gap_count += 1
-    
-#     return gap_count
+    Returns:
+        Batch processing results
+    """
+    start_time = datetime.now()
+
+    logger.info(f"\n{'='*80}")
+    logger.info(f"🚀 BATCH PROCESSING STARTED")
+    logger.info(f"📦 Job ID: {job_id}")
+    logger.info(f"🔖 Workspace: {workspace_id}")
+    logger.info(f"📄 Files: {len(file_paths)}")
+    logger.info(f"{'='*80}\n")
+
+    results = []
+    successful = 0
+    failed = 0
+
+    # Process files concurrently (with limit)
+    with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_FILES) as executor:
+        # Submit all files for processing
+        future_to_url = {
+            executor.submit(
+                process_single_file_with_retry,
+                workspace_id, pdf_url, job_id, db_clients
+            ): pdf_url
+            for pdf_url in file_paths
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_url):
+            pdf_url = future_to_url[future]
+
+            try:
+                result = future.result()
+                results.append(result)
+
+                if result.get('status') == 'completed':
+                    successful += 1
+                else:
+                    failed += 1
+
+            except Exception as e:
+                logger.error(f"❌ Unexpected error processing {pdf_url}: {e}")
+                failed += 1
+                results.append({
+                    "status": "failed",
+                    "pdf_url": pdf_url,
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                })
+
+    # Calculate final statistics
+    processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+
+    logger.info(f"\n{'='*80}")
+    logger.info(f"✅ BATCH PROCESSING COMPLETED")
+    logger.info(f"⏱️  Total time: {processing_time}ms ({processing_time/1000:.1f}s)")
+    logger.info(f"📊 Results:")
+    logger.info(f"   ├─ Successful: {successful}/{len(file_paths)}")
+    logger.info(f"   └─ Failed: {failed}/{len(file_paths)}")
+    logger.info(f"{'='*80}\n")
+
+    return {
+        "status": "completed" if failed == 0 else "partial",
+        "jobId": job_id,
+        "workspaceId": workspace_id,
+        "totalFiles": len(file_paths),
+        "successful": successful,
+        "failed": failed,
+        "processingTimeMs": processing_time,
+        "results": results,
+        "timestamp": datetime.now().isoformat()
+    }
+
 
 # ================================
 # MESSAGE HANDLER
 # ================================
-def handle_job_message(message: Dict[str, Any]):
-    """Handle incoming job message from RabbitMQ"""
+
+def handle_job_message(message: Dict[str, Any], db_clients: DatabaseClients):
+    """
+    Handle incoming job message from RabbitMQ
+
+    Args:
+        message: Job message from queue
+        db_clients: Database clients instance
+    """
     try:
-        print(f"\n📥 Received job message: {json.dumps(message, indent=2)}")
-        
-        # Extract message fields
+        logger.info(f"\n📥 Received job message")
+        logger.debug(f"Message: {json.dumps(message, indent=2)}")
+
+        # Extract and validate message fields
         workspace_id = message.get("workspaceId") or message.get("WorkspaceId")
         file_paths = message.get("filePaths") or message.get("FilePaths", [])
-        job_id = message.get("jobId") or message.get("JobId") or str(uuid.uuid4())
-        
+        job_id = message.get("jobId") or message.get("JobId")
+
+        # Validation
         if not workspace_id:
             raise ValueError("Missing workspaceId in message")
-        
+
         if not file_paths or len(file_paths) == 0:
             raise ValueError("Missing or empty filePaths in message")
-        
-        # Process only the first file
-        pdf_url = file_paths[0]
-        file_name = pdf_url.split('/')[-1]
-        
-        print(f"📌 Processing first file: {file_name}")
-        
-        # Process the PDF
-        result = process_pdf_job(workspace_id, pdf_url, file_name, job_id)
-        
+
+        if not job_id:
+            logger.warning("No jobId provided, generating one")
+            import uuid
+            job_id = f"job_{uuid.uuid4().hex[:8]}"
+
+        logger.info(f"✓ Valid message: {len(file_paths)} files to process")
+
+        # Process ALL files in batch
+        batch_result = process_files_batch(
+            workspace_id=workspace_id,
+            file_paths=file_paths,
+            job_id=job_id,
+            db_clients=db_clients
+        )
+
         # Push result to Firebase
-        print(f"\n🔥 Pushing result to Firebase...")
-        firebase_client.push_job_result(job_id, result)
-        print(f"✓ Result pushed to Firebase for job {job_id}")
-        
+        logger.info(f"🔥 Pushing batch result to Firebase...")
+        try:
+            db_clients.firebase_client.push_job_result(job_id, batch_result)
+            logger.info(f"✅ Result pushed to Firebase for job {job_id}")
+        except Exception as fb_error:
+            logger.error(f"⚠️  Failed to push to Firebase: {fb_error}")
+            # Don't fail the entire job if Firebase push fails
+
+        return batch_result
+
     except Exception as e:
         error_msg = str(e)
-        traceback.print_exc()
-        print(f"\n❌ Error handling job: {error_msg}")
-        
+        logger.error(f"❌ Error handling job: {error_msg}")
+        logger.error(traceback.format_exc())
+
         # Try to push error to Firebase
         try:
             job_id = message.get("jobId") or message.get("JobId") or "unknown"
-            firebase_client.push_job_result(job_id, {
+            error_result = {
                 "status": "failed",
+                "jobId": job_id,
                 "error": error_msg,
-                "traceback": traceback.format_exc()
-            })
+                "traceback": traceback.format_exc(),
+                "timestamp": datetime.now().isoformat()
+            }
+
+            db_clients.firebase_client.push_job_result(job_id, error_result)
+            logger.info(f"✓ Error pushed to Firebase")
         except:
-            print("Failed to push error to Firebase")
+            logger.error("Failed to push error to Firebase")
 
-def process_pdf_job(workspace_id: str, pdf_url: str, file_name: str, job_id: str) -> Dict[str, Any]:
-    """Process a single PDF through the pipeline with smart deduplication"""
-    from src.pipeline.neo4j_graph import deduplicate_across_workspace
-    
-    start_time = datetime.now()
-    file_id = str(uuid.uuid4())
-    
-    print(f"\n{'='*80}")
-    print(f"🚀 PROCESSING PDF JOB")
-    print(f"📄 File: {file_name}")
-    print(f"🔖 Workspace: {workspace_id}")
-    print(f"🆔 Job ID: {job_id}")
-    print(f"{'='*80}\n")
-    
+
+# ================================
+# HEALTH CHECK
+# ================================
+
+def health_check(db_clients: DatabaseClients) -> Dict[str, Any]:
+    """
+    Check health of all database connections
+
+    Returns:
+        Health status dictionary
+    """
+    health = {
+        "timestamp": datetime.now().isoformat(),
+        "neo4j": "unknown",
+        "qdrant": "unknown",
+        "firebase": "unknown",
+        "overall": "unknown"
+    }
+
+    # Check Neo4j
     try:
-        # =================================================================
-        # PHASE 1: Extract PDF
-        # =================================================================
-        print(f"📄 Phase 1: Extracting PDF")
-        full_text, lang = extract_pdf_fast(pdf_url, max_pages=25)
-        print(f"✓ Extracted {len(full_text)} chars, language: {lang}")
-        
-        # =================================================================
-        # PHASE 2: Extract + Translate Hierarchical Structure
-        # =================================================================
-        print(f"\n📊 Phase 2: Extracting hierarchical structure")
-        structure = extract_hierarchical_structure(full_text, file_name, lang, CLOVA_API_KEY, CLOVA_API_URL)
-        
-        # Translate entire structure to English if needed
-        if lang != "en":
-            print(f"🌐 Translating structure from {lang} to English...")
-            structure = translate_structure_to_english(structure, lang, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
-            print(f"✓ Structure translated")
-        
-        # =================================================================
-        # PHASE 3: Create Neo4j Knowledge Graph with Semantic Merging
-        # =================================================================
-        print(f"\n🔗 Phase 3: Creating hierarchical knowledge graph with semantic merging")
-        
-        # Create embedding function for semantic matching
-        def create_concept_embedding(text: str):
-            return create_embedding_via_clova(text, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
-        
-        with neo4j_driver.session() as session:
-            node_ids = create_hierarchical_graph(
-                session, workspace_id, structure, file_id, file_name, lang,
-                CLOVA_API_KEY, CLOVA_API_URL,
-                embedding_func=create_concept_embedding
-            )
-            print(f"✓ Created/updated {len(node_ids)} nodes in Neo4j")
-        
-        # =================================================================
-        # PHASE 4: Process Chunks for Qdrant
-        # =================================================================
-        chunks = create_smart_chunks(full_text, CHUNK_SIZE, OVERLAP)[:MAX_CHUNKS]
-        print(f"\n⚡ Phase 4: Processing {len(chunks)} chunks for Qdrant")
-        
-        all_qdrant_chunks = []
-        accumulated_concepts = []
-        prev_embedding = None
-        prev_chunk_id = ""
-        
-        for batch_start in range(0, len(chunks), BATCH_SIZE):
-            batch_end = min(batch_start + BATCH_SIZE, len(chunks))
-            batch = chunks[batch_start:batch_end]
-            
-            print(f"  Processing batch {batch_start//BATCH_SIZE + 1}/{(len(chunks)-1)//BATCH_SIZE + 1}...")
-            
-            batch_result = process_chunk_batch(batch, lang, accumulated_concepts, 
-                                              CLOVA_API_KEY, CLOVA_API_URL)
-            
-            for chunk_data in batch_result.get("chunks", []):
-                chunk_idx = chunk_data.get("chunk_index", 0)
-                if chunk_idx >= len(chunks):
-                    continue
-                
-                original_chunk = chunks[chunk_idx]
-                chunk_id = str(uuid.uuid4())
-                
-                # Extract chunk analysis
-                concepts_data = chunk_data.get("concepts", [])
-                summary = chunk_data.get("summary", "")
-                claims = chunk_data.get("key_claims", [])
-                questions = chunk_data.get("questions", [])
-                topic = chunk_data.get("topic", "General")
-                
-                # Translate chunk content if needed
-                if lang != "en":
-                    to_translate = [summary, topic] + claims + questions
-                    to_translate.extend([c.get("name", "") for c in concepts_data])
-                    
-                    translated = translate_batch([t for t in to_translate if t], lang, "en", 
-                                                PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET)
-                    
-                    if translated:
-                        idx = 0
-                        summary = translated[idx] if idx < len(translated) else summary
-                        idx += 1
-                        topic = translated[idx] if idx < len(translated) else topic
-                        idx += 1
-                        
-                        claims = translated[idx:idx+len(claims)] if idx+len(claims) <= len(translated) else claims
-                        idx += len(claims)
-                        
-                        questions = translated[idx:idx+len(questions)] if idx+len(questions) <= len(translated) else questions
-                        idx += len(questions)
-                        
-                        # Translate concept names
-                        for i, c in enumerate(concepts_data):
-                            if idx + i < len(translated):
-                                c["name"] = translated[idx + i]
-                
-                # Update accumulated concepts
-                accumulated_concepts.extend([c.get("name", "") for c in concepts_data])
-                accumulated_concepts = list(set(accumulated_concepts))[-50:]  # Keep last 50 unique
-                
-                # Create embedding from summary
-                embedding = create_embedding_via_clova(summary, CLOVA_API_KEY, CLOVA_EMBEDDING_URL)
-                
-                # Calculate semantic similarity with previous chunk
-                semantic_sim = 0.0
-                if prev_embedding:
-                    semantic_sim = calculate_similarity(prev_embedding, embedding)
-                
-                # Build hierarchy path
-                hierarchy_path = f"{file_name}"
-                if concepts_data:
-                    hierarchy_path += f" > {concepts_data[0].get('name', 'Chunk')}"
-                hierarchy_path += f" > Chunk {chunk_idx+1}"
-                
-                # Create Qdrant chunk with all fields
-                qdrant_chunk = QdrantChunk(
-                    chunk_id=chunk_id,
-                    paper_id=file_id,
-                    page=chunk_idx + 1,
-                    text=original_chunk["text"][:500],
-                    summary=summary,
-                    concepts=[c.get("name", "") for c in concepts_data if c.get("name")],
-                    topic=topic,
-                    workspace_id=workspace_id,
-                    language="en",
-                    source_language=lang,
-                    created_at=now_iso(),
-                    hierarchy_path=hierarchy_path,
-                    chunk_index=chunk_idx,
-                    prev_chunk_id=prev_chunk_id,
-                    next_chunk_id="",  # Will be updated
-                    semantic_similarity_prev=semantic_sim,
-                    overlap_with_prev=original_chunk.get("overlap_previous", "")[:200],
-                    key_claims=claims,
-                    questions_raised=questions,
-                    evidence_strength=0.8
-                )
-                
-                all_qdrant_chunks.append((qdrant_chunk, embedding))
-                
-                # Update previous chunk's next_chunk_id
-                if prev_chunk_id and len(all_qdrant_chunks) > 1:
-                    all_qdrant_chunks[-2][0].next_chunk_id = chunk_id
-                
-                prev_chunk_id = chunk_id
-                prev_embedding = embedding
-            
-            gc.collect()
-        
-        print(f"✓ Processed {len(all_qdrant_chunks)} chunks")
-        
-        # =================================================================
-        # PHASE 5: Store Chunks in Qdrant
-        # =================================================================
-        print(f"\n💾 Phase 5: Storing {len(all_qdrant_chunks)} chunks in Qdrant")
-        store_chunks_in_qdrant(qdrant_client, workspace_id, all_qdrant_chunks)
-        print(f"✓ Stored in Qdrant collection: {workspace_id}")
-        
-        # =================================================================
-        # PHASE 6: Post-Processing Deduplication (Smart Merge)
-        # =================================================================
-        print(f"\n🧹 Phase 6: Smart deduplication across workspace")
-        with neo4j_driver.session() as session:
-            dedup_results = deduplicate_across_workspace(
-                session, workspace_id, 
-                CLOVA_API_KEY, CLOVA_API_URL,
-                create_concept_embedding
-            )
-            print(f"✓ Scanned {dedup_results['scanned']} nodes, merged {dedup_results['merged']} duplicates")
-        
-        # =================================================================
-        # PHASE 7: Gap Analysis & Suggestions
-        # =================================================================
-        print(f"\n🔍 Phase 7: Analyzing knowledge gaps")
-        with neo4j_driver.session() as session:
-            gap_count = analyze_and_add_gaps(
-                session, workspace_id, file_id, 
-                CLOVA_API_KEY, CLOVA_API_URL
-            )
-            print(f"✓ Added {gap_count} gap suggestions to leaf nodes")
-        
-        # =================================================================
-        # SUMMARY
-        # =================================================================
-        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-        
-        print(f"\n{'='*80}")
-        print(f"✅ COMPLETED in {processing_time}ms ({processing_time/1000:.1f}s)")
-        print(f"├─ Neo4j Nodes: {len(node_ids)}")
-        print(f"├─ Deduplicated: {dedup_results['merged']} merged")
-        print(f"├─ Qdrant Chunks: {len(all_qdrant_chunks)}")
-        print(f"├─ Gap Suggestions: {gap_count}")
-        print(f"├─ Language: {lang} → en")
-        print(f"└─ File ID: {file_id}")
-        print(f"{'='*80}\n")
-        
-        return {
-            "status": "completed",
-            "jobId": job_id,
-            "fileId": file_id,
-            "fileName": file_name,
-            "workspaceId": workspace_id,
-            "nodes": len(node_ids),
-            "deduplicated": dedup_results['merged'],
-            "chunks": len(all_qdrant_chunks),
-            "gaps": gap_count,
-            "sourceLanguage": lang,
-            "targetLanguage": "en",
-            "processingTimeMs": processing_time
-        }
-    
+        with db_clients.neo4j_driver.session() as session:
+            session.run("RETURN 1")
+        health["neo4j"] = "healthy"
     except Exception as e:
-        error_msg = str(e)
-        traceback.print_exc()
-        print(f"\n❌ ERROR: {error_msg}")
-        
-        return {
-            "status": "failed",
-            "jobId": job_id,
-            "fileId": file_id,
-            "fileName": file_name,
-            "error": error_msg,
-            "traceback": traceback.format_exc()
-        }
+        health["neo4j"] = f"unhealthy: {str(e)}"
+
+    # Check Qdrant
+    try:
+        db_clients.qdrant_client.get_collections()
+        health["qdrant"] = "healthy"
+    except Exception as e:
+        health["qdrant"] = f"unhealthy: {str(e)}"
+
+    # Check Firebase (simple check)
+    try:
+        if db_clients.firebase_client:
+            health["firebase"] = "healthy"
+    except Exception as e:
+        health["firebase"] = f"unhealthy: {str(e)}"
+
+    # Overall status
+    if all(status == "healthy" for status in [health["neo4j"], health["qdrant"], health["firebase"]]):
+        health["overall"] = "healthy"
+    else:
+        health["overall"] = "degraded"
+
+    return health
 
 
-# =================================================================
-# HELPER FUNCTIONS
-# =================================================================
-
-def translate_structure_to_english(structure: Dict, source_lang: str, 
-                                   client_id: str, client_secret: str) -> Dict:
-    """Translate entire structure to English in one batch"""
-    texts_to_translate = []
-    
-    # Collect all texts
-    domain = structure.get("domain", {})
-    texts_to_translate.extend([
-        domain.get("name", ""),
-        domain.get("synthesis", "")
-    ])
-    
-    for cat in structure.get("categories", []):
-        texts_to_translate.extend([
-            cat.get("name", ""),
-            cat.get("synthesis", "")
-        ])
-        
-        for concept in cat.get("concepts", []):
-            texts_to_translate.extend([
-                concept.get("name", ""),
-                concept.get("synthesis", "")
-            ])
-            
-            for sub in concept.get("subconcepts", []):
-                texts_to_translate.extend([
-                    sub.get("name", ""),
-                    sub.get("synthesis", ""),
-                    sub.get("evidence", "")
-                ])
-    
-    # Translate batch
-    translated = translate_batch([t for t in texts_to_translate if t], 
-                                source_lang, "en", client_id, client_secret)
-    
-    if not translated:
-        return structure
-    
-    # Reassign translations
-    idx = 0
-    domain["name"] = translated[idx] if idx < len(translated) else domain.get("name", "")
-    idx += 1
-    domain["synthesis"] = translated[idx] if idx < len(translated) else domain.get("synthesis", "")
-    idx += 1
-    
-    for cat in structure.get("categories", []):
-        cat["name"] = translated[idx] if idx < len(translated) else cat.get("name", "")
-        idx += 1
-        cat["synthesis"] = translated[idx] if idx < len(translated) else cat.get("synthesis", "")
-        idx += 1
-        
-        for concept in cat.get("concepts", []):
-            concept["name"] = translated[idx] if idx < len(translated) else concept.get("name", "")
-            idx += 1
-            concept["synthesis"] = translated[idx] if idx < len(translated) else concept.get("synthesis", "")
-            idx += 1
-            
-            for sub in concept.get("subconcepts", []):
-                sub["name"] = translated[idx] if idx < len(translated) else sub.get("name", "")
-                idx += 1
-                sub["synthesis"] = translated[idx] if idx < len(translated) else sub.get("synthesis", "")
-                idx += 1
-                sub["evidence"] = translated[idx] if idx < len(translated) else sub.get("evidence", "")
-                idx += 1
-    
-    return structure
-
-
-def analyze_and_add_gaps(session, workspace_id: str, file_id: str,
-                         clova_api_key: str, clova_api_url: str) -> int:
-    """Analyze knowledge gaps and add suggestions to leaf nodes"""
-    from src.pipeline.llm_analysis import call_llm_compact
-    from src.model.GapSuggestion import GapSuggestion
-    from src.pipeline.neo4j_graph import create_gap_suggestion_node
-    
-    
-    # Find all leaf nodes
-    result = session.run(
-        """
-        MATCH (n:KnowledgeNode {workspace_id: $workspace_id})
-        WHERE NOT (n)-[:HAS_SUBCATEGORY|CONTAINS_CONCEPT|HAS_DETAIL]->()
-        RETURN n.id as node_id, n.name as node_name, n.synthesis as synthesis
-        """,
-        workspace_id=workspace_id
-    )
-    
-    leaf_nodes = [dict(record) for record in result]
-    gap_count = 0
-    
-    for node in leaf_nodes:
-        node_id = node["node_id"]
-        node_name = node["node_name"]
-        synthesis = node["synthesis"]
-        
-        if not synthesis:
-            continue
-        
-        # Generate gap suggestions using LLM
-        gap_prompt = f"""Analyze this knowledge node and suggest 2-3 specific questions or topics that would deepen understanding:
-
-Node: {node_name}
-Content: {synthesis}
-
-Return JSON:
-{{"suggestions": ["question 1", "question 2", "question 3"]}}"""
-        
-        result = call_llm_compact(gap_prompt, max_tokens=200, 
-                                 clova_api_key=clova_api_key, 
-                                 clova_api_url=clova_api_url)
-        
-        suggestions = result.get("suggestions", [])
-        
-        # Create GapSuggestion nodes
-        for suggestion_text in suggestions[:3]:  # Max 3
-            gap = GapSuggestion(
-                SuggestionText=suggestion_text,
-                TargetNodeId=node_id,
-                TargetFileId=file_id,
-                SimilarityScore=0.0
-            )
-            
-            create_gap_suggestion_node(session, gap, node_id)
-            gap_count += 1
-    
-    return gap_count
 # ================================
-# MAIN
+# MAIN WORKER LOOP
 # ================================
+
 def main():
-    """Main worker loop"""
-    print("\n" + "="*80)
-    print("🤖 RabbitMQ Worker Starting...")
-    print("="*80)
-    
-    # Connect to RabbitMQ
-    rabbitmq_client = RabbitMQClient(RABBITMQ_CONFIG)
-    rabbitmq_client.connect()
-    rabbitmq_client.declare_queue(QUEUE_NAME)
-    
-    print(f"\n✓ Worker ready and listening to queue: {QUEUE_NAME}")
-    print("="*80 + "\n")
-    
-    try:
-        # Start consuming messages
-        rabbitmq_client.consume_messages(QUEUE_NAME, handle_job_message)
-    except KeyboardInterrupt:
-        print("\n\n⚠ Worker interrupted by user")
-    except Exception as e:
-        print(f"\n\n❌ Worker error: {e}")
-        traceback.print_exc()
-    finally:
-        print("\n🔌 Closing connections...")
-        rabbitmq_client.close()
-        neo4j_driver.close()
-        print("✓ Worker shut down gracefully")
+    """Main worker loop with graceful shutdown"""
+    logger.info("\n" + "="*80)
+    logger.info("🤖 PDF PROCESSING WORKER - ENHANCED VERSION")
+    logger.info("="*80)
 
+    db_clients = None
+    rabbitmq_client = None
+
+    try:
+        # Initialize database clients
+        db_clients = DatabaseClients()
+
+        # Health check on startup
+        health = health_check(db_clients)
+        logger.info(f"🏥 Health check: {health['overall']}")
+        if health['overall'] != "healthy":
+            logger.warning(f"⚠️  System health degraded: {health}")
+
+        # Connect to RabbitMQ
+        rabbitmq_client = RabbitMQClient(RABBITMQ_CONFIG)
+        rabbitmq_client.connect()
+        rabbitmq_client.declare_queue(QUEUE_NAME)
+
+        logger.info(f"\n✅ Worker ready and listening to queue: {QUEUE_NAME}")
+        logger.info(f"⚙️  Configuration:")
+        logger.info(f"   ├─ Max concurrent files: {MAX_CONCURRENT_FILES}")
+        logger.info(f"   ├─ Max retry attempts: {MAX_RETRY_ATTEMPTS}")
+        logger.info(f"   └─ Retry delay: {RETRY_DELAY}s")
+        logger.info("="*80 + "\n")
+
+        # Start consuming messages
+        def message_callback(msg):
+            if shutdown_requested:
+                logger.info("⚠️  Shutdown requested, skipping new messages")
+                return False  # Stop consuming
+
+            handle_job_message(msg, db_clients)
+            return True  # Continue consuming
+
+        rabbitmq_client.consume_messages(QUEUE_NAME, message_callback)
+
+    except KeyboardInterrupt:
+        logger.info("\n\n⚠️  Worker interrupted by user")
+    except Exception as e:
+        logger.error(f"\n\n❌ Worker error: {e}")
+        logger.error(traceback.format_exc())
+    finally:
+        logger.info("\n🔌 Shutting down gracefully...")
+
+        # Close RabbitMQ connection
+        if rabbitmq_client:
+            try:
+                rabbitmq_client.close()
+                logger.info("✓ RabbitMQ connection closed")
+            except Exception as e:
+                logger.error(f"Error closing RabbitMQ: {e}")
+
+        # Close database connections
+        if db_clients:
+            try:
+                db_clients.close()
+            except Exception as e:
+                logger.error(f"Error closing database clients: {e}")
+
+        logger.info("✅ Worker shut down gracefully")
+        logger.info("="*80 + "\n")
+
+
+# ================================
+# ENTRY POINT
+# ================================
 
 if __name__ == "__main__":
     main()

@@ -52,6 +52,45 @@ public class KnowledgeTreeRepository : IKnowledgetreeRepository
         }
     }
 
+    public async Task<List<KnowledgeNode>> GetAllRootNodesByWorkspaceIdAsync(string workspaceId, CancellationToken cancellationToken)
+    {
+        // Validate input
+        if (string.IsNullOrWhiteSpace(workspaceId))
+            throw new ArgumentException("Workspace ID cannot be empty", nameof(workspaceId));
+
+        try
+        {
+            await using var session = _neo4jConnection.GetAsyncSession();
+            
+            var result = await session.RunAsync(@"
+                MATCH (n:KnowledgeNode {workspace_id: $workspaceId, level: 0, type: 'domain'})
+                OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
+                OPTIONAL MATCH (n)-[:HAS_SUBCATEGORY]->(c:KnowledgeNode)
+                RETURN n, 
+                    collect(DISTINCT e) AS evidences, 
+                    collect(DISTINCT c) AS children
+                ORDER BY n.created_at DESC
+                LIMIT 100  // Thêm giới hạn để tránh overload
+            ", new { workspaceId });
+
+            var nodes = new List<KnowledgeNode>();
+            await foreach (var record in result.WithCancellation(cancellationToken))
+            {
+                var node = record["n"].As<INode>();
+                var evidences = record["evidences"].As<List<INode>>();
+                var childrenNodes = record["children"].As<List<INode>>();
+    
+                var knowledgeNode = MapKnowledgeNode(node, evidences, childrenNodes, new List<INode>());
+                nodes.Add(knowledgeNode);
+            }
+
+            return nodes;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error while fetching root KnowledgeNodes for workspace '{workspaceId}': {ex.Message}", ex);
+        }
+    }
     public async Task<KnowledgeNode?> GetRootNodeByWorkspaceIdAsync(string workspaceId, CancellationToken cancellationToken)
     {
         try

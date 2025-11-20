@@ -1,21 +1,22 @@
 import { create } from 'zustand';
 import { treeService } from '@/services/tree.service';
-import type { TreeNodeUI, NodeDetailsResponse } from '@/types';
+import type { KnowledgeNodeUI } from '@/types';
+import { transformToKnowledgeNodeUI, updateNodeInTree } from '@/utils/treeTransform';
 
 interface TreeState {
   // State
-  tree: TreeNodeUI | null;
+  tree: KnowledgeNodeUI | null;
   expandedNodeIds: Set<string>;
   selectedNodeId: string | null;
-  nodeDetails: NodeDetailsResponse | null;
+  nodeDetails: KnowledgeNodeUI | null;
   loading: boolean;
   error: string | null;
 
   // Actions
   loadTreeRoot: (workspaceId: string) => Promise<void>;
-  expandNode: (workspaceId: string, nodeId: string) => Promise<void>;
+  expandNode: (nodeId: string) => Promise<void>;
   collapseNode: (nodeId: string) => void;
-  selectNode: (workspaceId: string, nodeId: string) => Promise<void>;
+  selectNode: (nodeId: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -30,59 +31,94 @@ export const useTreeStore = create<TreeState>((set) => ({
   loadTreeRoot: async (workspaceId: string) => {
     set({ loading: true, error: null });
     try {
-      const data = await treeService.getTreeRoot(workspaceId);
-      
-      const rootNode: TreeNodeUI = {
-        ...data.root,
-        isExpanded: true,
-        children: data.children.map(child => ({
-          ...child,
-          isExpanded: false,
-          children: []
-        }))
-      };
+      const response = await treeService.getKnowledgeTree(workspaceId);
 
-      set({ 
-        tree: rootNode, 
-        expandedNodeIds: new Set([data.root.id]),
-        loading: false 
+      if (!response.data?.rootNode || response.data.rootNode.length === 0) {
+        throw new Error('No root nodes in response');
+      }
+
+      // NEW: Response has { data: { totalNodes, rootNode: [] } }
+      // rootNode is array of nodes with full nested children
+      const rootNodes = response.data.rootNode;
+
+      console.log(`[treeStore] Loaded ${rootNodes.length} root node(s), ${response.data.totalNodes} total nodes`);
+
+      let displayRoot: KnowledgeNodeUI;
+
+      if (rootNodes.length === 1) {
+        // Single root: use it directly
+        displayRoot = transformToKnowledgeNodeUI(rootNodes[0], {
+          isExpanded: true,
+          childrenLoaded: true,
+        });
+      } else {
+        // Multiple roots: create virtual root
+        const transformedRoots = rootNodes.map(node =>
+          transformToKnowledgeNodeUI(node, {
+            isExpanded: false,
+            childrenLoaded: true,
+          })
+        );
+
+        displayRoot = {
+          nodeId: 'virtual-root',
+          nodeName: 'Knowledge Domains',
+          description: `Workspace contains ${rootNodes.length} knowledge domains`,
+          tags: ['workspace'],
+          level: -1,
+          sourceCount: rootNodes.reduce((sum, n) => sum + n.sourceCount, 0),
+          evidences: [],
+          gapSuggestions: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          hasChildren: true,
+          children: transformedRoots,
+          isExpanded: true,
+          childrenLoaded: true,
+        };
+      }
+
+      set({
+        tree: displayRoot,
+        expandedNodeIds: new Set([displayRoot.nodeId]),
+        loading: false
       });
     } catch (error) {
+      console.error('Failed to load tree root:', error);
       set({ error: 'Failed to load tree', loading: false });
     }
   },
 
-  expandNode: async (workspaceId: string, nodeId: string) => {
+  expandNode: async (nodeId: string) => {
     set({ loading: true });
     try {
-      const [childrenData, detailsData] = await Promise.all([
-        treeService.getNodeChildren(workspaceId, nodeId),
-        treeService.getNodeDetails(workspaceId, nodeId)
-      ]);
+      const response = await treeService.getKnowledgeNodeById(nodeId);
+
+      if (!response.data) {
+        throw new Error('No data in response');
+      }
+
+      const updatedNode = transformToKnowledgeNodeUI(response.data, {
+        isExpanded: true,
+        childrenLoaded: true,
+      });
 
       set(state => ({
-        tree: updateTreeNode(state.tree, nodeId, (node) => ({
-          ...node,
-          isExpanded: true,
-          children: childrenData.map(child => ({
-            ...child,
-            isExpanded: false,
-            children: []
-          }))
-        })),
+        tree: updateNodeInTree(state.tree, nodeId, () => updatedNode),
         expandedNodeIds: new Set([...state.expandedNodeIds, nodeId]),
         selectedNodeId: nodeId,
-        nodeDetails: detailsData,
+        nodeDetails: updatedNode,
         loading: false
       }));
     } catch (error) {
+      console.error('Failed to expand node:', error);
       set({ error: 'Failed to expand node', loading: false });
     }
   },
 
   collapseNode: (nodeId: string) => {
     set(state => ({
-      tree: updateTreeNode(state.tree, nodeId, (node) => ({
+      tree: updateNodeInTree(state.tree, nodeId, (node) => ({
         ...node,
         isExpanded: false
       })),
@@ -92,16 +128,27 @@ export const useTreeStore = create<TreeState>((set) => ({
     }));
   },
 
-  selectNode: async (workspaceId: string, nodeId: string) => {
+  selectNode: async (nodeId: string) => {
     set({ loading: true });
     try {
-      const detailsData = await treeService.getNodeDetails(workspaceId, nodeId);
+      const response = await treeService.getKnowledgeNodeById(nodeId);
+
+      if (!response.data) {
+        throw new Error('No data in response');
+      }
+
+      const nodeDetails = transformToKnowledgeNodeUI(response.data, {
+        isExpanded: true,
+        childrenLoaded: true,
+      });
+
       set({ 
         selectedNodeId: nodeId, 
-        nodeDetails: detailsData, 
+        nodeDetails, 
         loading: false 
       });
     } catch (error) {
+      console.error('Failed to load node details:', error);
       set({ error: 'Failed to load node details', loading: false });
     }
   },
@@ -115,27 +162,3 @@ export const useTreeStore = create<TreeState>((set) => ({
     error: null
   })
 }));
-
-// Helper: Update node in tree (recursive)
-function updateTreeNode(
-  node: TreeNodeUI | null,
-  targetId: string,
-  updater: (node: TreeNodeUI) => TreeNodeUI
-): TreeNodeUI | null {
-  if (!node) return null;
-  
-  if (node.id === targetId) {
-    return updater(node);
-  }
-  
-  if (node.children) {
-    return {
-      ...node,
-      children: node.children.map(child => 
-        updateTreeNode(child, targetId, updater)
-      ).filter(Boolean) as TreeNodeUI[]
-    };
-  }
-  
-  return node;
-}

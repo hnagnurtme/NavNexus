@@ -57,7 +57,6 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 				maxZoom: 1.5, // Prevent zooming in too much
 				minZoom: 0.5, // Prevent zooming out too much
 			});
-			console.log("Fitting view to", nodes.length, "nodes");
 		}, 50); // Small delay to let React Flow update the DOM
 
 		return () => clearTimeout(timer);
@@ -70,8 +69,8 @@ const GraphContent: React.FC<GalaxyGraphInnerProps> = ({
 		const targetX = node.position.x + (node.width ?? 0) / 2;
 		const targetY = node.position.y + (node.height ?? 0) / 2;
 		setCenter(targetX, targetY, {
-			zoom: 1.1,
-			duration: 500,
+			zoom: 1.3, // Increased zoom for better focus
+			duration: 800, // Smoother animation
 		});
 	}, [focusedNodeId, getNodes, setCenter]);
 
