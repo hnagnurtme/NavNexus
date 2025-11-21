@@ -58,14 +58,17 @@ public static class DependencyInjection
     {
         var projectId = configuration["Firebase:ProjectId"];
         var privateKeyPath = configuration["Firebase:PrivateKeyPath"];
+        var databaseUrl = configuration["Firebase:DatabaseUrl"];
 
         if (string.IsNullOrWhiteSpace(projectId))
             throw new ArgumentNullException(nameof(projectId), "Firebase:ProjectId is not configured.");
         if (string.IsNullOrWhiteSpace(privateKeyPath))
             throw new ArgumentNullException(nameof(privateKeyPath), "Firebase:PrivateKeyPath is not configured.");
+        if (string.IsNullOrWhiteSpace(databaseUrl))
+            throw new ArgumentNullException(nameof(databaseUrl), "Firebase:DatabaseUrl is not configured.");
 
         // 1. Đăng ký FirebaseConnection như một Singleton
-        services.AddSingleton(new FirebaseConnection(projectId, privateKeyPath));
+        services.AddSingleton(new FirebaseConnection(projectId, privateKeyPath, databaseUrl));
 
         // 2. Đăng ký FirestoreDb như một Singleton
         services.AddSingleton(sp =>
@@ -82,7 +85,14 @@ public static class DependencyInjection
     {
         services.AddScoped<IUserRepository, UserRepository>();
         services.AddScoped<ITokenRepository, TokenRepository>();
-        services.AddScoped<IKnowledgetreeRepository,KnowledgeTreeRepository >();
+        services.AddScoped<IKnowledgetreeRepository, KnowledgeTreeRepository>();
+        services.AddScoped<IJobRepository>(sp =>
+        {
+            var firebaseConnection = sp.GetRequiredService<FirebaseConnection>();
+            var databaseUrl = firebaseConnection.GetDatabaseUrl();
+            var privateKeyPath = sp.GetRequiredService<IConfiguration>()["Firebase:PrivateKeyPath"] ?? "";
+            return new JobRepository(databaseUrl, privateKeyPath);
+        });
     }
 
     // -------------------------

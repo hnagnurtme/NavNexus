@@ -5,9 +5,9 @@ import type { Evidence } from "@/types";
 
 interface EvidenceCardProps {
 	evidence: Evidence;
-	selected: boolean;
-	disabled: boolean;
-	onToggle: () => void;
+	selected?: boolean;
+	disabled?: boolean;
+	onToggle?: () => void;
 }
 
 export const EvidenceCard: React.FC<EvidenceCardProps> = ({
@@ -28,7 +28,11 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 				disabled && !selected && "opacity-40 cursor-not-allowed",
 				!disabled && "cursor-pointer"
 			)}
-			onClick={() => !disabled && onToggle()}
+			onClick={() => {
+				if (!disabled && onToggle) {
+					onToggle();
+				}
+			}}
 		>
 			{/* Selection Indicator */}
 			{selected && (

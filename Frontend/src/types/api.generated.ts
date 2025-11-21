@@ -575,6 +575,7 @@ export interface components {
             messageId: string | null;
             /** Format: date-time */
             sentAt: string;
+            status?: string | null;
         };
         RabbitMqSendingResponseApiResponse: {
             success?: boolean;

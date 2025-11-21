@@ -18,8 +18,7 @@ type Props = {
 export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [visibility, setVisibility] =
-    useState<WorkspacePayload["visibility"]>("team");
+  const [visibility, setVisibility] =useState<WorkspacePayload["visibility"]>("team");
   const [color, setColor] = useState("#03C75A"); // Naver green default
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,7 +89,7 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
   const changeRawCloudinary = async (files: File[]) => {
     const uploadPromises = files.map((file) => uploadToCloudinary(file));
     const uploadResults = await Promise.all(uploadPromises);
-    const urls = uploadResults.map((result) => result.public_id);
+    const urls = uploadResults.map((result) => result.url);
     console.log(urls);
     return urls;
   }
@@ -234,7 +233,7 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
               </div>
 
               {!!files.length && (
-                <div className="grid max-h-25 overflow-y-scroll gap-2 mt-3">
+                <div className="grid gap-2 mt-3 overflow-y-scroll max-h-25">
                   {files.map((f, i) => (
                     <div
                       key={i}

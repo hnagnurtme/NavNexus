@@ -40,7 +40,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 	return (
 		<>
 			<div className="pointer-events-auto fixed bottom-6 left-1/2 z-20 w-full max-w-3xl -translate-x-1/2 px-4">
-				<div className="rounded-3xl border border-emerald-500/30 bg-slate-900/90 p-5 text-white shadow-2xl backdrop-blur overflow-hidden">
+				<div className="rounded-3xl border border-emerald-500/30 bg-slate-900/90 p-5 text-white shadow-2xl backdrop-blur">
 					{/* Branch Selection View */}
 					{journey.awaitingBranch ? (
 						<div className="animate-fadeIn">
@@ -73,7 +73,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 								Select a branch to continue your journey:
 							</p>
 
-							<div className="flex gap-3 overflow-x-auto p-2">
+							<div className="flex w-full flex-nowrap gap-3 overflow-x-auto p-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
 								{journey.branchOptions.map((option) => (
 									<button
 										type="button"
@@ -109,7 +109,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 							</div>
 						</div>
 					) : (
-						<div className="animate-fadeIn">
+						<div className="animate-fadeIn ">
 							{/* Normal Journey View */}
 							<header className="mb-4 flex items-center justify-between gap-4">
 								<div>
@@ -121,18 +121,21 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 											? currentNode.nodeName
 											: "Exploration"}
 									</h3>
-									{currentNode?.tags && currentNode.tags.length > 0 && (
-										<div className="mt-1 flex flex-wrap gap-1">
-											{currentNode.tags.map((tag, idx) => (
-												<span 
-													key={idx} 
-													className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70"
-												>
-													{tag}
-												</span>
-											))}
-										</div>
-									)}
+									{currentNode?.tags &&
+										currentNode.tags.length > 0 && (
+											<div className="mt-1 flex flex-wrap gap-1">
+												{currentNode.tags.map(
+													(tag, idx) => (
+														<span
+															key={idx}
+															className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70"
+														>
+															{tag}
+														</span>
+													)
+												)}
+											</div>
+										)}
 								</div>
 								<button
 									type="button"
@@ -160,12 +163,12 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 								</div>
 							</div>
 
-							<div className="flex flex-wrap gap-2 text-xs">
+							<div className="flex w-full gap-2 overflow-x-auto text-xs whitespace-nowrap scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
 								{pathNodes.map((node) => (
 									<span
 										key={node.id}
 										className={clsx(
-											"rounded-full border px-3 py-1",
+											"rounded-full border px-3 py-1 truncate max-w-[200px] overflow-hidden whitespace-nowrap",
 											node.id === journey.currentNodeId
 												? "border-emerald-400 bg-emerald-500/20 text-white"
 												: "border-white/10 text-white/70"
