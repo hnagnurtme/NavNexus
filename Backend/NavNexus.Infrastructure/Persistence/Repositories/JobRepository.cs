@@ -32,8 +32,8 @@ public class JobRepository : IJobRepository
         // Get access token
         var accessToken = await GetAccessTokenAsync();
 
-        // Create job path: jobs/{workspaceId}/{jobId}
-        var url = $"{_databaseUrl}/jobs/{job.WorkspaceId}/{job.Id}.json?access_token={accessToken}";
+        // Create job path: jobs/{jobId} (matching Frontend expectation)
+        var url = $"{_databaseUrl}/jobs/{job.Id}.json?access_token={accessToken}";
 
         var jobData = new Dictionary<string, object>
         {
@@ -62,10 +62,10 @@ public class JobRepository : IJobRepository
         // Get access token
         var accessToken = await GetAccessTokenAsync();
 
-        // Query jobs by workspace and filePath
-        // orderBy="filePath"&equalTo="{filePath}"
-        var encodedFilePath = Uri.EscapeDataString($"\"{filePath}\"");
-        var url = $"{_databaseUrl}/jobs/{workspaceId}.json?orderBy=\"filePath\"&equalTo={encodedFilePath}&access_token={accessToken}";
+        // Query all jobs and filter by workspaceId and filePath
+        // orderBy="workspaceId"&equalTo="{workspaceId}"
+        var encodedWorkspaceId = Uri.EscapeDataString($"\"{workspaceId}\"");
+        var url = $"{_databaseUrl}/jobs.json?orderBy=\"workspaceId\"&equalTo={encodedWorkspaceId}&access_token={accessToken}";
 
         var response = await _httpClient.GetAsync(url, cancellationToken);
         response.EnsureSuccessStatusCode();
@@ -79,9 +79,19 @@ public class JobRepository : IJobRepository
         if (jobs == null || jobs.Count == 0)
             return null;
 
-        // Get first matching job
-        var firstJob = jobs.First().Value;
-        return MapToJob(firstJob);
+        // Filter by filePath in memory (since Firebase can only orderBy one field)
+        foreach (var kvp in jobs)
+        {
+            var jobElement = kvp.Value;
+            var jobFilePath = GetStringProperty(jobElement, "filePath");
+
+            if (jobFilePath == filePath)
+            {
+                return MapToJob(jobElement);
+            }
+        }
+
+        return null;
     }
 
     private Job MapToJob(JsonElement jobElement)

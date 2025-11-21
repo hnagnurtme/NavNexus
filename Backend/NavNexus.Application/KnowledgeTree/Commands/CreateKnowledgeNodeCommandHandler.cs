@@ -12,9 +12,9 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
     {
         private readonly IRabbitMQService _rabbitMQService;
         private readonly IKnowledgetreeRepository _knowledgeTreeRepository;
+        private readonly IJobRepository _jobRepository;
         private readonly ILogger<CreateKnowledgeTreeCommandHandler> _logger;
 
-        private readonly IJobRepository _jobRepository;
         private const string PDF_JOBS_QUEUE = "PDF_JOBS_QUEUE";
 
         public CreateKnowledgeTreeCommandHandler(
@@ -25,9 +25,8 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
         {
             _rabbitMQService = rabbitMQService ?? throw new ArgumentNullException(nameof(rabbitMQService));
             _knowledgeTreeRepository = knowledgeTreeRepository ?? throw new ArgumentNullException(nameof(knowledgeTreeRepository));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
             _jobRepository = jobRepository ?? throw new ArgumentNullException(nameof(jobRepository));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public async Task<ErrorOr<RabbitMqSendingResult>> Handle(
@@ -117,41 +116,6 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                     .Except(successfullyCopiedFiles)
                     .ToList();
 
-                // Bước 2: Lưu job information vào Firebase cho TẤT CẢ files (cả copied và new)
-                foreach (var filePath in request.FilePaths)
-                {
-                    try
-                    {
-                        // Check if file was copied successfully
-                        var status = successfullyCopiedFiles.Contains(filePath) ? "COMPLETED" : "PENDING";
-
-                        var job = new Domain.Entities.Job(
-                            workspaceId: request.WorkspaceId,
-                            filePath: filePath,
-                            status: status);
-
-                        // Mark as completed if copied
-                        if (status == "COMPLETED")
-                        {
-                            job.MarkAsCompleted();
-                        }
-
-                        await _jobRepository.CreateJobAsync(job, cancellationToken);
-
-                        _logger.LogInformation(
-                            "Successfully created job in Firebase - JobId: {JobId}, FilePath: {FilePath}, Status: {Status}",
-                            job.Id,
-                            filePath,
-                            status);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex,
-                            "Failed to create job in Firebase for FilePath: {FilePath}. Continuing with processing.",
-                            filePath);
-                    }
-                }
-
                 // Nếu TẤT CẢ files đều đã copy thành công → SUCCESS, không cần RabbitMQ
                 if (filesToProcess.Count == 0)
                 {
@@ -172,6 +136,34 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                     return successResult;
                 }
 
+                // Bước 2: Tạo job ID trước khi gửi RabbitMQ (để có thể track)
+                var jobId = Guid.NewGuid().ToString();
+
+                // Bước 3: Tạo job trong Firebase với status "pending"
+                try
+                {
+                    var job = new Domain.Entities.Job(
+                        workspaceId: request.WorkspaceId,
+                        filePath: string.Join(", ", filesToProcess), // Store all file paths
+                        status: "pending"); // lowercase để match Frontend
+
+                    // Override Id với jobId đã tạo
+                    job.Id = jobId;
+
+                    await _jobRepository.CreateJobAsync(job, cancellationToken);
+
+                    _logger.LogInformation(
+                        "Successfully created job in Firebase - JobId: {JobId}, TotalFiles: {TotalFiles}",
+                        jobId,
+                        filesToProcess.Count);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex,
+                        "Failed to create job in Firebase for JobId: {JobId}. Continuing with processing.",
+                        jobId);
+                }
+
                 // Có files cần xử lý → Chỉ gửi files chưa có lên RabbitMQ
                 if (totalCopiedNodes > 0)
                 {
@@ -190,9 +182,10 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                         filesToProcess.Count);
                 }
 
-                // Bước 3: Tạo payload message - CHỈ gửi files chưa có
+                // Bước 4: Tạo payload message - CHỈ gửi files chưa có với JobId
                 var messagePayload = new
                 {
+                    JobId = jobId, // Thêm JobId vào payload
                     WorkspaceId = request.WorkspaceId,
                     FilePaths = filesToProcess, // ✅ CHỈ gửi files chưa copy
                     CreatedAt = DateTime.UtcNow,
@@ -205,13 +198,13 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                     request.WorkspaceId);
 
                 // Gửi message lên RabbitMQ
-                var jobId = await _rabbitMQService.SendMessageWithJobIdAsync(
+                var rabbitMqJobId = await _rabbitMQService.SendMessageWithJobIdAsync(
                     PDF_JOBS_QUEUE,
                     messagePayload,
                     cancellationToken);
 
                 var result = new RabbitMqSendingResult(
-                    messageId: jobId,
+                    messageId: jobId, // Use our pre-created jobId, not RabbitMQ's
                     workspaceId: request.WorkspaceId,
                     sentAt: DateTime.UtcNow,
                     status: "PENDING");
