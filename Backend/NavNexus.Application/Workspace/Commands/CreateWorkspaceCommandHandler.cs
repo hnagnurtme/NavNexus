@@ -5,21 +5,25 @@ using ErrorOr;
 using NavNexus.Application.Workspace.Results;
 using NavNexus.Application.Common.Interfaces.Repositories;
 using NavNexus.Application.Common.Interfaces;
+using Microsoft.Extensions.Logging;
 
 public class CreateWorkspaceCommandHandler : IRequestHandler<CreateWorkspaceCommand, ErrorOr<GetWorkspaceDetailsResult>>
 {
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUserService _currentUserService;
     private readonly IKnowledgetreeRepository _knowledgetreeRepository;
+    private readonly ILogger<CreateWorkspaceCommandHandler> _logger;
 
     public CreateWorkspaceCommandHandler(
         IUserRepository userRepository, 
         ICurrentUserService currentUserService,
-        IKnowledgetreeRepository knowledgetreeRepository)
+        IKnowledgetreeRepository knowledgetreeRepository,
+        ILogger<CreateWorkspaceCommandHandler> logger)
     {
         _userRepository = userRepository;
         _currentUserService = currentUserService;
         _knowledgetreeRepository = knowledgetreeRepository;
+        _logger = logger;
     }
     public async Task<ErrorOr<GetWorkspaceDetailsResult>> Handle(CreateWorkspaceCommand request, CancellationToken cancellationToken)
     { 
@@ -62,9 +66,8 @@ public class CreateWorkspaceCommandHandler : IRequestHandler<CreateWorkspaceComm
             {
                 // Log lỗi nhưng vẫn tiếp tục tạo workspace
                 // Workspace đã được tạo, chỉ việc copy nodes bị lỗi
-                // Có thể log hoặc thêm warning vào response nếu cần
-                // Hiện tại chúng ta vẫn trả về workspace đã tạo thành công
-                Console.WriteLine($"Warning: Failed to copy nodes for fileIds: {ex.Message}");
+                _logger.LogWarning(ex, "Failed to copy nodes for workspace {WorkspaceId} with fileIds: {FileIds}", 
+                    workspace.Id, string.Join(", ", request.FileIds));
             }
         }
 
