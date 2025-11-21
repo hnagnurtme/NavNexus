@@ -7,6 +7,7 @@ import {
   User,
   Loader2,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -43,7 +44,7 @@ const getErrorMessage = (error: unknown) => {
 export const AuthCard = ({
   initialMode = "login",
   allowModeToggle = true,
-  redirectPath = '/',
+  redirectPath = "/",
 }: AuthCardProps) => {
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [name, setName] = useState("");
@@ -80,6 +81,12 @@ export const AuthCard = ({
     } catch (err) {
       setError(getErrorMessage(err));
     }
+  };
+
+  // ⭐ Auto-fill demo
+  const autoFillDemo = () => {
+    setEmail("anhnon0106@gmail.com");
+    setPassword("123456");
   };
 
   const primaryActionLabel = mode === "login" ? "Login" : "Create account";
@@ -143,6 +150,8 @@ export const AuthCard = ({
             </label>
           </>
         )}
+
+        {/* Email */}
         <label className="block text-sm text-gray-300">
           <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
             <Mail className="w-4 h-4" />
@@ -157,6 +166,8 @@ export const AuthCard = ({
             required
           />
         </label>
+
+        {/* Password */}
         <label className="block text-sm text-gray-300">
           <span className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-gray-400">
             <Lock className="w-4 h-4" />
@@ -196,7 +207,42 @@ export const AuthCard = ({
           )}
         </button>
       </form>
+      {/* ⭐ NOTE DEMO ACCOUNT */}
+{mode === "login" && (
+  <div className="mt-6 p-4 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 relative overflow-hidden">
+    {/* subtle NAVER green glow */}
+    <div className="absolute inset-0 bg-gradient-to-br from-[#03C75A]/20 via-transparent to-transparent opacity-20 pointer-events-none" />
 
+    <div className="relative z-10 space-y-3">
+      {/* Title + short description */}
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-[#03C75A]" />
+        <p className="text-sm text-gray-200 font-medium">
+          Want to try NavNexus instantly? Use the demo account below.
+        </p>
+      </div>
+
+      {/* Auto-fill button */}
+      <button
+        type="button"
+        onClick={autoFillDemo}
+        className="w-full flex items-center justify-center gap-2 px-4 py-2.5
+                   text-sm font-semibold rounded-xl
+                   bg-gradient-to-r from-[#03C75A]/20 via-[#25D97E]/25 to-[#07A151]/20
+                   text-[#03C75A] shadow-[0_0_10px_#03C75A40]
+                   hover:from-[#03C75A]/30 hover:via-[#25D97E]/50 hover:to-[#07A151]/30
+                   active:scale-[0.97] transition-all backdrop-blur-md"
+      >
+        <Sparkles className="w-4 h-4" />
+        Auto-fill Demo Account
+      </button>
+    </div>
+  </div>
+)}
+
+
+
+      {/* Toggle Login/Register */}
       {allowModeToggle && (
         <button
           type="button"
