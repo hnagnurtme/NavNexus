@@ -12,3 +12,5 @@ pika
 PyMuPDF
 aiohttp
 anthropic
+pdfplumber
+PyPDF2
