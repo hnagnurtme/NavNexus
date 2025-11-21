@@ -44,6 +44,7 @@ from src.pipeline.pdf_extraction import extract_pdf_enhanced
 from src.pipeline.chunking import create_smart_chunks
 from src.pipeline.llm_analysis import (
     extract_deep_merge_structure,
+    analyze_chunks_for_merging,
     call_llm_sync,
     SYSTEM_MESSAGE
 )
@@ -278,12 +279,6 @@ TASK: Extract HIGH-QUALITY evidence with expert-level analysis:
    - Focus on: limitations, implications, extensions, comparisons
    - Questions that experts would ask after reading
 
-3. **CLEANED TEXT** (100-200 words):
-   - Extract the CORE content relevant to concept
-   - Fix any truncation from chunking
-   - Keep technical terms intact
-   - Remove headers/footers/page numbers
-
 EXAMPLE OUTPUT:
 {{
   "key_claims": [
@@ -295,14 +290,12 @@ EXAMPLE OUTPUT:
     "How does the Dueling DQN architecture handle non-stationary environments when multiple satellites learn concurrently?",
     "What is the optimal trade-off between energy savings and delivery latency for different priority levels?",
     "Can the predictive energy model adapt to unexpected solar storms or equipment degradation?"
-  ],
-  "cleaned_text": "The proposed Dueling DQN framework addresses energy-constrained image delivery in SAGIN by separating value and advantage functions. The value stream (256-128-1) estimates state value V(s) representing overall energy budget, while the advantage stream (256-128-16) captures action-specific impacts of transmission timing decisions. This decomposition proves effective because satellite energy budgets affect all actions equally, while transmission timing has action-specific energy costs. Experimental results across 10,000 orbital periods demonstrate that this approach reduces energy consumption by 18% while maintaining 95% delivery success rate, with particularly strong performance (42% latency reduction) for high-priority emergency images."
+  ]
 }}
 
 QUALITY REQUIREMENTS:
 ✓ Key claims must contain NUMBERS or SPECIFIC facts
 ✓ Questions must require ANALYSIS to answer (not simple lookups)
-✓ Cleaned text must be COHERENT and INFORMATIVE (not just excerpts)
 ✓ Focus on DEPTH over breadth - better 3 excellent claims than 5 mediocre ones
 
 Return ONLY the JSON object."""
@@ -341,19 +334,15 @@ def get_existing_nodes_from_workspace(neo4j_driver, workspace_id: str) -> List[D
         return []
 
 
-def find_or_merge_node(existing_nodes: List[Dict], new_node_name: str, new_node_type: str,
-                       new_synthesis: str, level: int) -> Optional[str]:
+def find_or_merge_node_simple(existing_nodes: List[Dict], new_node_name: str, new_node_type: str,
+                              new_synthesis: str, level: int) -> Optional[str]:
     """
-    Tìm node tương tự để merge hoặc trả về None để tạo mới
-
-    Logic: Nếu có node cùng type, level và tên/synthesis tương tự (>70% overlap)
-    thì merge vào node đó
+    Simple word-overlap based merge (fast, no LLM)
     """
     for existing in existing_nodes:
         if existing["type"] != new_node_type or existing["level"] != level:
             continue
 
-        # Simple similarity check (có thể cải thiện bằng LLM)
         existing_name = existing["name"].lower()
         new_name = new_node_name.lower()
 
@@ -361,16 +350,87 @@ def find_or_merge_node(existing_nodes: List[Dict], new_node_name: str, new_node_
         if existing_name == new_name:
             return existing["id"]
 
-        # Partial match (>70% words overlap)
+        # Word overlap (>75%)
         existing_words = set(existing_name.split())
         new_words = set(new_name.split())
         if len(existing_words) > 0:
             overlap = len(existing_words & new_words) / len(existing_words | new_words)
-            if overlap > 0.7:
-                logger.info(f"  🔗 Merging '{new_node_name}' into existing '{existing['name']}' (overlap: {overlap:.2%})")
+            if overlap > 0.75:
+                logger.info(f"  🔗 Merging '{new_node_name}' → '{existing['name']}' ({overlap:.0%})")
                 return existing["id"]
 
     return None
+
+
+def find_merge_candidates_llm(new_nodes: List[Dict], existing_nodes: List[Dict],
+                               clova_api_key: str, clova_api_url: str) -> Dict[str, str]:
+    """
+    LLM-based semantic merge matching (slower, higher quality)
+
+    Returns:
+        Dict mapping new_node_name -> existing_node_id for merges
+    """
+    if not existing_nodes or not new_nodes:
+        return {}
+
+    # Prepare context for LLM
+    existing_context = "\n".join([
+        f"- [{n['type']}] {n['name']} (ID: {n['id']}, Level: {n['level']})"
+        for n in existing_nodes[:30]  # Limit to top 30
+    ])
+
+    new_context = "\n".join([
+        f"- [{n['type']}] {n['name']} (Level: {n['level']}, Synthesis: {n['synthesis'][:100]})"
+        for n in new_nodes[:20]  # Limit to top 20
+    ])
+
+    prompt = f"""You are a knowledge graph merge expert. Identify which NEW nodes should merge with EXISTING nodes.
+
+EXISTING NODES in workspace:
+{existing_context}
+
+NEW NODES from PDF:
+{new_context}
+
+TASK: For each NEW node, determine if it should MERGE with an existing node based on:
+1. Semantic similarity (similar meaning, not just word overlap)
+2. Same type and level
+3. Confidence > 80% that they represent the same concept
+
+Return JSON array of merge recommendations:
+{{
+  "merges": [
+    {{"new_node": "New Node Name", "existing_id": "existing-node-id-123", "confidence": 0.92, "reason": "Brief explanation"}},
+    ...
+  ]
+}}
+
+ONLY include high-confidence merges (>0.8). Return empty array if no good merges found."""
+
+    try:
+        result = call_llm_sync(
+            prompt=prompt,
+            max_tokens=1500,
+            system_message="You are an expert at semantic matching for knowledge graph merging.",
+            clova_api_key=clova_api_key,
+            clova_api_url=clova_api_url
+        )
+
+        if result and isinstance(result, dict):
+            merges = result.get('merges', [])
+            merge_mapping = {}
+            for merge in merges:
+                new_name = merge.get('new_node', '')
+                existing_id = merge.get('existing_id', '')
+                confidence = merge.get('confidence', 0.0)
+                if confidence > 0.8 and existing_id:
+                    merge_mapping[new_name] = existing_id
+                    logger.info(f"  🤖 LLM merge: '{new_name}' → {existing_id} ({confidence:.0%})")
+            return merge_mapping
+    except Exception as e:
+        logger.warning(f"  ⚠️  LLM merge matching failed: {e}")
+
+    return {}
 
 
 def identify_leaf_nodes(neo4j_driver, workspace_id: str) -> List[str]:
@@ -441,20 +501,20 @@ def enrich_evidence_with_llm(
     clova_api_url: str
 ) -> Dict:
     """
-    LLM call nhỏ gọn để extract DEEP insights cho 1 concept cụ thể
+    LLM call để extract key_claims và questions_raised cho concept
+
+    NOTE: Text được lấy trực tiếp từ chunk gốc, LLM CHỈ tìm claims và questions
 
     Returns:
         {
-            'key_claims': [...],  # Chi tiết, có số liệu
-            'questions_raised': [...],  # Sâu sắc, analytical
-            'cleaned_text': '...'  # Coherent, informative
+            'key_claims': [...],  # Chi tiết, có số liệu từ LLM
+            'questions_raised': [...]  # Sâu sắc, analytical từ LLM
         }
     """
     if not chunks:
         return {
             'key_claims': [],
-            'questions_raised': [],
-            'cleaned_text': ''
+            'questions_raised': []
         }
 
     # Prepare chunks text (max 3 chunks, 500 chars each)
@@ -472,7 +532,7 @@ def enrich_evidence_with_llm(
     try:
         result = call_llm_sync(
             prompt=prompt,
-            max_tokens=1500,
+            max_tokens=1000,  # Reduced since no cleaned_text
             system_message=SYSTEM_MESSAGE,
             clova_api_key=clova_api_key,
             clova_api_url=clova_api_url
@@ -481,8 +541,7 @@ def enrich_evidence_with_llm(
         if result and isinstance(result, dict):
             return {
                 'key_claims': result.get('key_claims', []),
-                'questions_raised': result.get('questions_raised', []),
-                'cleaned_text': result.get('cleaned_text', chunks[0].get('text', '')[:500])
+                'questions_raised': result.get('questions_raised', [])
             }
     except Exception as e:
         logger.warning(f"  ⚠️  Evidence enrichment failed for {concept_name}: {e}")
@@ -490,8 +549,7 @@ def enrich_evidence_with_llm(
     # Fallback to basic extraction
     return {
         'key_claims': [f"Information about {concept_name} from source document"],
-        'questions_raised': [f"How does {concept_name} relate to broader context?"],
-        'cleaned_text': chunks[0].get('text', '')[:500] if chunks else ''
+        'questions_raised': [f"How does {concept_name} relate to broader context?"]
     }
 
 
@@ -560,9 +618,14 @@ def process_pdf_to_knowledge_graph(
         # ========================================
         # STEP 0: Get existing nodes for merge context
         # ========================================
-        logger.info("  [0/6] Fetching existing nodes from workspace...")
+        logger.info("  [0/7] Fetching existing nodes from workspace...")
         existing_nodes = get_existing_nodes_from_workspace(neo4j_driver, workspace_id)
-        logger.info(f"  ✓ Found {len(existing_nodes)} existing nodes for merge context")
+        logger.info(f"  ✓ Found {len(existing_nodes)} existing nodes")
+
+        # Determine processing mode: NEW workspace vs MERGE mode
+        is_new_workspace = len(existing_nodes) == 0
+        processing_mode = "NEW_WORKSPACE" if is_new_workspace else "MERGE_MODE"
+        logger.info(f"  ✓ Processing mode: {processing_mode}")
 
         # ========================================
         # STEP 1: Extract PDF
@@ -585,7 +648,7 @@ def process_pdf_to_knowledge_graph(
         logger.info(f"  ✓ Created {len(chunks)} chunks")
 
         # ========================================
-        # STEP 3: STAGE 1 - Clean structure extraction (NO merge context)
+        # STEP 3: STAGE 1 - Clean structure extraction with RETRY
         # ========================================
         logger.info("  [3/7] STAGE 1: Extracting hierarchical structure (clean, no context)...")
 
@@ -602,7 +665,7 @@ def process_pdf_to_knowledge_graph(
             logger.warning("  ⚠️  LLM structure extraction failed, using fallback")
             structure = create_fallback_structure(file_name, workspace_id)
 
-        # Quality validation
+        # Quality validation - STRICT requirements
         categories = structure.get('categories', [])
         total_concepts = sum(len(cat.get('concepts', [])) for cat in categories)
         total_subconcepts = sum(
@@ -610,87 +673,181 @@ def process_pdf_to_knowledge_graph(
             for cat in categories
             for concept in cat.get('concepts', [])
         )
+        total_details = sum(
+            len(subcon.get('details', []))
+            for cat in categories
+            for concept in cat.get('concepts', [])
+            for subcon in concept.get('subconcepts', [])
+        )
 
-        logger.info(f"  ✓ Structure quality: {len(categories)} categories, {total_concepts} concepts, {total_subconcepts} subconcepts")
+        logger.info(f"  ✓ Structure quality: {len(categories)} categories, {total_concepts} concepts, {total_subconcepts} subconcepts, {total_details} details")
 
-        # Warn if structure is too shallow
-        if len(categories) < 2:
-            logger.warning("  ⚠️  Structure has only 1 category - may lack depth")
-        if total_concepts < 4:
-            logger.warning("  ⚠️  Structure has few concepts - may lack breadth")
-        if total_subconcepts < 6:
-            logger.warning("  ⚠️  Structure lacks subconcepts - may need deeper analysis")
+        # STRICT validation with RETRY mechanism
+        needs_retry = (
+            len(categories) < 2 or
+            total_concepts < 3 or
+            total_subconcepts < 2 or
+            total_details < 1
+        )
+
+        if needs_retry:
+            logger.warning(f"  ⚠️  Structure quality insufficient - RETRYING with stricter prompt...")
+            logger.warning(f"     Current: {len(categories)} cats, {total_concepts} concepts, {total_subconcepts} subcons, {total_details} details")
+
+            # RETRY with focused prompt emphasizing depth
+            retry_structure = force_deep_structure_extraction(
+                pdf_text=pdf_text,
+                file_name=file_name,
+                language=language,
+                clova_api_key=CLOVA_API_KEY,
+                clova_api_url=CLOVA_API_URL
+            )
+
+            if retry_structure and retry_structure.get('domain'):
+                # Validate retry result
+                retry_cats = retry_structure.get('categories', [])
+                retry_concepts = sum(len(cat.get('concepts', [])) for cat in retry_cats)
+                retry_subcons = sum(
+                    len(concept.get('subconcepts', []))
+                    for cat in retry_cats
+                    for concept in cat.get('concepts', [])
+                )
+                retry_details = sum(
+                    len(subcon.get('details', []))
+                    for cat in retry_cats
+                    for concept in cat.get('concepts', [])
+                    for subcon in concept.get('subconcepts', [])
+                )
+
+                # More lenient retry validation - accept if better than original
+                is_retry_better = (
+                    len(retry_cats) >= len(categories) and
+                    retry_concepts >= total_concepts and
+                    retry_subcons >= 2  # Minimum subconcepts
+                )
+
+                if is_retry_better:
+                    logger.info(f"  ✅ RETRY SUCCESS: {len(retry_cats)} cats, {retry_concepts} concepts, {retry_subcons} subcons, {retry_details} details")
+                    structure = retry_structure
+                    categories = retry_cats
+                    total_concepts = retry_concepts
+                    total_subconcepts = retry_subcons
+                    total_details = retry_details
+                else:
+                    logger.warning(f"  ⚠️  Retry not better, using enhanced fallback")
+                    structure = create_fallback_structure(file_name, workspace_id)
+                    categories = structure.get('categories', [])
+                    total_concepts = sum(len(cat.get('concepts', [])) for cat in categories)
+                    total_subconcepts = sum(len(concept.get('subconcepts', [])) for cat in categories for concept in cat.get('concepts', []))
+                    total_details = sum(len(subcon.get('details', [])) for cat in categories for concept in cat.get('concepts', []) for subcon in concept.get('subconcepts', []))
+            else:
+                logger.warning("  ⚠️  Retry failed, using fallback")
+                structure = create_fallback_structure(file_name, workspace_id)
+                categories = structure.get('categories', [])
+                total_concepts = sum(len(cat.get('concepts', [])) for cat in categories)
+                total_subconcepts = sum(len(concept.get('subconcepts', [])) for cat in categories for concept in cat.get('concepts', []))
+                total_details = sum(len(subcon.get('details', [])) for cat in categories for concept in cat.get('concepts', []) for subcon in concept.get('subconcepts', []))
+
+        logger.info(f"  ✓ FINAL structure: {len(categories)} categories, {total_concepts} concepts, {total_subconcepts} subconcepts, {total_details} details")
 
         # ========================================
-        # STEP 4: STAGE 2 - Prepare chunk-to-concept mapping for evidence enrichment
+        # STEP 4: STAGE 2 - LLM analyzes chunks for precise concept mapping
         # ========================================
-        logger.info("  [4/7] STAGE 2: Mapping chunks to concepts for evidence enrichment...")
+        logger.info("  [4/7] STAGE 2: LLM analyzing chunks for concept mapping...")
 
-        # Create a simple mapping of chunks to concepts based on keyword matching
-        # This will be used in Stage 3 for targeted evidence enrichment
-        concept_chunk_mapping = {}  # Maps concept_name -> list of relevant chunks
+        # Use analyze_chunks_for_merging to get precise chunk-to-concept mapping
+        chunk_analysis = analyze_chunks_for_merging(
+            chunks=chunks,
+            structure=structure,
+            clova_api_key=CLOVA_API_KEY,
+            clova_api_url=CLOVA_API_URL
+        )
 
+        analyzed_chunks = chunk_analysis.get('analysis_results', [])
+        logger.info(f"  ✓ Analyzed {len(analyzed_chunks)} chunks with concept mapping")
+
+        # Build concept_chunk_mapping from analysis results
+        concept_chunk_mapping = {}  # Maps concept_name -> list of chunk data with analysis
         all_concepts = get_all_concepts_from_structure(structure)
-        logger.info(f"  ✓ Extracted {len(all_concepts)} total concepts from structure")
 
-        for concept_data in all_concepts:
-            concept_name = concept_data.get('name', '')
-            if not concept_name:
+        for chunk_data in analyzed_chunks:
+            primary_concept = chunk_data.get('primary_concept', '')
+            if not primary_concept:
                 continue
 
-            # Find chunks that mention this concept or related terms
-            concept_keywords = set(concept_name.lower().split())
-            relevant_chunks = []
+            if primary_concept not in concept_chunk_mapping:
+                concept_chunk_mapping[primary_concept] = []
 
-            for chunk in chunks:
-                chunk_text = chunk.get('text', '').lower()
-                # Simple keyword matching (can be improved with semantic search)
-                if any(keyword in chunk_text for keyword in concept_keywords):
-                    relevant_chunks.append(chunk)
+            concept_chunk_mapping[primary_concept].append(chunk_data)
 
-            if relevant_chunks:
-                concept_chunk_mapping[concept_name] = relevant_chunks[:5]  # Max 5 chunks per concept
-
-        logger.info(f"  ✓ Mapped {len(concept_chunk_mapping)} concepts to relevant chunks")
+        logger.info(f"  ✓ Mapped chunks to {len(concept_chunk_mapping)} concepts")
 
         # ========================================
-        # STEP 5: STAGE 3 - Per-concept evidence enrichment with LLM
+        # STEP 5: STAGE 3 - Per-concept evidence enrichment (OPTIMIZED)
         # ========================================
-        logger.info("  [5/7] STAGE 3: Enriching evidence with expert-level analysis...")
+        logger.info("  [5/7] STAGE 3: Enriching evidence for TOP concepts...")
 
         enriched_evidence_cache = {}  # Cache enriched evidence per concept
 
-        for concept_name, relevant_chunks in concept_chunk_mapping.items():
-            if not relevant_chunks:
-                continue
+        # Tối ưu: Chỉ enrich top concepts có nhiều chunks nhất (high merge_potential)
+        # Sort concepts by number of chunks (descending)
+        sorted_concepts = sorted(
+            concept_chunk_mapping.items(),
+            key=lambda x: len(x[1]),
+            reverse=True
+        )
 
-            # Get concept synthesis from structure
+        # Chỉ enrich top 10-15 concepts để cân bằng quality vs speed
+        top_concepts_to_enrich = sorted_concepts[:15]
+        logger.info(f"  ✓ Selected {len(top_concepts_to_enrich)} top concepts for enrichment (out of {len(sorted_concepts)})")
+
+        # Use ThreadPoolExecutor for parallel LLM calls
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        def enrich_concept(concept_name, relevant_chunks):
+            """Helper function for parallel enrichment"""
+            # Get concept synthesis
             concept_synthesis = ""
             for concept_data in all_concepts:
                 if concept_data.get('name') == concept_name:
                     concept_synthesis = concept_data.get('synthesis', '')
                     break
 
-            # Call LLM for expert-level evidence enrichment
-            try:
-                enriched = enrich_evidence_with_llm(
-                    chunks=relevant_chunks,
-                    concept_name=concept_name,
-                    concept_synthesis=concept_synthesis,
-                    clova_api_key=CLOVA_API_KEY,
-                    clova_api_url=CLOVA_API_URL
-                )
-                enriched_evidence_cache[concept_name] = enriched
-                logger.info(f"    ✓ Enriched evidence for '{concept_name}' ({len(enriched.get('key_claims', []))} claims)")
-            except Exception as e:
-                logger.warning(f"    ⚠️ Failed to enrich '{concept_name}': {e}")
+            # Call LLM
+            enriched = enrich_evidence_with_llm(
+                chunks=relevant_chunks,
+                concept_name=concept_name,
+                concept_synthesis=concept_synthesis,
+                clova_api_key=CLOVA_API_KEY,
+                clova_api_url=CLOVA_API_URL
+            )
+            return concept_name, enriched
 
-        logger.info(f"  ✓ Enriched evidence for {len(enriched_evidence_cache)} concepts")
+        # Parallel enrichment với ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = {}
+            for concept_name, relevant_chunks in top_concepts_to_enrich:
+                if not relevant_chunks:
+                    continue
+                future = executor.submit(enrich_concept, concept_name, relevant_chunks)
+                futures[future] = concept_name
+
+            # Collect results as they complete
+            for future in as_completed(futures):
+                concept_name = futures[future]
+                try:
+                    name, enriched = future.result()
+                    enriched_evidence_cache[name] = enriched
+                    logger.info(f"    ✓ Enriched '{name}' ({len(enriched.get('key_claims', []))} claims)")
+                except Exception as e:
+                    logger.warning(f"    ⚠️ Failed to enrich '{concept_name}': {e}")
+
+        logger.info(f"  ✓ Enriched evidence for {len(enriched_evidence_cache)} concepts (parallel processing)")
 
         # ========================================
         # STEP 6: Build and insert knowledge graph with INTELLIGENT MERGING
         # ========================================
-        logger.info("  [6/7] Building knowledge graph in Neo4j with node merging...")
+        logger.info("  [6/7] Building knowledge graph in Neo4j...")
 
         source_id = pdf_url  # ✅ SOURCE_ID = PDF URL
         nodes_created = 0
@@ -698,16 +855,57 @@ def process_pdf_to_knowledge_graph(
         evidences_created = 0
         created_node_ids = []  # Track created nodes for gap suggestions
 
+        # Prepare merge mapping based on mode
+        llm_merge_mapping = {}
+        if not is_new_workspace:
+            # MERGE MODE: Use LLM for semantic matching (1 call for all nodes)
+            logger.info("  ✓ MERGE MODE: Using LLM for semantic merge matching...")
+
+            # Collect all new nodes from structure
+            new_nodes_for_merge = []
+            new_nodes_for_merge.append({
+                "type": "domain",
+                "name": structure.get('domain', {}).get('name', ''),
+                "synthesis": structure.get('domain', {}).get('synthesis', ''),
+                "level": 0
+            })
+            for cat in categories:
+                new_nodes_for_merge.append({
+                    "type": "category",
+                    "name": cat.get('name', ''),
+                    "synthesis": cat.get('synthesis', ''),
+                    "level": 1
+                })
+                for concept in cat.get('concepts', [])[:5]:  # Top 5 concepts per category
+                    new_nodes_for_merge.append({
+                        "type": "concept",
+                        "name": concept.get('name', ''),
+                        "synthesis": concept.get('synthesis', ''),
+                        "level": 2
+                    })
+
+            llm_merge_mapping = find_merge_candidates_llm(
+                new_nodes=new_nodes_for_merge,
+                existing_nodes=existing_nodes,
+                clova_api_key=CLOVA_API_KEY,
+                clova_api_url=CLOVA_API_URL
+            )
+            logger.info(f"  ✓ LLM found {len(llm_merge_mapping)} semantic merge candidates")
+        else:
+            logger.info("  ✓ NEW WORKSPACE: Creating fresh knowledge graph...")
+
         with neo4j_driver.session() as session:
             # Create or merge domain node (Level 0)
             domain_data = structure.get('domain', {})
             domain_name = domain_data.get('name', f"Knowledge from {file_name}")
 
-            # Try to find existing domain to merge
-            existing_domain_id = find_or_merge_node(
-                existing_nodes, domain_name, "domain",
-                domain_data.get('synthesis', ''), 0
-            )
+            # Try to merge: First check LLM mapping, then word overlap
+            existing_domain_id = llm_merge_mapping.get(domain_name)
+            if not existing_domain_id:
+                existing_domain_id = find_or_merge_node_simple(
+                    existing_nodes, domain_name, "domain",
+                    domain_data.get('synthesis', ''), 0
+                )
 
             if existing_domain_id:
                 domain_id = existing_domain_id
@@ -731,14 +929,17 @@ def process_pdf_to_knowledge_graph(
                 nodes_created += 1
                 created_node_ids.append(domain_id)
 
-            # Create or merge categories and their nested structure
-            for cat_idx, category in enumerate(structure.get('categories', [])[:3]):
+            # Create or merge categories and their nested structure (TOÀN BỘ, không limit)
+            for cat_idx, category in enumerate(structure.get('categories', [])):
                 category_name = category.get('name', f"Category {cat_idx + 1}")
 
-                existing_cat_id = find_or_merge_node(
-                    existing_nodes, category_name, "category",
-                    category.get('synthesis', ''), 1
-                )
+                # Try LLM mapping first, then word overlap
+                existing_cat_id = llm_merge_mapping.get(category_name)
+                if not existing_cat_id:
+                    existing_cat_id = find_or_merge_node_simple(
+                        existing_nodes, category_name, "category",
+                        category.get('synthesis', ''), 1
+                    )
 
                 if existing_cat_id:
                     category_id = existing_cat_id
@@ -763,14 +964,17 @@ def process_pdf_to_knowledge_graph(
 
                 create_parent_child_relationship(session, domain_id, category_id, 'domain_to_category')
 
-                # Create or merge concepts under category
-                for concept_idx, concept in enumerate(category.get('concepts', [])[:3]):
+                # Create or merge concepts under category (TOÀN BỘ concepts)
+                for concept_idx, concept in enumerate(category.get('concepts', [])):
                     concept_name = concept.get('name', f"Concept {concept_idx + 1}")
 
-                    existing_concept_id = find_or_merge_node(
-                        existing_nodes, concept_name, "concept",
-                        concept.get('synthesis', ''), 2
-                    )
+                    # Try LLM mapping first, then word overlap
+                    existing_concept_id = llm_merge_mapping.get(concept_name)
+                    if not existing_concept_id:
+                        existing_concept_id = find_or_merge_node_simple(
+                            existing_nodes, concept_name, "concept",
+                            concept.get('synthesis', ''), 2
+                        )
 
                     if existing_concept_id:
                         concept_id = existing_concept_id
@@ -795,34 +999,172 @@ def process_pdf_to_knowledge_graph(
 
                     create_parent_child_relationship(session, category_id, concept_id, 'category_to_concept')
 
-                    # ✅ BẮT BUỘC: Mỗi node phải có ít nhất 1 evidence
+                    # Create subconcepts under concept (Level 3 -> Level 4)
+                    for subcon_idx, subconcept in enumerate(concept.get('subconcepts', [])):
+                        subconcept_name = subconcept.get('name', f"Subconcept {subcon_idx + 1}")
+
+                        existing_subcon_id = find_or_merge_node_simple(
+                            existing_nodes, subconcept_name, "subconcept",
+                            subconcept.get('synthesis', ''), 3
+                        )
+
+                        if existing_subcon_id:
+                            subconcept_id = existing_subcon_id
+                            nodes_merged += 1
+                        else:
+                            subconcept_node = KnowledgeNode(
+                                Id=f"subconcept-{uuid.uuid4().hex[:8]}",
+                                Type="subconcept",
+                                Name=subconcept_name,
+                                Synthesis=subconcept.get('synthesis', ''),
+                                WorkspaceId=workspace_id,
+                                Level=3,
+                                SourceCount=1,
+                                TotalConfidence=0.86,
+                                CreatedAt=datetime.now(timezone.utc),
+                                UpdatedAt=datetime.now(timezone.utc)
+                            )
+                            create_knowledge_node(session, subconcept_node)
+                            subconcept_id = subconcept_node.Id
+                            nodes_created += 1
+                            created_node_ids.append(subconcept_id)
+
+                        create_parent_child_relationship(session, concept_id, subconcept_id, 'concept_to_subconcept')
+
+                        # Create details under subconcept (Level 4 -> Level 5)
+                        for detail_idx, detail in enumerate(subconcept.get('details', [])):
+                            detail_name = detail.get('name', f"Detail {detail_idx + 1}")
+
+                            existing_detail_id = find_or_merge_node_simple(
+                                existing_nodes, detail_name, "detail",
+                                detail.get('synthesis', ''), 4
+                            )
+
+                            if existing_detail_id:
+                                detail_id = existing_detail_id
+                                nodes_merged += 1
+                            else:
+                                detail_node = KnowledgeNode(
+                                    Id=f"detail-{uuid.uuid4().hex[:8]}",
+                                    Type="detail",
+                                    Name=detail_name,
+                                    Synthesis=detail.get('synthesis', ''),
+                                    WorkspaceId=workspace_id,
+                                    Level=4,
+                                    SourceCount=1,
+                                    TotalConfidence=0.84,
+                                    CreatedAt=datetime.now(timezone.utc),
+                                    UpdatedAt=datetime.now(timezone.utc)
+                                )
+                                create_knowledge_node(session, detail_node)
+                                detail_id = detail_node.Id
+                                nodes_created += 1
+                                created_node_ids.append(detail_id)
+
+                            create_parent_child_relationship(session, subconcept_id, detail_id, 'HAS_DETAIL')
+
+                            # Add evidence for detail node
+                            detail_chunks = concept_chunk_mapping.get(detail_name, [])
+                            if detail_chunks:
+                                chunk_data = detail_chunks[0]
+                                detail_evidence = Evidence(
+                                    Id=f"evidence-{uuid.uuid4().hex[:8]}",
+                                    SourceId=source_id,
+                                    SourceName=file_name,
+                                    ChunkId=f"chunk-{chunk_data.get('chunk_index', 0):03d}",
+                                    Text=chunk_data.get('text', '')[:1500],
+                                    Page=chunk_data.get('chunk_index', 0) + 1,
+                                    Confidence=0.88,
+                                    CreatedAt=datetime.now(timezone.utc),
+                                    Language="ENG" if language == "en" else "KOR",
+                                    SourceLanguage="ENG" if language == "en" else "KOR",
+                                    HierarchyPath=detail_name,
+                                    Concepts=[detail_name],
+                                    KeyClaims=chunk_data.get('key_claims', [f"Detail from {file_name}"]),
+                                    QuestionsRaised=chunk_data.get('questions_raised', []),
+                                    EvidenceStrength=0.82
+                                )
+                                create_evidence_node(session, detail_evidence, detail_id)
+                                evidences_created += 1
+
+                        # Add evidence for subconcept node
+                        subcon_chunks = concept_chunk_mapping.get(subconcept_name, [])
+                        if subcon_chunks:
+                            chunk_data = subcon_chunks[0]
+                            subcon_evidence = Evidence(
+                                Id=f"evidence-{uuid.uuid4().hex[:8]}",
+                                SourceId=source_id,
+                                SourceName=file_name,
+                                ChunkId=f"chunk-{chunk_data.get('chunk_index', 0):03d}",
+                                Text=chunk_data.get('text', '')[:1500],
+                                Page=chunk_data.get('chunk_index', 0) + 1,
+                                Confidence=0.90,
+                                CreatedAt=datetime.now(timezone.utc),
+                                Language="ENG" if language == "en" else "KOR",
+                                SourceLanguage="ENG" if language == "en" else "KOR",
+                                HierarchyPath=subconcept_name,
+                                Concepts=[subconcept_name],
+                                KeyClaims=chunk_data.get('key_claims', [f"Information from {file_name}"]),
+                                QuestionsRaised=chunk_data.get('questions_raised', []),
+                                EvidenceStrength=0.86
+                            )
+                            create_evidence_node(session, subcon_evidence, subconcept_id)
+                            evidences_created += 1
+
+                    # ✅ BẮT BUỘC: Mỗi concept phải có ít nhất 1 evidence
                     concept_evidence_count = 0
 
-                    # Get enriched evidence from Stage 3 cache
+                    # Get enriched evidence from Stage 3 cache OR from analyzed chunks
                     enriched = enriched_evidence_cache.get(concept_name, {})
+                    concept_chunks = concept_chunk_mapping.get(concept_name, [])
 
-                    if enriched and enriched.get('key_claims'):
+                    if enriched and enriched.get('key_claims') and concept_chunks:
                         # ✅ Evidence với EXPERT-LEVEL analysis từ Stage 3
+                        # Text lấy từ chunk gốc, key_claims/questions từ LLM enrichment
+                        chunk_data = concept_chunks[0]
                         evidence = Evidence(
                             Id=f"evidence-{uuid.uuid4().hex[:8]}",
                             SourceId=source_id,  # ✅ PDF URL
                             SourceName=file_name,
-                            ChunkId=f"chunk-enriched-{uuid.uuid4().hex[:4]}",
-                            Text=enriched.get('cleaned_text', '')[:1500],  # Cleaned text from LLM
-                            Page=1,
+                            ChunkId=f"chunk-{chunk_data.get('chunk_index', 0):03d}",
+                            Text=chunk_data.get('text', '')[:1500],  # ✅ Text từ chunk gốc
+                            Page=chunk_data.get('chunk_index', 0) + 1,
                             Confidence=0.92,  # Higher confidence for enriched evidence
                             CreatedAt=datetime.now(timezone.utc),
                             Language="ENG" if language == "en" else "KOR",
                             SourceLanguage="ENG" if language == "en" else "KOR",
                             HierarchyPath=concept_name,
                             Concepts=[concept_name],
-                            KeyClaims=enriched.get('key_claims', []),  # ✅ Expert-level claims with data
-                            QuestionsRaised=enriched.get('questions_raised', []),  # ✅ Analytical questions
+                            KeyClaims=enriched.get('key_claims', []),  # ✅ Expert-level claims from LLM
+                            QuestionsRaised=enriched.get('questions_raised', []),  # ✅ Analytical questions from LLM
                             EvidenceStrength=0.90
                         )
                         create_evidence_node(session, evidence, concept_id)
                         evidences_created += 1
                         concept_evidence_count += 1
+                    elif concept_chunks:
+                        # Use analyzed chunks directly if no enriched evidence
+                        for chunk_data in concept_chunks[:2]:  # Max 2 evidence per concept
+                            evidence = Evidence(
+                                Id=f"evidence-{uuid.uuid4().hex[:8]}",
+                                SourceId=source_id,
+                                SourceName=file_name,
+                                ChunkId=f"chunk-{chunk_data.get('chunk_index', 0):03d}",
+                                Text=chunk_data.get('text', '')[:1500],
+                                Page=chunk_data.get('chunk_index', 0) + 1,
+                                Confidence=0.88,
+                                CreatedAt=datetime.now(timezone.utc),
+                                Language="ENG" if language == "en" else "KOR",
+                                SourceLanguage="ENG" if language == "en" else "KOR",
+                                HierarchyPath=concept_name,
+                                Concepts=[concept_name],
+                                KeyClaims=chunk_data.get('key_claims', [f"Information from {file_name}"]),
+                                QuestionsRaised=chunk_data.get('questions_raised', []),
+                                EvidenceStrength=0.85
+                            )
+                            create_evidence_node(session, evidence, concept_id)
+                            evidences_created += 1
+                            concept_evidence_count += 1
 
                     # Đảm bảo mỗi concept có ít nhất 1 evidence
                     if concept_evidence_count == 0:
@@ -878,6 +1220,7 @@ def process_pdf_to_knowledge_graph(
             "status": "completed",
             "file_name": file_name,
             "pdf_url": pdf_url,
+            "processing_mode": processing_mode,
             "nodes_created": nodes_created,
             "nodes_merged": nodes_merged,
             "evidences_created": evidences_created,
@@ -891,7 +1234,10 @@ def process_pdf_to_knowledge_graph(
                 "categories": len(categories),
                 "concepts": total_concepts,
                 "subconcepts": total_subconcepts,
-                "evidence_enriched_pct": round(len(enriched_evidence_cache) / max(total_concepts, 1) * 100, 1)
+                "details": total_details,
+                "min_depth_achieved": 5 if total_details > 0 else (4 if total_subconcepts > 0 else 3),
+                "evidence_enriched_pct": round(len(enriched_evidence_cache) / max(total_concepts, 1) * 100, 1),
+                "llm_merges": len(llm_merge_mapping) if not is_new_workspace else 0
             }
         }
 
@@ -907,27 +1253,192 @@ def process_pdf_to_knowledge_graph(
         }
 
 
+def force_deep_structure_extraction(
+    pdf_text: str,
+    file_name: str,
+    language: str,
+    clova_api_key: str,
+    clova_api_url: str
+) -> Dict:
+    """
+    2nd LLM call with VERY STRICT prompt to force deep structure
+    Requirements: ≥2 categories, ≥3 concepts per category, ≥2 subconcepts, ≥1 detail
+    """
+    prompt = f"""CRITICAL TASK: Extract a DEEP hierarchical knowledge structure from this document.
+
+DOCUMENT: {file_name}
+LANGUAGE: {language}
+
+CONTENT (first 3000 chars):
+---
+{pdf_text[:3000]}
+---
+
+MANDATORY REQUIREMENTS (YOU MUST MEET ALL OF THESE):
+MINIMUM 2 categories (Level 1) - representing distinct major themes
+MINIMUM 3 concepts per category (Level 2) - specific topics under each theme
+MINIMUM 2 subconcepts per concept (Level 3) - detailed aspects of each topic
+MINIMUM 1 detail per subconcept (Level 4) - concrete implementations/examples
+
+STRUCTURE (5 LEVELS):
+{{
+  "domain": {{
+    "name": "Document's main subject",
+    "synthesis": "Comprehensive 150-char overview",
+    "level": 1
+  }},
+  "categories": [
+    {{
+      "name": "First Major Theme",
+      "synthesis": "120-char description",
+      "level": 2,
+      "concepts": [
+        {{
+          "name": "Specific Topic 1",
+          "synthesis": "100-char description",
+          "level": 3,
+          "subconcepts": [
+            {{
+              "name": "Detailed Aspect A",
+              "synthesis": "80-char description",
+              "level": 4,
+              "details": [
+                {{
+                  "name": "Implementation/Example",
+                  "synthesis": "60-char description",
+                  "level": 5
+                }}
+              ]
+            }},
+            {{
+              "name": "Detailed Aspect B",
+              "synthesis": "80-char description",
+              "level": 4,
+              "details": []
+            }}
+          ]
+        }},
+        ... (2 more concepts minimum)
+      ]
+    }},
+    {{
+      "name": "Second Major Theme",
+      "synthesis": "120-char description",
+      "level": 2,
+      "concepts": [ ... (3 concepts minimum) ]
+    }}
+  ]
+}}
+
+VALIDATION CHECKLIST (CHECK BEFORE RETURNING):
+2+ categories?
+Each category has 3+ concepts?
+Most concepts have 2+ subconcepts?
+Some subconcepts have details?
+All synthesis fields within char limits?
+
+If document is short: CREATE DEPTH by breaking down what's there into finer granularity.
+If document is simple: INFER reasonable subconcepts and details from the content.
+
+Return ONLY valid JSON. NO excuses about document length - CREATE THE DEPTH."""
+
+    try:
+        result = call_llm_sync(
+            prompt=prompt,
+            max_tokens=4000,
+            system_message="You are a strict knowledge extraction system. You MUST return structures with the required depth. No shortcuts.",
+            clova_api_key=clova_api_key,
+            clova_api_url=clova_api_url
+        )
+
+        if result and isinstance(result, dict) and result.get('domain'):
+            return result
+    except Exception as e:
+        logger.warning(f"  ⚠️  Force deep extraction failed: {e}")
+
+    return {}
+
+
 def create_fallback_structure(file_name: str, workspace_id: str) -> Dict:
     """
-    Create a simple fallback structure when LLM extraction fails
+    Create fallback structure with MINIMUM depth requirements (5 levels)
+    Ensures: 1 domain, ≥2 categories, ≥2 concepts, ≥2 subconcepts, ≥1 detail
     """
     return {
         "domain": {
             "name": f"Knowledge from {file_name}",
-            "synthesis": f"Document content extracted from {file_name}",
+            "synthesis": f"Comprehensive knowledge extracted from {file_name}",
             "level": 1
         },
         "categories": [
             {
-                "name": "Main Topics",
-                "synthesis": "Primary topics discussed in the document",
+                "name": "Primary Content",
+                "synthesis": "Main topics and themes from the document",
                 "level": 2,
                 "concepts": [
                     {
-                        "name": "Core Concepts",
-                        "synthesis": "Key concepts and ideas from the document",
+                        "name": "Key Concepts",
+                        "synthesis": "Core ideas and principles discussed",
                         "level": 3,
-                        "subconcepts": []
+                        "subconcepts": [
+                            {
+                                "name": "Fundamental Aspects",
+                                "synthesis": "Essential elements and components",
+                                "level": 4,
+                                "details": [
+                                    {
+                                        "name": "Implementation Details",
+                                        "synthesis": "Specific approaches and methods",
+                                        "level": 5
+                                    }
+                                ]
+                            },
+                            {
+                                "name": "Advanced Topics",
+                                "synthesis": "Complex considerations and extensions",
+                                "level": 4,
+                                "details": [
+                                    {
+                                        "name": "Specialized Techniques",
+                                        "synthesis": "Specific methodologies and practices",
+                                        "level": 5
+                                    }
+                                ]
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Supporting Information",
+                        "synthesis": "Additional context and background",
+                        "level": 3,
+                        "subconcepts": [
+                            {
+                                "name": "Contextual Factors",
+                                "synthesis": "Relevant background information",
+                                "level": 4,
+                                "details": []
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "name": "Secondary Content",
+                "synthesis": "Supplementary topics and related information",
+                "level": 2,
+                "concepts": [
+                    {
+                        "name": "Related Concepts",
+                        "synthesis": "Connected ideas and themes",
+                        "level": 3,
+                        "subconcepts": [
+                            {
+                                "name": "Related Aspects",
+                                "synthesis": "Associated elements and considerations",
+                                "level": 4,
+                                "details": []
+                            }
+                        ]
                     }
                 ]
             }

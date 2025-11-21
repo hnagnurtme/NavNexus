@@ -93,7 +93,7 @@ def publish_single_file_test():
     publish_test_message(
         workspace_id="test_workspace_001",
         file_paths=[
-            "https://arxiv.org/pdf/2506.15207"
+            "https://sg.object.ncloudstorage.com/navnexus/KOREA.pdf"
         ],
         job_id="single_file_test"
     )
@@ -103,11 +103,10 @@ def publish_multiple_files_test():
     """Test with multiple PDF files"""
     print("\n🧪 TEST 2: Multiple PDF Files")
     publish_test_message(
-        workspace_id="test_workspace_002",
+        workspace_id="test_workspace_005",
         file_paths=[
-            "https://sg.object.ncloudstorage.com/navnexus/SAGSINs.pdf",
+            "https://sg.object.ncloudstorage.com/navnexus/KOREA.pdf",
             "https://arxiv.org/pdf/2301.12345.pdf",
-            "https://arxiv.org/pdf/2302.67890.pdf"
         ],
         job_id="multiple_files_test"
     )
@@ -139,9 +138,9 @@ def publish_custom_message():
 
 def publish_existing_workspace_test():
     """Test with workspace-4 (matching the old test)"""
-    print("\n🧪 TEST 3: Existing Workspace (test-workspace-4)")
+    print("\n🧪 TEST 3: Existing Workspace (test-workspace-)")
     publish_test_message(
-        workspace_id="test-workspace-4",
+        workspace_id="test-workspace-",
         file_paths=[
             "https://sg.object.ncloudstorage.com/navnexus/SAGSINs.pdf"
         ],

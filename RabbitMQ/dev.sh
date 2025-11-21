@@ -86,7 +86,7 @@ run_worker() {
     set +a
     
     print_info "Starting worker..."
-    python worker.py
+    python oo.py
 }
 
 # Run test publisher
