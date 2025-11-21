@@ -3,7 +3,7 @@ import requests
 import fitz  # PyMuPDF
 import io
 import re
-from typing import Tuple, Dict, Optional
+from typing import Tuple, Dict, Optional, List
 from collections import Counter
 
 
@@ -263,3 +263,79 @@ def get_pdf_metadata(pdf_bytes: io.BytesIO) -> Dict:
         }
     except:
         return {}
+
+
+def extract_pdf_as_paragraphs(
+    pdf_url: str,
+    max_pages: int = 25,
+    timeout: int = 30,
+    chunk_size: int = 8192,
+    min_paragraph_length: int = 20
+) -> Tuple[List[str], str, Dict]:
+    """
+    Extract PDF as array of paragraphs for position-based extraction
+    
+    This is the NEW extraction method for recursive position-based processing.
+    Returns paragraphs instead of full text to enable position-based extraction.
+    
+    Args:
+        pdf_url: URL of the PDF file
+        max_pages: Maximum number of pages to extract
+        timeout: Request timeout in seconds
+        chunk_size: Download chunk size
+        min_paragraph_length: Minimum paragraph length in characters
+    
+    Returns:
+        Tuple of:
+        - paragraphs: List of paragraph strings
+        - language: Detected language code
+        - metadata: Dict with extraction metadata
+    
+    Example:
+        >>> paragraphs, lang, meta = extract_pdf_as_paragraphs(url)
+        >>> print(f"Extracted {len(paragraphs)} paragraphs")
+        >>> print(f"Language: {lang}")
+        >>> print(f"First paragraph: {paragraphs[0][:100]}")
+    """
+    try:
+        from .content_normalization import normalize_text, extract_clean_paragraphs
+        
+        print(f"📄 Downloading: {pdf_url}")
+        
+        # Stream download with progress tracking
+        pdf_bytes = download_pdf_with_progress(pdf_url, timeout, chunk_size)
+        if not pdf_bytes:
+            raise RuntimeError("Failed to download PDF")
+        
+        # Extract text with multiple strategies
+        extraction_result = extract_text_from_pdf(pdf_bytes, max_pages)
+        
+        if not extraction_result["text"]:
+            raise RuntimeError("No text extracted from PDF")
+        
+        # Enhanced language detection
+        lang = detect_language_enhanced(extraction_result["text"])
+        
+        # Normalize the full text
+        normalized_text = normalize_text(extraction_result["text"], aggressive=True)
+        
+        # Extract clean paragraphs
+        paragraphs = extract_clean_paragraphs(normalized_text, min_length=min_paragraph_length)
+        
+        metadata = {
+            "total_pages": extraction_result["total_pages"],
+            "extracted_pages": extraction_result["extracted_pages"],
+            "avg_text_per_page": extraction_result["avg_text_per_page"],
+            "language_confidence": lang["confidence"],
+            "file_size": len(pdf_bytes.getvalue()) if pdf_bytes else 0,
+            "paragraph_count": len(paragraphs),
+            "avg_paragraph_length": sum(len(p) for p in paragraphs) / len(paragraphs) if paragraphs else 0
+        }
+        
+        print(f"✓ Extracted {extraction_result['extracted_pages']}/{extraction_result['total_pages']} pages")
+        print(f"✓ Found {len(paragraphs)} paragraphs | Language: {lang['language']} ({lang['confidence']:.2f})")
+        
+        return paragraphs, lang["language"], metadata
+    
+    except Exception as e:
+        raise RuntimeError(f"PDF paragraph extraction failed: {e}")
