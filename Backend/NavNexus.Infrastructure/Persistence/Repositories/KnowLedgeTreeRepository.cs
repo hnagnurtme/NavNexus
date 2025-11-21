@@ -281,7 +281,7 @@ public class KnowledgeTreeRepository : IKnowledgetreeRepository
                 processedNodeIds.Add(newNodeId);
             }
 
-            // Sau khi MERGE xong, query lại để lấy TẤT CẢ nodes với FULL evidences
+            // Sau khi MERGE xong, query lại để lấy nodes với evidences từ source_id này
             var copiedNodes = new List<KnowledgeNode>();
             if (processedNodeIds.Count > 0)
             {
@@ -289,8 +289,9 @@ public class KnowledgeTreeRepository : IKnowledgetreeRepository
                     MATCH (n:KnowledgeNode)
                     WHERE n.id IN $nodeIds
                     OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
+                    WHERE e.source_id = $evidenceSourceId
                     RETURN n, collect(e) as evidences
-                ", new { nodeIds = processedNodeIds.ToList() });
+                ", new { nodeIds = processedNodeIds.ToList(), evidenceSourceId });
 
                 await foreach (var record in nodesResult.WithCancellation(cancellationToken))
                 {
