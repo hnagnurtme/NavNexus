@@ -136,14 +136,21 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 			console.log("📥 API Response:", response);
 
 			// Extract status and messageId from response
-			// Response structure: { success, message, data: { messageId, sentAt }, statusCode }
+			// Response structure: { success, message, data: { messageId, sentAt, status }, statusCode }
 			const responseData = response.data;
 			if (!responseData) {
 				throw new Error("No data in API response");
 			}
-			
+
 			const messageId = responseData.messageId ?? undefined;
-			const status = determineBackendStatus(response.message, messageId);
+			// Check status from data.status first, fallback to message
+			const backendStatus = responseData.status ?? response.message;
+			console.log("🔍 Debug - responseData.status:", responseData.status);
+			console.log("🔍 Debug - backendStatus:", backendStatus);
+			console.log("🔍 Debug - messageId:", messageId);
+
+			const status = determineBackendStatus(backendStatus, messageId);
+			console.log("🔍 Debug - determined status:", status);
 
 			if (status === "SUCCESS") {
 				// ✅ Case 1: All files already exist
@@ -169,20 +176,23 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 				// Register Firebase Realtime Database listener
 				const cleanup = listenToJobStatus(messageId, (jobStatus) => {
 					console.log("🔥 Firebase job status update:", jobStatus);
-					
+
 					setBuildStatus(jobStatus);
 
-					if (jobStatus.status === "completed") {
+					// Normalize status to lowercase for comparison
+					const normalizedStatus = jobStatus.status?.toLowerCase();
+
+					if (normalizedStatus === "completed" || normalizedStatus === "success") {
 						// Job completed successfully
 						cleanupListener();
 						setIsBuilding(false);
 						setGlobalBuildState(false);
 						showSuccessToast("Knowledge graph built successfully!");
-						
+
 						// Trigger parent component to fetch and display graph
 						onSynthesize();
-						
-					} else if (jobStatus.status === "failed") {
+
+					} else if (normalizedStatus === "failed" || normalizedStatus === "error") {
 						// Job failed
 						cleanupListener();
 						setIsBuilding(false);
@@ -191,8 +201,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 							jobStatus.error || "Failed to build knowledge graph"
 						);
 						showErrorToast("Failed to build knowledge graph");
-						
-					} else if (jobStatus.status === "partial") {
+
+					} else if (normalizedStatus === "partial") {
 						// Job partially completed
 						cleanupListener();
 						setIsBuilding(false);
@@ -200,7 +210,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 						showWarningToast(
 							`Graph built with ${jobStatus.failed || 0} failures`
 						);
-						
+
 						// Still trigger refresh to show partial results
 						onSynthesize();
 					}
