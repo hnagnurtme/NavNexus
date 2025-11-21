@@ -184,6 +184,7 @@ def create_recursive_expansion_prompt(
     Returns:
         Dict with 'system_message' and 'prompt'
     """
+    # Import here to avoid circular dependency
     from ..pipeline.position_extraction import split_text_to_paragraphs
     
     # Split parent content into paragraphs to count them

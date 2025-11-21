@@ -267,9 +267,14 @@ class RecursiveExpander:
                 }
                 child_type = child_type_map.get(current_depth + 1, 'detail')
                 
+                # Create deterministic ID using uuid
+                import uuid
+                node_name_hash = f"{child_data.get('name', f'child-{idx}')}-{node.id}-{idx}"
+                child_id = f"{child_type}-{uuid.uuid5(uuid.NAMESPACE_DNS, node_name_hash).hex[:8]}"
+                
                 # Create child node
                 child_node = NodeData(
-                    id=f"{child_type}-{hash(child_data.get('name', f'child-{idx}'))}-{self.stats['total_nodes']}",
+                    id=child_id,
                     name=child_data.get('name', f'Child {idx + 1}'),
                     synthesis=child_data.get('synthesis', ''),
                     level=current_depth + 1,

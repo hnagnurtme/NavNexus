@@ -227,10 +227,8 @@ async def process_pdf_position_based(
         # Flatten tree and prepare results
         # ========================================
         if max_depth > 1:
-            all_nodes = [root_node] + [root_node] # Placeholder - would use expander.get_all_nodes_flat(root_node)
-            from .recursive_expander import RecursiveExpander
-            temp_expander = RecursiveExpander(paragraphs, None)
-            all_nodes = temp_expander.get_all_nodes_flat(root_node)
+            # Use the expander that was already created to get all nodes
+            all_nodes = expander.get_all_nodes_flat(root_node)
         else:
             all_nodes = [root_node] + root_node.children
         
