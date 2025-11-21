@@ -9,20 +9,16 @@ import type { GapSuggestion } from "@/types";
 
 interface GapAssistantProps {
 	suggestions: GapSuggestion[];
-	topicName: string;
 }
 
 const GAP_PAGE_SIZE = 1; // Show one at a time for clarity
 
-export const GapAssistant: React.FC<GapAssistantProps> = ({
-	suggestions,
-	topicName,
-}) => {
+export const GapAssistant: React.FC<GapAssistantProps> = ({ suggestions }) => {
 	const [page, setPage] = useState(0);
 
 	useEffect(() => {
 		setPage(0);
-	}, [topicName, suggestions.length]);
+	}, [suggestions.length]);
 
 	const totalPages = Math.max(
 		1,
@@ -37,22 +33,6 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({
 
 	const currentSuggestion = suggestions[page];
 
-	// Quick search links
-	const searchLinks = [
-		{
-			name: "Scholar",
-			url: `https://scholar.google.com/scholar?q=${encodeURIComponent(
-				`"${topicName}" research gap`
-			)}`,
-		},
-		{
-			name: "DBpia",
-			url: `https://www.dbpia.co.kr/search/topSearch?searchOption=all&query=${encodeURIComponent(
-				`"${topicName}" 연구 격차`
-			)}`,
-		},
-	];
-
 	if (suggestions.length === 0) {
 		return (
 			<div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-6 text-center">
@@ -65,29 +45,41 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({
 
 	return (
 		<div className="space-y-3">
-			{/* Main Gap Card */}
-			<div className="relative rounded-xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-amber-600/5 p-4 shadow-lg">
-				{/* Confidence Badge */}
-				{currentSuggestion?.similarityScore !== undefined && (
-					<div className="absolute top-3 right-3 rounded-full bg-amber-500/20 px-2.5 py-1 backdrop-blur-sm">
-						<div className="flex items-center gap-1.5">
-							<TrendingUp
-								width={12}
-								height={12}
-								className="text-amber-300"
-							/>
-							<span className="text-xs font-bold text-amber-200">
-								{(
-									currentSuggestion.similarityScore * 100
-								).toFixed(0)}
-								%
-							</span>
+			<div className="rounded-xl border-2 border-amber-500/30 bg-gradient-to-br from-amber-500/10 to-amber-600/5 p-4 shadow-lg">
+				<div className="mb-3 flex items-start justify-between gap-3">
+					{currentSuggestion?.similarityScore !== undefined && (
+						<div className="rounded-full bg-amber-500/20 px-2.5 py-1 backdrop-blur-sm">
+							<div className="flex items-center gap-1.5">
+								<TrendingUp
+									width={12}
+									height={12}
+									className="text-amber-300"
+								/>
+								<span className="text-xs font-bold text-amber-200">
+									{(
+										currentSuggestion.similarityScore * 100
+									).toFixed(0)}
+									%
+								</span>
+							</div>
 						</div>
-					</div>
-				)}
+					)}
 
-				{/* Gap Text */}
-				<div className="pr-16">
+					{currentSuggestion?.targetNodeId && (
+						<a
+							href={currentSuggestion.targetNodeId}
+							target="_blank"
+							rel="noreferrer"
+							className="flex-shrink-0 rounded-full p-1.5 text-amber-300 transition hover:text-amber-100"
+							aria-label="View source"
+							title="View source"
+						>
+							<ExternalLink width={14} height={14} />
+						</a>
+					)}
+				</div>
+
+				<div>
 					<p className="text-sm leading-relaxed text-amber-50">
 						{currentSuggestion?.suggestionText || "Gap detected"}
 					</p>
@@ -148,21 +140,7 @@ export const GapAssistant: React.FC<GapAssistantProps> = ({
 				)}
 			</div>
 
-			{/* Quick Actions */}
-			<div className="flex gap-2">
-				{searchLinks.map((link) => (
-					<a
-						key={link.name}
-						href={link.url}
-						target="_blank"
-						rel="noreferrer"
-						className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-200 transition-all hover:border-amber-400 hover:bg-amber-500/20 hover:shadow-lg hover:shadow-amber-500/10"
-					>
-						<span>{link.name}</span>
-						<ExternalLink width={12} height={12} />
-					</a>
-				))}
-			</div>
+			{/* No footer link */}
 		</div>
 	);
 };

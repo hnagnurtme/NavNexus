@@ -22,6 +22,7 @@ export const WorkspacePage: React.FC = () => {
 		selectedNodeId,
 		details,
 		isBuilding,
+		isJobBuilding,
 		isNodeLoading,
 		loadingNodeId,
 		error,
@@ -67,15 +68,16 @@ export const WorkspacePage: React.FC = () => {
 		<div className="w-screen h-screen text-white bg-slate-950">
 			{error && (null as unknown as boolean) }
 			<div className="relative flex h-full gap-4 p-4">
-				{isControlPanelVisible && (
-					<ControlPanel
-						isBusy={isBuilding}
-						onSynthesize={actions.buildGraph}
-						onReset={actions.resetWorkspace}
-						onToggleVisibility={actions.toggleControlPanel}
-						workspaceId={workspaceId}
-					/>
-				)}
+		{isControlPanelVisible && (
+			<ControlPanel
+				isBusy={isBuilding || isJobBuilding}
+				onSynthesize={actions.buildGraph}
+				onReset={actions.resetWorkspace}
+				onToggleVisibility={actions.toggleControlPanel}
+				onBuildStateChange={actions.setJobBuildingState}
+				workspaceId={workspaceId}
+			/>
+		)}
 				{!isControlPanelVisible && (
 					<button
 						type="button"
@@ -97,17 +99,17 @@ export const WorkspacePage: React.FC = () => {
 							<p className="text-xs uppercase tracking-[0.5em] text-white/50">
 								Workspace
 							</p>
-							<h1 className="text-3xl font-semibold text-white">
+						<h1 className="text-2xl font-semibold text-white">
 								NavNexus Knowledge Journey
 							</h1>
 						</div>
 					</div>
 
-					<WorkspaceCanvas
-						workspaceId={workspaceId}
-						view={view}
-						viewMode={viewMode}
-						isBuilding={isBuilding}
+				<WorkspaceCanvas
+					workspaceId={workspaceId}
+					view={view}
+					viewMode={viewMode}
+					isBuilding={isBuilding || isJobBuilding}
 						isNodeLoading={isNodeLoading}
 						loadingNodeName={loadingNodeName}
 						selectedNodeId={selectedNodeId}
