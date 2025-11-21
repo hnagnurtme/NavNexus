@@ -10,7 +10,7 @@ This module provides comprehensive text normalization to handle:
 """
 
 import re
-from typing import str, Optional
+from typing import Optional, List
 
 
 def normalize_text(text: str, aggressive: bool = False) -> str:
@@ -282,7 +282,7 @@ def clean_for_llm(text: str, max_length: Optional[int] = None) -> str:
     return text.strip()
 
 
-def extract_clean_paragraphs(text: str, min_length: int = 20) -> list[str]:
+def extract_clean_paragraphs(text: str, min_length: int = 20) -> List[str]:
     """
     Extract clean paragraphs from text
     
@@ -350,9 +350,10 @@ def calculate_text_quality_score(text: str) -> float:
     
     score = 1.0
     
-    # Penalize for invalid characters
-    invalid_char_ratio = len(re.findall(r'[\x00\ufffd]', text)) / len(text)
-    score -= invalid_char_ratio * 0.5
+    # Penalize for invalid characters (more aggressive)
+    invalid_chars = len([c for c in text if c in '\x00\ufffd'])
+    invalid_char_ratio = invalid_chars / len(text)
+    score -= invalid_char_ratio * 2.0  # Aggressive penalty
     
     # Penalize for excessive whitespace
     whitespace_ratio = len(re.findall(r'\s', text)) / len(text)
