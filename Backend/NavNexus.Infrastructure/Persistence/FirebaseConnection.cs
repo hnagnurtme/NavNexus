@@ -7,25 +7,34 @@ namespace NavNexus.Infrastructure.Persistence;
 public class FirebaseConnection
 {
     private readonly FirestoreDb _db;
+    private readonly FirebaseApp _app;
+    private readonly string _databaseUrl;
 
-    public FirebaseConnection(string projectId, string credentialPath)
-{
-    // 1. Tải credential từ file
-    var credential = GoogleCredential.FromFile(credentialPath);
-
-    // 2. Sử dụng FirestoreDbBuilder để tạo FirestoreDb
-    //    và chỉ định rõ ProjectId VÀ Credential
-    _db = new FirestoreDbBuilder
+    public FirebaseConnection(string projectId, string credentialPath, string databaseUrl)
     {
-        ProjectId = projectId,
-        Credential = credential
-    }.Build();
+        _databaseUrl = databaseUrl;
 
-    // Bạn không cần khởi tạo FirebaseApp.Create()
-    // trừ khi bạn dùng các dịch vụ Firebase Admin khác
-    // (như Firebase Auth hoặc Messaging).
-    // Nếu bạn CHỈ dùng Firestore, code ở trên là đủ.
-}
+        // 1. Tải credential từ file
+        var credential = GoogleCredential.FromFile(credentialPath);
+
+        // 2. Initialize FirebaseApp for Realtime Database
+        _app = FirebaseApp.Create(new AppOptions
+        {
+            Credential = credential,
+            ProjectId = projectId
+        });
+
+        // 3. Sử dụng FirestoreDbBuilder để tạo FirestoreDb
+        _db = new FirestoreDbBuilder
+        {
+            ProjectId = projectId,
+            Credential = credential
+        }.Build();
+    }
 
     public FirestoreDb GetFirestore() => _db;
+
+    public string GetDatabaseUrl() => _databaseUrl;
+
+    public FirebaseApp GetFirebaseApp() => _app;
 }
