@@ -86,9 +86,6 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 	journeyActive,
 	onStartJourney,
 }) => {
-	const [selectedEvidenceIds, setSelectedEvidenceIds] = useState<string[]>(
-		[]
-	);
 	const [openSections, setOpenSections] = useState<Record<string, boolean>>({
 		ai: true,
 		node: true,
@@ -98,7 +95,6 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 	const [activeTab, setActiveTab] = useState<"insights" | "chatbot">(
 		"insights"
 	);
-	const comparisonReady = selectedEvidenceIds.length === 2;
 	const hasGapSuggestions = (details?.gapSuggestions?.length ?? 0) > 0;
 
 	useEffect(() => {
@@ -108,25 +104,7 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 			gaps: hasGapSuggestions,
 			evidence: true,
 		});
-		setSelectedEvidenceIds([]);
 	}, [details?.nodeId, hasGapSuggestions]);
-
-	const selectedEvidenceText = useMemo(() => {
-		if (!details) return null;
-		return (details.evidences ?? []).filter(
-			(ev) => ev.id && selectedEvidenceIds.includes(ev.id)
-		);
-	}, [details, selectedEvidenceIds]);
-
-	const evidenceSourceLabels = useMemo(() => {
-		if (!details?.evidences) return [];
-		return details.evidences
-			.map(
-				(ev, idx) =>
-					ev.sourceName?.trim() || ev.id || `Source ${idx + 1}`
-			)
-			.filter((label): label is string => Boolean(label));
-	}, [details]);
 
 	const nodeContextOptions = useMemo(
 		() => collectWorkspaceNodes(tree),
@@ -282,7 +260,6 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 									details.gapSuggestions ? (
 										<GapAssistant
 											suggestions={details.gapSuggestions}
-											topicName={details.nodeName}
 										/>
 									) : (
 										<p className="text-sm text-amber-200/80">
@@ -303,82 +280,9 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 													<EvidenceCard
 														key={evidence.id || idx}
 														evidence={evidence}
-														selected={
-															evidence.id
-																? selectedEvidenceIds.includes(
-																		evidence.id
-																  )
-																: false
-														}
-														disabled={
-															selectedEvidenceIds.length >=
-																2 &&
-															(!evidence.id ||
-																!selectedEvidenceIds.includes(
-																	evidence.id
-																))
-														}
-														onToggle={() => {
-															const id =
-																evidence.id;
-															if (!id) return;
-															setSelectedEvidenceIds(
-																(prev) =>
-																	prev.includes(
-																		id
-																	)
-																		? prev.filter(
-																				(
-																					selected
-																				) =>
-																					selected !==
-																					id
-																		  )
-																		: prev.length >=
-																		  2
-																		? prev
-																		: [
-																				...prev,
-																				id,
-																		  ]
-															);
-														}}
 													/>
 												)
 											)}
-
-											{comparisonReady &&
-												selectedEvidenceText && (
-													<div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 p-4 text-sm text-cyan-50">
-														<p className="text-xs uppercase tracking-[0.4em] text-cyan-200">
-															Comparison
-														</p>
-														<ul className="mt-2 list-disc space-y-1 pl-4 text-cyan-100">
-															{selectedEvidenceText.map(
-																(
-																	evidence,
-																	idx
-																) => (
-																	<li
-																		key={
-																			evidence.id ||
-																			idx
-																		}
-																	>
-																		{evidence.sourceName ||
-																			"Unknown Source"}
-																	</li>
-																)
-															)}
-														</ul>
-														<p className="mt-2 text-xs text-cyan-100/80">
-															TODO: Missing AI
-															comparison service
-															endpoint. Hook here
-															when available.
-														</p>
-													</div>
-												)}
 										</div>
 									) : (
 										<p className="text-sm text-white/50">
@@ -458,7 +362,6 @@ export const ForensicPanel: React.FC<ForensicPanelProps> = ({
 						topicId={details.nodeId}
 						topicName={details.nodeName}
 						summary={details.description}
-						evidenceSources={evidenceSourceLabels}
 						nodeSuggestions={nodeContextOptions}
 						fileSuggestions={fileContextOptions}
 					/>

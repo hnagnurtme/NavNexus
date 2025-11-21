@@ -1,16 +1,17 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider } from "firebase/auth"; 
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
 import { getDatabase } from "firebase/database";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCwXlPO6UfVSW7N8o-XcAqXGUPUwV2bunI",
-  authDomain: "NavNexus-ffafe.firebaseapp.com",
-  databaseURL: "https://navnexus-default-rtdb.firebaseio.com/",
-  projectId: "NavNexus-ffafe",
-  storageBucket: "NavNexus-ffafe.appspot.com",
-  messagingSenderId: "106618056802",
-  appId: "1:106618056802:web:f0c361438a41eb61d1213b",
-  measurementId: "G-QG4MTRJZMJ"
+	apiKey: "AIzaSyCwXlPO6UfVSW7N8o-XcAqXGUPUwV2bunI",
+	authDomain: "theelites-ffafe.firebaseapp.com",
+	databaseURL:
+		"https://theelites-ffafe-default-rtdb.asia-southeast1.firebasedatabase.app",
+	projectId: "theelites-ffafe",
+	storageBucket: "theelites-ffafe.firebasestorage.app",
+	messagingSenderId: "106618056802",
+	appId: "1:106618056802:web:f0c361438a41eb61d1213b",
+	measurementId: "G-QG4MTRJZMJ",
 };
 
 const app = initializeApp(firebaseConfig);
