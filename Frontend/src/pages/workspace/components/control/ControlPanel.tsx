@@ -1,4 +1,4 @@
-import { useId, useRef, useState, useEffect, type ChangeEvent } from "react";
+import { useId, useRef, useState, useEffect, type ChangeEvent, useContext } from "react";
 import { toast } from "react-hot-toast";
 import {
 	Bot,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { treeService } from "@/services/tree.service";
 import { listenToJobStatus, type JobStatus } from "@/utils/firebase-listener";
+import { UploadCloudinaryContext } from "@/contexts/UploadCloudinaryContext";
 
 interface ControlPanelProps {
 	isBusy: boolean;
@@ -53,11 +54,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	const [isBuilding, setIsBuilding] = useState(false);
 	const [buildStatus, setBuildStatus] = useState<JobStatus | null>(null);
 	const [buildError, setbuildError] = useState<string | null>(null);
-	
+	const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 	const inputId = useId();
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const hasItems = uploadedItems.length > 0;
+
+	const { changeRawCloudinarySingle } = useContext(UploadCloudinaryContext);
 	
 	const cleanupListener = () => {
 		if (cleanupRef.current) {
@@ -65,7 +68,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 			cleanupRef.current = null;
 		}
 	};
-
+	useEffect(() => {
+		console.log("Uploaded Items:", uploadedItems);
+	}, [uploadedItems]);
 	// Cleanup Firebase listener on unmount
 	useEffect(() => {
 		return () => {
@@ -116,23 +121,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 			setGlobalBuildState(true);
 
 			// Prepare file paths from uploaded items
-			const filePaths = uploadedItems.map((item) => {
+			// Map each uploaded item to a string path (upload files to Cloudinary if needed).
+			// changeRawCloudinarySingle may return a Promise or a string; awaiting it handles both.
+			const filePathPromises = uploadedItems.map(async (item) => {
 				if (item.type === "file") {
-					// For files, we'll need to upload them first
-					// For now, using mock URLs
-					return `https://storage.example.com/${item.name}`;
+					const file = uploadedFiles.find((f) => f.name === item.name);
+					if (!file) {
+						throw new Error(`Uploaded file not found: ${item.name}`);
+					}
+					const response = await changeRawCloudinarySingle(file);
+					if (!response) {
+						throw new Error(`Failed to obtain path for file: ${item.name}`);
+					}
+					return response;
 				} else {
 					return item.url;
 				}
 			});
 
-			// Call API to create knowledge tree
+			const filePaths = await Promise.all(filePathPromises);
 			console.log("🚀 Calling createKnowledgeTree API...");
 			const response = await treeService.createKnowledgeTree({
 				workspaceId: workspaceId,
 				filePaths: filePaths,
 			});
-
 			console.log("📥 API Response:", response);
 
 			// Extract status and messageId from response
@@ -268,6 +280,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 				type: "file" as const,
 			})),
 		]);
+		setUploadedFiles(files);
 
 		event.target.value = "";
 	};
@@ -487,7 +500,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 						<div className="flex gap-2">
 							<button
 								type="button"
-								onClick={openFilePicker}
+								onClick={openFilePicker }
 								className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 px-4 py-3 text-sm font-semibold text-white/80 transition hover:border-emerald-400/60 hover:text-white"
 							>
 								<Upload size={16} />
