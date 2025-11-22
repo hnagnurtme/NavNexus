@@ -58,6 +58,9 @@ from src.model.KnowledgeNode import KnowledgeNode
 from src.model.Evidence import Evidence
 from src.model.GapSuggestion import GapSuggestion
 
+# Services
+from src.services.gap_suggestion_service import GapSuggestionService
+
 # ================================
 # CONFIGURATION
 # ================================
@@ -499,6 +502,102 @@ def identify_leaf_nodes(neo4j_driver, workspace_id: str) -> List[str]:
         return []
 
 
+def get_node_details(neo4j_driver, node_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Get detailed information about a specific node from Neo4j
+    
+    Returns:
+        Dict with node properties (id, name, synthesis, level, type) or None if not found
+    """
+    try:
+        with neo4j_driver.session() as session:
+            result = session.run(
+                """
+                MATCH (n:KnowledgeNode {id: $node_id})
+                RETURN n.id as id, n.name as name, n.synthesis as synthesis, 
+                       n.level as level, n.type as type
+                """,
+                node_id=node_id
+            )
+            record = result.single()
+            if record:
+                return {
+                    'id': record['id'],
+                    'name': record['name'],
+                    'synthesis': record['synthesis'],
+                    'level': record['level'],
+                    'type': record['type']
+                }
+            return None
+    except Exception as e:
+        logger.warning(f"⚠️  Could not get node details for {node_id}: {e}")
+        return None
+
+
+def get_node_evidences(neo4j_driver, node_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all evidence items for a specific node from Neo4j
+    
+    Returns:
+        List of evidence dicts with properties (id, source_id, source_name, text, etc.)
+    """
+    try:
+        with neo4j_driver.session() as session:
+            result = session.run(
+                """
+                MATCH (n:KnowledgeNode {id: $node_id})-[:HAS_EVIDENCE]->(e:Evidence)
+                RETURN e.id as id, e.source_id as source_id, e.source_name as source_name,
+                       e.text as text, e.page as page, e.confidence as confidence
+                """,
+                node_id=node_id
+            )
+            evidences = []
+            for record in result:
+                evidences.append({
+                    'id': record['id'],
+                    'source_id': record['source_id'],
+                    'source_name': record['source_name'],
+                    'text': record['text'],
+                    'page': record['page'],
+                    'confidence': record['confidence']
+                })
+            return evidences
+    except Exception as e:
+        logger.warning(f"⚠️  Could not get evidences for node {node_id}: {e}")
+        return []
+
+
+def get_all_nodes_in_workspace(neo4j_driver, workspace_id: str) -> List[Dict[str, Any]]:
+    """
+    Get all nodes in a workspace for context in gap suggestion generation
+    
+    Returns:
+        List of node dicts with basic properties (id, name, level, type)
+    """
+    try:
+        with neo4j_driver.session() as session:
+            result = session.run(
+                """
+                MATCH (n:KnowledgeNode {workspace_id: $workspace_id})
+                RETURN n.id as id, n.name as name, n.level as level, n.type as type
+                ORDER BY n.level DESC
+                """,
+                workspace_id=workspace_id
+            )
+            nodes = []
+            for record in result:
+                nodes.append({
+                    'id': record['id'],
+                    'name': record['name'],
+                    'level': record['level'],
+                    'type': record['type']
+                })
+            return nodes
+    except Exception as e:
+        logger.warning(f"⚠️  Could not get all nodes in workspace {workspace_id}: {e}")
+        return []
+
+
 def convert_nodes_to_structure(nodes: List[Dict]) -> Dict:
     """
     Convert Neo4j nodes list to structure format for identify_merge_candidates()
@@ -922,26 +1021,65 @@ Return ONLY the JSON object."""
         logger.info(f"  ✓ Created {evidences_created} evidence")
 
         # ========================================
-        # STEP 5: Create Gap Suggestions for leaf nodes
+        # STEP 5: Create Gap Suggestions for leaf nodes using LLM
         # ========================================
-        logger.info("  [5/5] Creating Gap Suggestions for leaf nodes...")
+        logger.info("  [5/5] Generating Gap Suggestions for leaf nodes using LLM...")
 
-        leaf_nodes = identify_leaf_nodes(neo4j_driver, workspace_id)
+        # Initialize gap suggestion service
+        gap_service = GapSuggestionService(
+            clova_api_key=CLOVA_API_KEY,
+            clova_api_url=CLOVA_API_URL
+        )
+
+        # Get leaf nodes
+        leaf_node_ids = identify_leaf_nodes(neo4j_driver, workspace_id)
+        logger.info(f"  ✓ Found {len(leaf_node_ids)} leaf nodes")
+
+        # Get all nodes in workspace for context
+        all_nodes = get_all_nodes_in_workspace(neo4j_driver, workspace_id)
+        logger.info(f"  ✓ Retrieved {len(all_nodes)} nodes for context")
+
         gaps_created = 0
+        gaps_failed = 0
 
+        # Generate gap suggestions for each leaf node
         with neo4j_driver.session() as session:
-            for leaf_node_id in leaf_nodes:
-                gap_suggestion = GapSuggestion(
-                    Id=f"gap-{uuid.uuid4().hex[:8]}",
-                    SuggestionText=f"Consider exploring related research areas to deepen understanding",
-                    TargetNodeId="https://arxiv.org/search",
-                    TargetFileId="",
-                    SimilarityScore=0.78
-                )
-                create_gap_suggestion_node(session, gap_suggestion, leaf_node_id)
-                gaps_created += 1
+            for leaf_node_id in leaf_node_ids:
+                try:
+                    # Get detailed node information
+                    node_details = get_node_details(neo4j_driver, leaf_node_id)
+                    if not node_details:
+                        logger.warning(f"  ⚠️  Could not get details for node {leaf_node_id}, skipping")
+                        gaps_failed += 1
+                        continue
 
-        logger.info(f"  ✓ Created {gaps_created} gap suggestions")
+                    # Get evidences for this node
+                    evidences = get_node_evidences(neo4j_driver, leaf_node_id)
+                    
+                    logger.debug(
+                        f"  Generating gap suggestion for: {node_details['name']} "
+                        f"(Level {node_details['level']}, {len(evidences)} evidences)"
+                    )
+
+                    # Generate gap suggestions using LLM
+                    suggestions = gap_service.generate_gap_suggestions_for_leaf_node(
+                        leaf_node=node_details,
+                        all_nodes_in_workspace=all_nodes,
+                        evidences=evidences
+                    )
+
+                    # Save suggestions to Neo4j
+                    for suggestion in suggestions:
+                        create_gap_suggestion_node(session, suggestion, leaf_node_id)
+                        gaps_created += 1
+                        logger.debug(f"  ✓ Created gap suggestion: {suggestion.SuggestionText[:100]}...")
+
+                except Exception as e:
+                    logger.warning(f"  ⚠️  Failed to generate gap suggestion for node {leaf_node_id}: {e}")
+                    gaps_failed += 1
+                    continue
+
+        logger.info(f"  ✓ Created {gaps_created} gap suggestions ({gaps_failed} failed)")
         logger.info("  ✅ Processing complete")
 
         return {
@@ -952,12 +1090,13 @@ Return ONLY the JSON object."""
             "nodes_created": nodes_created,
             "evidences_created": evidences_created,
             "gaps_created": gaps_created,
-            "leaf_nodes": len(leaf_nodes),
+            "gaps_failed": gaps_failed,
+            "leaf_nodes": len(leaf_node_ids),
             "language": language,
             "source_id": source_id,
             "quality_metrics": {
                 "total_nodes": stats['total_nodes'] + 1,
-                "llm_calls": stats['llm_calls'] + 1,
+                "llm_calls": stats['llm_calls'] + 1 + gaps_created,  # Include LLM calls for gap suggestions
                 "expansions_stopped": stats['expansions_stopped'],
                 "errors": stats['errors'],
                 "max_depth_achieved": max(node.level for node in all_nodes) if all_nodes else 0,
