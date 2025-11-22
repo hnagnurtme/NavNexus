@@ -1,4 +1,4 @@
-import { useId, useRef, useState, useEffect, type ChangeEvent, useContext } from "react";
+import { useId, useRef, useState, useEffect } from "react";
 import { toast } from "react-hot-toast";
 import {
 	Bot,
@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { treeService } from "@/services/tree.service";
 import { listenToJobStatus, type JobStatus } from "@/utils/firebase-listener";
-import { UploadCloudinaryContext } from "@/contexts/UploadCloudinaryContext";
 
 interface ControlPanelProps {
 	isBusy: boolean;
@@ -50,17 +49,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 	const [uploadedItems, setUploadedItems] = useState<UploadedItem[]>([]);
 	const [linkInput, setLinkInput] = useState("");
 	const [showLinkInput, setShowLinkInput] = useState(false);
-	const [activeTab, setActiveTab] = useState<"file" | "link">("file");
+	const [activeTab, setActiveTab] = useState< "link">("link");
 	const [isBuilding, setIsBuilding] = useState(false);
 	const [buildStatus, setBuildStatus] = useState<JobStatus | null>(null);
 	const [buildError, setbuildError] = useState<string | null>(null);
-	const [uploadedFiles, setUploadedFiles] = useState<File[]>([]);
 	const inputId = useId();
 	const inputRef = useRef<HTMLInputElement | null>(null);
 	const cleanupRef = useRef<(() => void) | null>(null);
 	const hasItems = uploadedItems.length > 0;
 
-	const { changeRawCloudinarySingle } = useContext(UploadCloudinaryContext);
 	
 	const cleanupListener = () => {
 		if (cleanupRef.current) {
@@ -120,30 +117,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 			setBuildStatus(null);
 			setGlobalBuildState(true);
 
-			// Prepare file paths from uploaded items
-			// Map each uploaded item to a string path (upload files to Cloudinary if needed).
-			// changeRawCloudinarySingle may return a Promise or a string; awaiting it handles both.
-			const filePathPromises = uploadedItems.map(async (item) => {
-				if (item.type === "file") {
-					const file = uploadedFiles.find((f) => f.name === item.name);
-					if (!file) {
-						throw new Error(`Uploaded file not found: ${item.name}`);
-					}
-					const response = await changeRawCloudinarySingle(file);
-					if (!response) {
-						throw new Error(`Failed to obtain path for file: ${item.name}`);
-					}
-					return response;
-				} else {
-					return item.url;
-				}
-			});
 
-			const filePaths = await Promise.all(filePathPromises);
 			console.log("🚀 Calling createKnowledgeTree API...");
 			const response = await treeService.createKnowledgeTree({
 				workspaceId: workspaceId,
-				filePaths: filePaths,
+				filePaths: uploadedItems.filter(a=>a.type==="link").map(a=>(a as UploadedLink).url),
 			});
 			console.log("📥 API Response:", response);
 
@@ -265,25 +243,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 		});
 	};
 
-	const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
-		const files = Array.from(event.target.files ?? []);
-		if (files.length === 0) return;
-
-		setUploadedItems((prev) => [
-			...prev,
-			...files.map((file) => ({
-				id:
-					typeof crypto !== "undefined" && "randomUUID" in crypto
-						? crypto.randomUUID()
-						: `${Date.now()}-${file.name}`,
-				name: file.name,
-				type: "file" as const,
-			})),
-		]);
-		setUploadedFiles(files);
-
-		event.target.value = "";
-	};
 
 	const handleAddLink = () => {
 		const trimmedLink = linkInput.trim();
@@ -362,18 +321,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 						<div className="flex gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
 							<button
 								type="button"
-								onClick={() => setActiveTab("file")}
-								className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
-									activeTab === "file"
-										? "bg-emerald-500/20 text-emerald-300"
-										: "text-white/60 hover:text-white/80"
-								}`}
-							>
-								<Upload size={16} />
-								Files
-							</button>
-							<button
-								type="button"
 								onClick={() => setActiveTab("link")}
 								className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition ${
 									activeTab === "link"
@@ -386,25 +333,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 							</button>
 						</div>
 
-						{/* File Upload Area */}
-						{activeTab === "file" && (
-							<label
-								htmlFor={inputId}
-								className="group flex flex-1 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-white/20 bg-white/5 p-6 text-center transition hover:border-emerald-400/60 hover:bg-white/10"
-							>
-								<Upload
-									size={28}
-									className="mb-3 text-white/60 transition group-hover:text-emerald-300"
-								/>
-								<p className="text-sm text-white/70">
-									Drop a research dossier or click to browse
-								</p>
-								<p className="mt-1 text-xs text-white/50">
-									Supported: PDF, DOCX, TXT — max 10MB per
-									batch
-								</p>
-							</label>
-						)}
+
 
 						{/* Link Input Area */}
 						{activeTab === "link" && (
@@ -561,7 +490,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 					type="file"
 					className="sr-only"
 					ref={inputRef}
-					onChange={handleFileSelect}
 					multiple
 				/>
 
