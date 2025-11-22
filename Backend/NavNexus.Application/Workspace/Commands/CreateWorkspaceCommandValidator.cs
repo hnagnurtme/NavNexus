@@ -17,9 +17,7 @@ public class CreateWorkspaceCommandValidator : AbstractValidator<CreateWorkspace
             .WithMessage("Description must not exceed 500 characters.");
         RuleFor(x => x.FileIds)
             .Must(fileIds => fileIds == null || fileIds.All(id =>
-                !string.IsNullOrWhiteSpace(id) &&
-                Regex.IsMatch(id, @"^[a-zA-Z0-9_-]+$") // chỉ cho phép chữ, số, dấu gạch ngang và dấu gạch dưới
-            ))
+                !string.IsNullOrWhiteSpace(id)))
             .WithMessage("File IDs must be alphanumeric and may contain only '-' or '_'. No empty or whitespace strings allowed.");
     }
 }
