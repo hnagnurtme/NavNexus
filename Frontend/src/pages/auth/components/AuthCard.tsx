@@ -85,7 +85,7 @@ export const AuthCard = ({
 
   // ⭐ Auto-fill demo
   const autoFillDemo = () => {
-    setEmail("anhnon0106@gmail.com");
+    setEmail("explore@navnexus.com");
     setPassword("123456");
   };
 

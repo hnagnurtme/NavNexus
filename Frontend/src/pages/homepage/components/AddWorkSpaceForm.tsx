@@ -1,6 +1,6 @@
-import { UploadCloudinaryContext } from "@/contexts/UploadCloudinaryContext";
+
 import { WorkSpaceContext } from "@/contexts/WorkSpaceContext";
-import { useState, useRef, ChangeEvent, FormEvent, useContext } from "react";
+import { useState,  FormEvent, useContext } from "react";
 
 type WorkspacePayload = {
   name: string;
@@ -23,19 +23,10 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
   const [color, setColor] = useState("#03C75A"); // Naver green default
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const fileRef = useRef<HTMLInputElement | null>(null);
   const [errors, setErrors] = useState<{ name?: string } | null>(null);
-  const { changeRawCloudinary } = useContext(UploadCloudinaryContext);
   const { handleCreateWorkSpace } = useContext(WorkSpaceContext);
-  function handleFilesChange(e: ChangeEvent<HTMLInputElement>) {
-    const list = e.target.files;
-    if (!list) return;
-    setFiles(Array.from(list).slice(0, 10));
-  }
 
-  function removeFile(index: number) {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-  }
+
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -55,13 +46,12 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
 
     try {
       setIsSubmitting(true);
-      const listUrl = await changeRawCloudinary(files);
       await handleCreateWorkSpace(
         payload.name,
         payload.description || "",
-        listUrl
+        files.map((f) => f.name)
       );
-      console.log(listUrl);
+      console.log(files);
       await onCreate?.(payload);
     } catch (err) {
       console.error("Failed to create workspace", err);
@@ -184,56 +174,6 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[#bfcfc3]">
-                Upload documents (optional)
-              </label>
-              <div className="flex items-center gap-3 mt-2">
-                <input
-                  ref={fileRef}
-                  onChange={handleFilesChange}
-                  type="file"
-                  multiple
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileRef.current?.click()}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#2a2a2a] bg-[#111] px-4 py-2 text-sm font-medium hover:border-[#03C75A]"
-                >
-                  Select files
-                </button>
-
-                <div className="text-xs text-[#b3b3b3]">
-                  Max 10 files · PDF, DOCX, TXT
-                </div>
-              </div>
-
-              {!!files.length && (
-                <div className="grid gap-2 mt-3 overflow-y-scroll max-h-25">
-                  {files.map((f, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between gap-3 rounded-md bg-[#0b0b0b] p-2 border border-[#222]"
-                    >
-                      <div className="text-sm truncate">{f.name}</div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-xs text-[#888]">
-                          {Math.round(f.size / 1024)} KB
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => removeFile(i)}
-                          className="text-xs text-red-400 hover:underline"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
             <div className="flex items-center gap-3 mt-2">
               <button
