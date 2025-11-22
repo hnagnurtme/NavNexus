@@ -4,144 +4,196 @@
       "Id": "domain-sagin001",
       "Type": "domain",
       "Name": "Space-Air-Ground Integrated Networks (SAGIN)",
-      "Synthesis": "Space-Air-Ground Integrated Networks represent a comprehensive integration of satellite networks, aerial platforms (UAVs, HAPs), and terrestrial infrastructure to provide ubiquitous connectivity. Recent research focuses on AI-driven optimization techniques and energy-aware resource management to address the unique challenges of heterogeneous network architectures, dynamic topologies, and varying QoS requirements across different network layers.",
+      "Synthesis": "SAGIN represents a paradigm shift in communication infrastructure, integrating satellite constellations (LEO, MEO, GEO), aerial platforms (UAVs, HAPs), and terrestrial networks to provide global coverage and ubiquitous connectivity. The heterogeneous architecture introduces unique challenges including diverse propagation characteristics, varying latency constraints (satellite: 20-500ms, aerial: 10-50ms, terrestrial: <10ms), and disparate energy availability profiles that require intelligent coordination across all network tiers.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 0,
-      "SourceCount": 2,
-      "TotalConfidence": 0.92,
+      "SourceCount": 1,
+      "TotalConfidence": 0.94,
       "CreatedAt": "2025-01-15T08:30:00Z",
       "UpdatedAt": "2025-01-15T14:22:00Z",
       "ParentId": null
     },
     {
-      "Id": "category-optimization001",
+      "Id": "category-ai-optimization001",
       "Type": "category",
-      "Name": "AI-Based Network Optimization",
-      "Synthesis": "Artificial Intelligence techniques, particularly Deep Reinforcement Learning (DRL) and Multi-Agent Reinforcement Learning (MARL), have emerged as powerful tools for optimizing SAGIN performance. These methods address complex decision-making problems including resource allocation, traffic routing, handover management, and power control in highly dynamic network environments with non-stationary characteristics.",
+      "Name": "AI-Driven Network Optimization",
+      "Synthesis": "Traditional optimization methods face fundamental limitations in SAGIN due to dynamic channel conditions, LEO satellite mobility, and UAV movement patterns. AI techniques, particularly Deep Reinforcement Learning, enable autonomous resource management by learning near-optimal policies directly from network observations without requiring explicit mathematical models of the complex, non-stationary environment.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 1,
-      "SourceCount": 2,
-      "TotalConfidence": 0.94,
+      "SourceCount": 1,
+      "TotalConfidence": 0.93,
       "CreatedAt": "2025-01-15T08:35:00Z",
       "UpdatedAt": "2025-01-15T14:22:00Z",
       "ParentId": "domain-sagin001"
     },
     {
-      "Id": "concept-drl001",
+      "Id": "concept-drl-resource001",
       "Type": "concept",
-      "Name": "Deep Reinforcement Learning for Resource Allocation",
-      "Synthesis": "DRL algorithms leverage deep neural networks to approximate optimal policies for resource allocation in SAGIN. The English paper demonstrates DQN-based approaches for bandwidth allocation across satellite-aerial-terrestrial links, while the Korean paper extends this with Dueling DQN for energy-efficient scheduling. Both approaches show 15-23% improvement in network throughput compared to traditional heuristic methods.",
+      "Name": "DRL for Dynamic Resource Allocation",
+      "Synthesis": "Deep Reinforcement Learning offers a promising paradigm for autonomous resource management in SAGIN by formulating the allocation problem as a Markov Decision Process. DRL agents learn optimal policies through environment interaction, with states representing network conditions, actions corresponding to allocation decisions, and rewards capturing key performance metrics including throughput, energy efficiency, and fairness.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 2,
-      "SourceCount": 2,
-      "TotalConfidence": 0.95,
+      "SourceCount": 1,
+      "TotalConfidence": 0.92,
       "CreatedAt": "2025-01-15T09:00:00Z",
       "UpdatedAt": "2025-01-15T14:22:00Z",
-      "ParentId": "category-optimization001"
+      "ParentId": "category-ai-optimization001"
     },
     {
-      "Id": "subconcept-dqn001",
+      "Id": "subconcept-dqn-architecture001",
       "Type": "subconcept",
-      "Name": "DQN Architecture for Bandwidth Allocation",
-      "Synthesis": "The DQN architecture employs a 4-layer fully-connected network with ReLU activations to map network state observations (link quality, buffer occupancy, user demands) to Q-values for discrete bandwidth allocation actions. Experience replay with prioritized sampling and target network updates every 1000 steps ensure stable learning. The state space includes 47 dimensions covering satellite visibility windows, UAV positions, and ground station loads.",
+      "Name": "DQN Architecture Design",
+      "Synthesis": "The DQN architecture employs a four-layer fully-connected neural network with ReLU activations to map 47-dimensional state observations to Q-values for discrete bandwidth allocation actions. The state space comprehensively captures network conditions including satellite link SNRs, UAV positions and battery levels, ground station buffer occupancy, and user traffic demands categorized by priority levels.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 3,
       "SourceCount": 1,
-      "TotalConfidence": 0.93,
+      "TotalConfidence": 0.91,
       "CreatedAt": "2025-01-15T09:15:00Z",
       "UpdatedAt": "2025-01-15T09:15:00Z",
-      "ParentId": "concept-drl001"
+      "ParentId": "concept-drl-resource001"
     },
     {
-      "Id": "subconcept-dueling001",
+      "Id": "subconcept-training-stability001",
       "Type": "subconcept",
-      "Name": "Dueling DQN for Energy-Aware Scheduling",
-      "Synthesis": "The Korean paper introduces a Dueling DQN variant that separates value and advantage functions for energy-aware image delivery scheduling. This architecture proves particularly effective for SAGIN scenarios where some state features affect all actions equally (satellite energy budget) while others have action-specific impacts (transmission timing decisions). Results show 18% reduction in energy consumption while maintaining 95% delivery success rate.",
+      "Name": "Training Stability Mechanisms",
+      "Synthesis": "To ensure stable learning in non-stationary SAGIN environments, the DQN implementation employs prioritized experience replay with α=0.6 and β=0.4, maintaining a replay buffer of 100,000 transitions. Target network updates every τ=1000 training steps prevent divergence and enable convergence despite the complex, time-varying nature of satellite and UAV network dynamics.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 3,
       "SourceCount": 1,
-      "TotalConfidence": 0.9,
-      "CreatedAt": "2025-01-15T09:30:00Z",
-      "UpdatedAt": "2025-01-15T09:30:00Z",
-      "ParentId": "concept-drl001"
+      "TotalConfidence": 0.90,
+      "CreatedAt": "2025-01-15T09:20:00Z",
+      "UpdatedAt": "2025-01-15T09:20:00Z",
+      "ParentId": "concept-drl-resource001"
     },
     {
-      "Id": "concept-marl001",
+      "Id": "detail-state-representation001",
+      "Type": "subconcept",
+      "Name": "State Space Representation",
+      "Synthesis": "The 47-dimensional state vector encompasses critical network features: satellite link signal-to-noise ratios for all visible LEO satellites, UAV positions and remaining battery levels, ground station buffer occupancy rates, current bandwidth allocations across frequency bands, and user traffic demands categorized by priority (emergency, real-time, best-effort) to provide comprehensive situational awareness.",
+      "WorkspaceId": "Reinforcement-Learning",
+      "Level": 4,
+      "SourceCount": 1,
+      "TotalConfidence": 0.89,
+      "CreatedAt": "2025-01-15T09:25:00Z",
+      "UpdatedAt": "2025-01-15T09:25:00Z",
+      "ParentId": "subconcept-dqn-architecture001"
+    },
+    {
+      "Id": "detail-action-space001",
+      "Type": "subconcept",
+      "Name": "Action Space Design",
+      "Synthesis": "The action space consists of 32 discrete bandwidth allocation policies, each representing a different distribution strategy across the three-tier SAGIN architecture. This discrete formulation enables efficient learning while maintaining sufficient granularity for practical resource allocation decisions across satellite, aerial, and terrestrial network segments.",
+      "WorkspaceId": "Reinforcement-Learning",
+      "Level": 4,
+      "SourceCount": 1,
+      "TotalConfidence": 0.88,
+      "CreatedAt": "2025-01-15T09:30:00Z",
+      "UpdatedAt": "2025-01-15T09:30:00Z",
+      "ParentId": "subconcept-dqn-architecture001"
+    },
+    {
+      "Id": "concept-marl-decentralized001",
       "Type": "concept",
-      "Name": "Multi-Agent Reinforcement Learning for Decentralized Control",
-      "Synthesis": "MARL enables distributed decision-making across SAGIN nodes without requiring centralized coordination. The English paper proposes an Independent DQN (IDQN) approach where each satellite and UAV acts as an autonomous agent, learning policies based on local observations. Communication overhead is reduced by 67% compared to centralized methods while achieving comparable performance in scenarios with up to 20 agents.",
+      "Name": "Multi-Agent RL for Decentralized Control",
+      "Synthesis": "Centralized control becomes impractical in large-scale SAGIN due to communication delays (satellite-ground RTT: 25-40ms) and single-point-of-failure risks. Multi-Agent Reinforcement Learning enables distributed intelligence through independent DQN agents where each satellite and UAV operates autonomously based on local observations while sharing a common global reward structure.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 2,
       "SourceCount": 1,
-      "TotalConfidence": 0.88,
+      "TotalConfidence": 0.89,
       "CreatedAt": "2025-01-15T10:00:00Z",
       "UpdatedAt": "2025-01-15T10:00:00Z",
-      "ParentId": "category-optimization001"
+      "ParentId": "category-ai-optimization001"
     },
     {
-      "Id": "subconcept-idqn001",
+      "Id": "subconcept-idqn-implementation001",
       "Type": "subconcept",
-      "Name": "Independent DQN for Satellite-UAV Coordination",
-      "Synthesis": "Each satellite and UAV maintains its own DQN agent that learns optimal transmission policies based on partial observations of the network. Agents share a common reward structure (network-wide throughput) but make independent decisions. The approach handles non-stationarity through target network stabilization and gradual exploration decay (ε: 1.0 → 0.01 over 50k steps).",
+      "Name": "Independent DQN Implementation",
+      "Synthesis": "Each satellite and UAV operates as an autonomous learning agent with its own neural network. Local observation spaces include residual energy, visible ground stations and signal strengths, onboard buffer status, and predicted visibility windows. Despite non-stationarity from concurrent learning, convergence is achieved through target network stabilization and gradual exploration decay.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 3,
       "SourceCount": 1,
       "TotalConfidence": 0.87,
       "CreatedAt": "2025-01-15T10:15:00Z",
       "UpdatedAt": "2025-01-15T10:15:00Z",
-      "ParentId": "concept-marl001"
+      "ParentId": "concept-marl-decentralized001"
     },
     {
-      "Id": "category-energy001",
+      "Id": "subconcept-communication-efficiency001",
+      "Type": "subconcept",
+      "Name": "Communication Overhead Reduction",
+      "Synthesis": "The Independent DQN approach reduces control signaling overhead by 67% compared to centralized methods, requiring only 3.2 KB/s versus 9.8 KB/s for 14-agent scenarios. This efficiency enables scalable distributed operation while maintaining 94% of centralized optimal throughput performance in experimental evaluations.",
+      "WorkspaceId": "Reinforcement-Learning",
+      "Level": 3,
+      "SourceCount": 1,
+      "TotalConfidence": 0.86,
+      "CreatedAt": "2025-01-15T10:20:00Z",
+      "UpdatedAt": "2025-01-15T10:20:00Z",
+      "ParentId": "concept-marl-decentralized001"
+    },
+    {
+      "Id": "category-energy-management001",
       "Type": "category",
-      "Name": "Energy Management in SAGIN",
-      "Synthesis": "Energy management is critical in SAGIN due to limited battery capacities of satellites and UAVs, intermittent solar energy harvesting, and dynamic power consumption patterns. The Korean paper focuses extensively on energy-aware scheduling strategies that optimize transmission timing based on predicted energy availability, while the English paper addresses energy-efficient routing that minimizes transmission power through intelligent relay selection.",
+      "Name": "Energy Management and Efficiency",
+      "Synthesis": "Energy efficiency is paramount in SAGIN due to reliance on battery-powered satellites and UAVs with limited energy replenishment opportunities. Realistic power models account for satellite transmission power (0.5-10W), circuit power (2W), solar harvesting (40-50W in sunlight), and UAV propulsion (100-200W) and hovering (150W) requirements across dynamic operational scenarios.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 1,
-      "SourceCount": 2,
-      "TotalConfidence": 0.91,
+      "SourceCount": 1,
+      "TotalConfidence": 0.92,
       "CreatedAt": "2025-01-15T11:00:00Z",
       "UpdatedAt": "2025-01-15T14:22:00Z",
       "ParentId": "domain-sagin001"
     },
     {
-      "Id": "concept-battery001",
+      "Id": "concept-power-control001",
       "Type": "concept",
-      "Name": "Battery-Aware Transmission Scheduling",
-      "Synthesis": "Satellites and UAVs must balance immediate transmission demands against future energy needs. The Korean paper proposes a prediction-based scheduling framework that estimates future energy harvesting (using orbital mechanics and historical solar irradiance data) and defers non-critical transmissions to energy-abundant periods. This approach extends mission lifetime by 34% in winter deployment scenarios.",
+      "Name": "Adaptive Power Control",
+      "Synthesis": "Adaptive power control is essential for energy-efficient SAGIN operation, formulated as part of the DRL action space with 5 discrete power levels (0.5W, 1W, 2W, 5W, 10W). The reward function incorporates an energy penalty term, enabling agents to learn power reduction during favorable channel conditions while maintaining QoS through power boosts during deep fading events.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 2,
       "SourceCount": 1,
-      "TotalConfidence": 0.89,
-      "CreatedAt": "2025-01-15T11:15:00Z",
-      "UpdatedAt": "2025-01-15T11:15:00Z",
-      "ParentId": "category-energy001"
+      "TotalConfidence": 0.90,
+      "CreatedAt": "2025-01-15T12:00:00Z",
+      "UpdatedAt": "2025-01-15T12:00:00Z",
+      "ParentId": "category-energy-management001"
     },
     {
-      "Id": "subconcept-energypred001",
+      "Id": "subconcept-power-reward-design001",
       "Type": "subconcept",
-      "Name": "Solar Energy Harvesting Prediction",
-      "Synthesis": "Accurate prediction of solar energy harvesting is crucial for proactive scheduling. The model considers satellite orbital position, solar panel orientation angle, Earth shadow periods, and seasonal variations. A hybrid LSTM-based predictor achieves 92% accuracy for 30-minute ahead predictions and 78% accuracy for 2-hour predictions.",
+      "Name": "Power Control Reward Design",
+      "Synthesis": "The power control reward function R_t = throughput(t) - λ·P(t) with energy cost coefficient λ=0.15 balances throughput optimization against energy consumption. This formulation, calibrated to satellite solar panel capacity (50W average), enables 41% average energy reduction compared to fixed maximum power transmission with only 3.2% throughput degradation.",
+      "WorkspaceId": "Reinforcement-Learning",
+      "Level": 3,
+      "SourceCount": 1,
+      "TotalConfidence": 0.88,
+      "CreatedAt": "2025-01-15T12:10:00Z",
+      "UpdatedAt": "2025-01-15T12:10:00Z",
+      "ParentId": "concept-power-control001"
+    },
+    {
+      "Id": "subconcept-power-action-analysis001",
+      "Type": "subconcept",
+      "Name": "Power Action Distribution Analysis",
+      "Synthesis": "Analysis of learned power control policies reveals the agent predominantly selects 1-2W power levels (68% of decisions) for routine operations, with occasional boosts to 5-10W (12% of decisions) during deep fading conditions to maintain link reliability. This intelligent power allocation strategy demonstrates effective adaptation to varying channel conditions.",
       "WorkspaceId": "Reinforcement-Learning",
       "Level": 3,
       "SourceCount": 1,
       "TotalConfidence": 0.87,
-      "CreatedAt": "2025-01-15T11:30:00Z",
-      "UpdatedAt": "2025-01-15T11:30:00Z",
-      "ParentId": "concept-battery001"
+      "CreatedAt": "2025-01-15T12:15:00Z",
+      "UpdatedAt": "2025-01-15T12:15:00Z",
+      "ParentId": "concept-power-control001"
     },
     {
-      "Id": "concept-powercontrol001",
-      "Type": "concept",
-      "Name": "Adaptive Power Control for Energy Efficiency",
-      "Synthesis": "Transmission power directly impacts both link quality and energy consumption. The English paper proposes an adaptive power control scheme where DRL agents learn to select optimal power levels (5 discrete levels: 0.5W, 1W, 2W, 5W, 10W) based on channel conditions and energy constraints. Results show 41% energy savings with only 3% throughput degradation compared to fixed maximum power transmission.",
+      "Id": "detail-channel-aware001",
+      "Type": "subconcept",
+      "Name": "Channel-Aware Power Adaptation",
+      "Synthesis": "State features for power control include instantaneous channel gain measured via pilot signals, interference levels, residual energy, buffer occupancy, traffic urgency, and link budget requirements. This comprehensive state representation enables context-aware power decisions that maximize energy efficiency while meeting quality of service requirements across diverse network conditions.",
       "WorkspaceId": "Reinforcement-Learning",
-      "Level": 2,
+      "Level": 4,
       "SourceCount": 1,
       "TotalConfidence": 0.86,
-      "CreatedAt": "2025-01-15T12:00:00Z",
-      "UpdatedAt": "2025-01-15T12:00:00Z",
-      "ParentId": "category-energy001"
+      "CreatedAt": "2025-01-15T12:20:00Z",
+      "UpdatedAt": "2025-01-15T12:20:00Z",
+      "ParentId": "subconcept-power-reward-design001"
     }
   ],
   "evidences": [
@@ -152,7 +204,7 @@
       "ChunkId": "chunk-005",
       "Text": "Space-Air-Ground Integrated Networks (SAGIN) represent a paradigm shift in communication infrastructure, seamlessly integrating satellite constellations (GEO, MEO, LEO), aerial platforms (UAVs, HAPs), and terrestrial networks to provide global coverage and ubiquitous connectivity. The heterogeneous nature of SAGIN introduces unique challenges including diverse propagation characteristics (satellite: free-space path loss with atmospheric attenuation, aerial: LoS-dominant with mobility effects, terrestrial: multi-path fading), varying latency constraints (satellite: 20-500ms, aerial: 10-50ms, terrestrial: <10ms), and disparate energy availability profiles. Modern SAGIN architectures typically comprise 6-12 LEO satellites per orbital plane at 500-1200 km altitude, 5-20 UAVs operating at 1-5 km altitude with 4-8 hour endurance, and dense terrestrial base stations. Key performance metrics include end-to-end latency (<100ms for real-time applications), reliability (99.9% for critical services), and energy efficiency (bits/Joule across all tiers).",
       "Page": 1,
-      "Confidence": 0.92,
+      "Confidence": 0.94,
       "CreatedAt": "2025-01-15T08:30:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
@@ -174,7 +226,7 @@
         "How to standardize protocols across such heterogeneous network tiers?",
         "What are the optimal ratios of satellite/aerial/terrestrial nodes for different geographic regions?"
       ],
-      "EvidenceStrength": 0.91,
+      "EvidenceStrength": 0.92,
       "StartPos": 1850,
       "EndPos": 3420,
       "ChunkIndex": 5,
@@ -183,49 +235,13 @@
       "NodeId": "domain-sagin001"
     },
     {
-      "Id": "evidence-domain-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-003",
-      "Text": "SAGIN(우주-공중-지상 통합 네트워크)은 위성 네트워크, 공중 플랫폼(UAV, HAP), 지상 인프라의 통합을 통해 전 지구적 커버리지와 유비쿼터스 연결성을 제공한다. 이러한 3계층 아키텍처는 각기 다른 특성을 가진다: 위성 계층은 광범위한 커버리지(지름 1000-3000km) but 높은 지연(25-40ms), 공중 계층은 유연한 배치 but 제한된 체공 시간, 지상 계층은 높은 대역폭 but 제한된 커버리지. SAGIN의 주요 응용 분야는 원격 감지, 재난 통신, 인터넷 접근 서비스, 군사 작전을 포함한다. 우리의 연구는 특히 에너지 제약 환경에서 이미지 전송에 초점을 맞추며, 위성의 태양 에너지 수확 주기, UAV의 배터리 제약, 지상 스테이션의 전력 가용성을 통합적으로 고려한다.",
-      "Page": 1,
-      "Confidence": 0.91,
-      "CreatedAt": "2025-01-15T08:32:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN",
-      "Concepts": [
-        "Three-Tier Architecture",
-        "Global Coverage",
-        "Energy Constraints",
-        "Image Delivery Applications"
-      ],
-      "KeyClaims": [
-        "Three-tier architecture: satellite (wide coverage, high latency), aerial (flexible deployment, limited endurance), terrestrial (high bandwidth, limited coverage)",
-        "Satellite coverage diameter: 1000-3000km with 25-40ms latency",
-        "Key applications: remote sensing, disaster communications, internet access, military operations",
-        "Focus on energy-constrained image delivery considering solar harvesting, battery limits, power availability"
-      ],
-      "QuestionsRaised": [
-        "How to prioritize different applications with conflicting QoS requirements?",
-        "What are the optimal energy management strategies across the three tiers?"
-      ],
-      "EvidenceStrength": 0.9,
-      "StartPos": 950,
-      "EndPos": 2280,
-      "ChunkIndex": 3,
-      "HasMore": true,
-      "OverlapLength": 130,
-      "NodeId": "domain-sagin001"
-    },
-    {
-      "Id": "evidence-aiopt-intro-en001",
+      "Id": "evidence-ai-optimization-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-015",
-      "Text": "Traditional optimization approaches for SAGIN face fundamental limitations when dealing with the scale and dynamics of modern deployments. Linear programming and convex optimization methods assume static or slowly-varying channel conditions, which is unrealistic given LEO satellite orbital periods (90-120 minutes) and UAV mobility patterns (velocities: 10-25 m/s). Heuristic algorithms (greedy, genetic algorithms, particle swarm optimization) lack adaptability and require extensive domain knowledge for parameter tuning. In contrast, AI-driven methods, particularly Deep Reinforcement Learning, can learn near-optimal policies directly from network observations without explicit modeling. Our work systematically explores DRL and MARL techniques across three key SAGIN optimization domains: (1) dynamic resource allocation across heterogeneous links, (2) intelligent handover management during satellite visibility gaps, and (3) energy-aware traffic scheduling considering solar energy harvesting cycles. We benchmark AI methods against state-of-the-art baselines including MILP solvers (limited to small problem instances) and domain-specific heuristics.",
+      "Text": "Traditional optimization approaches for SAGIN face fundamental limitations when dealing with the scale and dynamics of modern deployments. Linear programming and convex optimization methods assume static or slowly-varying channel conditions, which is unrealistic given LEO satellite orbital periods (90-120 minutes) and UAV mobility patterns (velocities: 10-25 m/s). Heuristic algorithms (greedy, genetic algorithms, particle swarm optimization) lack adaptability and require extensive domain knowledge for parameter tuning. In contrast, AI-driven methods, particularly Deep Reinforcement Learning, can learn near-optimal policies directly from network observations without explicit modeling. Our work systematically explores DRL and MARL techniques across three key SAGIN optimization domains: (1) dynamic resource allocation across heterogeneous links, (2) intelligent handover management during satellite visibility gaps, and (3) energy-aware traffic scheduling considering solar energy harvesting cycles.",
       "Page": 3,
-      "Confidence": 0.94,
+      "Confidence": 0.93,
       "CreatedAt": "2025-01-15T08:35:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
@@ -240,66 +256,28 @@
         "Traditional methods assume static conditions, unrealistic for LEO/UAV dynamics",
         "Heuristics lack adaptability and require extensive parameter tuning",
         "DRL learns policies from observations without explicit modeling",
-        "Three key domains: resource allocation, handover, energy scheduling",
-        "Benchmarked against MILP solvers and domain heuristics"
+        "Three key domains: resource allocation, handover, energy scheduling"
       ],
       "QuestionsRaised": [
         "What is the sample complexity of DRL methods for SAGIN problems?",
         "How to ensure safety constraints during online RL exploration?"
       ],
-      "EvidenceStrength": 0.92,
+      "EvidenceStrength": 0.91,
       "StartPos": 6830,
       "EndPos": 8245,
       "ChunkIndex": 15,
       "HasMore": true,
       "OverlapLength": 140,
-      "NodeId": "category-optimization001"
+      "NodeId": "category-ai-optimization001"
     },
     {
-      "Id": "evidence-aiopt-intro-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-012",
-      "Text": "위성 네트워크에서 이미지 전송은 에너지 제약, 불규칙한 통신 기회, 다양한 QoS 요구사항으로 인해 복잡하다. 기존 연구는 주로 단일 계층 최적화에 집중했으나, SAGIN의 진정한 이점은 계층 간 협력적 스케줄링에 있다. 우리는 인공지능, 특히 심층 강화학습을 활용하여 위성-UAV-지상 계층에 걸친 통합 이미지 전송 스케줄링 문제를 해결한다. 제안된 프레임워크는 세 가지 핵심 요소를 포함한다: (1) 에너지 인식 상태 표현 - 위성 배터리 잔량, 태양 전지판 각도, 예상 에너지 수확량, (2) 멀티 홉 경로 선택 - 위성 직접 전송 vs UAV 중계 vs 지상 백홀 우회, (3) 우선순위 기반 보상 설계 - 긴급 이미지는 1.5x 가중치, 일반 이미지는 1.0x, 저우선순위는 0.7x. 시뮬레이션 결과 Dueling DQN 접근법이 rule-based 스케줄러 대비 에너지 효율성 18% 향상, 평균 전송 지연 28% 감소를 달성했다.",
-      "Page": 3,
-      "Confidence": 0.91,
-      "CreatedAt": "2025-01-15T08:40:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN > AI Optimization",
-      "Concepts": [
-        "Energy-Aware Scheduling",
-        "Cross-Layer Optimization",
-        "Priority-Based QoS",
-        "Multi-Hop Routing"
-      ],
-      "KeyClaims": [
-        "SAGIN benefits emerge from cross-layer cooperative scheduling",
-        "Energy-aware state includes battery, solar panel angle, harvest prediction",
-        "Multi-hop routing considers satellite direct, UAV relay, ground backhaul",
-        "Priority-based rewards: emergency 1.5x, normal 1.0x, low 0.7x",
-        "18% energy efficiency improvement, 28% latency reduction vs rule-based"
-      ],
-      "QuestionsRaised": [
-        "How to model stochastic solar energy harvesting in polar regions?",
-        "What is the optimal trade-off between transmission delay and energy cost?"
-      ],
-      "EvidenceStrength": 0.89,
-      "StartPos": 5240,
-      "EndPos": 6680,
-      "ChunkIndex": 12,
-      "HasMore": true,
-      "OverlapLength": 155,
-      "NodeId": "category-optimization001"
-    },
-    {
-      "Id": "evidence-drl-overview-en001",
+      "Id": "evidence-drl-resource-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-028",
       "Text": "Deep Reinforcement Learning offers a promising paradigm for autonomous resource management in SAGIN. Unlike traditional optimization methods that require explicit mathematical models of network dynamics, DRL agents learn optimal policies through interaction with the environment. We formulate the resource allocation problem as a Markov Decision Process (MDP) where states represent network conditions (link qualities, traffic loads, energy levels), actions correspond to resource allocation decisions (bandwidth distribution, power control, routing paths), and rewards capture key performance metrics (throughput, energy efficiency, fairness). Our experimental testbed includes 6 LEO satellites in sun-synchronous orbit (altitude: 550 km), 8 UAVs operating at 2-5 km altitude, and 12 ground stations distributed across a 500 km² area. Simulation results demonstrate that DQN-based allocation achieves 23% higher average throughput and 31% lower packet loss rate compared to weighted round-robin baselines under dynamic traffic patterns with temporal variations (peak-to-average ratio: 4.2).",
       "Page": 5,
-      "Confidence": 0.95,
+      "Confidence": 0.92,
       "CreatedAt": "2025-01-15T09:00:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
@@ -321,59 +299,22 @@
         "How does DRL performance scale with increasing network size?",
         "What is the computational overhead of real-time DRL inference?"
       ],
-      "EvidenceStrength": 0.94,
+      "EvidenceStrength": 0.90,
       "StartPos": 12830,
       "EndPos": 14215,
       "ChunkIndex": 28,
       "HasMore": true,
       "OverlapLength": 180,
-      "NodeId": "concept-drl001"
+      "NodeId": "concept-drl-resource001"
     },
     {
-      "Id": "evidence-drl-overview-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-022",
-      "Text": "에너지 제약 SAGIN 환경에서 이미지 전송 스케줄링은 복잡한 최적화 문제이다. 위성의 제한된 에너지 예산, 동적 채널 조건, 다양한 이미지 우선순위를 동시에 고려해야 한다. 우리는 Dueling DQN 기반 접근법을 제안하여 이 문제를 해결한다. 시뮬레이션 환경은 10개 LEO 위성 (궤도 고도: 600km, 주기: 96분), 10개 UAV (고도: 1-3km, 체공 시간: 4시간), 15개 지상국을 포함한다. 각 위성은 초기 에너지 용량 5000 Wh를 가지며, 이미지 전송 시 패킷당 0.8-1.5 W를 소비한다. 실험 결과, 제안된 DRL 방법은 기존 greedy 스케줄링 대비 평균 18% 에너지 절감을 달성하면서 95% 전송 성공률을 유지했다. 특히 고우선순위 긴급 이미지의 경우 평균 전송 지연이 42% 감소했다.",
-      "Page": 4,
-      "Confidence": 0.92,
-      "CreatedAt": "2025-01-15T09:05:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN > AI Optimization > DRL",
-      "Concepts": [
-        "Energy-Constrained Scheduling",
-        "Image Delivery",
-        "Dueling DQN",
-        "Priority-Based QoS"
-      ],
-      "KeyClaims": [
-        "SAGIN image delivery requires balancing energy, channel conditions, and priority",
-        "Testbed includes 10 LEO satellites, 10 UAVs, 15 ground stations",
-        "Satellites have 5000 Wh capacity, consume 0.8-1.5 W per packet",
-        "18% energy reduction vs greedy scheduling with 95% success rate",
-        "42% latency reduction for high-priority emergency images"
-      ],
-      "QuestionsRaised": [
-        "How to handle energy replenishment through solar panels in the model?",
-        "What is the impact of cloud cover on UAV-ground links in the scheduling decision?"
-      ],
-      "EvidenceStrength": 0.9,
-      "StartPos": 9450,
-      "EndPos": 10720,
-      "ChunkIndex": 22,
-      "HasMore": true,
-      "OverlapLength": 160,
-      "NodeId": "concept-drl001"
-    },
-    {
-      "Id": "evidence-dqn-en001",
+      "Id": "evidence-dqn-architecture-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-042",
-      "Text": "We design a DQN agent with a neural network consisting of four fully-connected layers (sizes: 47-256-128-64-32) with ReLU activation functions. The state vector s_t encompasses 47 features including: (i) satellite link signal-to-noise ratios (SNR) for all 6 LEO satellites in view, (ii) UAV positions and remaining battery levels for 8 aerial nodes, (iii) ground station buffer occupancy rates, (iv) current bandwidth allocations across 24 frequency bands, and (v) user traffic demands categorized by priority (emergency, real-time, best-effort). The action space consists of 32 discrete bandwidth allocation policies, each representing a different distribution strategy across the three-tier network. We employ prioritized experience replay with α=0.6 and β=0.4, maintaining a replay buffer of 100,000 transitions. The target network is updated every τ=1000 training steps to stabilize learning.",
+      "Text": "We design a DQN agent with a neural network consisting of four fully-connected layers (sizes: 47-256-128-64-32) with ReLU activation functions. The state vector s_t encompasses 47 features including: (i) satellite link signal-to-noise ratios (SNR) for all 6 LEO satellites in view, (ii) UAV positions and remaining battery levels for 8 aerial nodes, (iii) ground station buffer occupancy rates, (iv) current bandwidth allocations across 24 frequency bands, and (v) user traffic demands categorized by priority (emergency, real-time, best-effort). The action space consists of 32 discrete bandwidth allocation policies, each representing a different distribution strategy across the three-tier network.",
       "Page": 7,
-      "Confidence": 0.93,
+      "Confidence": 0.91,
       "CreatedAt": "2025-01-15T09:15:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
@@ -382,71 +323,142 @@
         "Deep Q-Network",
         "State Representation",
         "Neural Network Architecture",
-        "Experience Replay"
+        "Action Space"
       ],
       "KeyClaims": [
         "47-dimensional state space captures comprehensive network conditions",
         "32 discrete action space enables flexible bandwidth distribution",
-        "Prioritized experience replay improves sample efficiency by 40%",
-        "Target network updates every 1000 steps ensure convergence stability"
+        "Four-layer neural network with ReLU activations",
+        "State includes SNR, battery levels, buffer occupancy, traffic demands"
       ],
       "QuestionsRaised": [
         "How does state dimensionality impact learning speed and final performance?",
-        "What is the optimal replay buffer size for non-stationary SAGIN environments?"
+        "What is the optimal network architecture for different SAGIN scenarios?"
       ],
-      "EvidenceStrength": 0.91,
+      "EvidenceStrength": 0.89,
       "StartPos": 18420,
       "EndPos": 19587,
       "ChunkIndex": 42,
       "HasMore": true,
       "OverlapLength": 150,
-      "NodeId": "subconcept-dqn001"
+      "NodeId": "subconcept-dqn-architecture001"
     },
     {
-      "Id": "evidence-dueling-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-038",
-      "Text": "우리는 에너지 인식 이미지 전송을 위해 Dueling DQN 구조를 제안한다. 네트워크는 두 개의 분리된 스트림으로 구성된다: (1) 상태 가치 함수 V(s)를 추정하는 Value Stream (레이어 크기: 52-256-128-1), (2) 각 행동의 이점 A(s,a)를 추정하는 Advantage Stream (레이어 크기: 52-256-128-16). 최종 Q-값은 Q(s,a) = V(s) + (A(s,a) - mean(A(s,·)))로 결합된다. 상태 벡터는 52개 특징을 포함한다: 위성 잔여 에너지 (6개 LEO 위성), UAV 배터리 수준 (10개), 지상국 큐 길이, 이미지 우선순위 레벨 (긴급/일반/저우선순위), 현재 채널 상태 정보 (CSI), 예상 전송 지연. 행동 공간은 16개의 이산 스케줄링 정책으로 구성되며, 각각은 전송 타이밍, 경로 선택, 전력 레벨 조합을 나타낸다. 실험 결과, Dueling 구조는 표준 DQN 대비 18% 에너지 소비 감소와 12% 빠른 수렴을 달성했다.",
-      "Page": 6,
-      "Confidence": 0.9,
-      "CreatedAt": "2025-01-15T09:30:00Z",
+      "Id": "evidence-training-stability-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-044",
+      "Text": "We employ prioritized experience replay with α=0.6 and β=0.4, maintaining a replay buffer of 100,000 transitions. The target network is updated every τ=1000 training steps to stabilize learning in the non-stationary SAGIN environment. These mechanisms address the inherent challenges of correlated data and moving targets in deep reinforcement learning, ensuring convergence despite the complex dynamics of satellite orbital patterns and UAV mobility.",
+      "Page": 7,
+      "Confidence": 0.90,
+      "CreatedAt": "2025-01-15T09:20:00Z",
       "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN > AI Optimization > DRL > Dueling DQN",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > AI Optimization > DRL > Training Stability",
       "Concepts": [
-        "Dueling DQN",
-        "Energy-Aware Scheduling",
-        "Value-Advantage Decomposition",
-        "Image Delivery"
+        "Experience Replay",
+        "Target Network",
+        "Training Stability",
+        "Non-stationary Environments"
       ],
       "KeyClaims": [
-        "Dueling architecture separates state value from action advantages",
-        "52-dimensional state includes energy metrics across all network tiers",
-        "16 discrete actions combine timing, routing, and power decisions",
-        "18% energy reduction with 95% delivery success rate maintained",
-        "12% faster convergence compared to standard DQN"
+        "Prioritized experience replay with α=0.6 and β=0.4",
+        "100,000 transition replay buffer size",
+        "Target network updates every 1000 steps",
+        "Addresses non-stationarity in SAGIN environments"
       ],
       "QuestionsRaised": [
-        "How does the value-advantage decomposition help in energy-constrained scenarios?",
-        "What is the trade-off between energy savings and delivery latency?"
+        "What is the optimal replay buffer size for different SAGIN scales?",
+        "How to adapt these parameters for real-time learning scenarios?"
       ],
-      "EvidenceStrength": 0.89,
-      "StartPos": 16240,
-      "EndPos": 17418,
-      "ChunkIndex": 38,
+      "EvidenceStrength": 0.88,
+      "StartPos": 19800,
+      "EndPos": 20850,
+      "ChunkIndex": 44,
       "HasMore": true,
-      "OverlapLength": 200,
-      "NodeId": "subconcept-dueling001"
+      "OverlapLength": 130,
+      "NodeId": "subconcept-training-stability001"
     },
     {
-      "Id": "evidence-marl-overview-en001",
+      "Id": "evidence-state-representation-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-043",
+      "Text": "The 47-dimensional state vector comprehensively captures network conditions including satellite link signal-to-noise ratios for all visible LEO satellites, UAV positions and remaining battery levels, ground station buffer occupancy rates, current bandwidth allocations across frequency bands, and user traffic demands categorized by priority (emergency, real-time, best-effort). This rich state representation provides the DRL agent with sufficient situational awareness to make informed resource allocation decisions across the heterogeneous SAGIN architecture.",
+      "Page": 7,
+      "Confidence": 0.89,
+      "CreatedAt": "2025-01-15T09:25:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > AI Optimization > DRL > DQN Architecture > State Representation",
+      "Concepts": [
+        "State Space",
+        "Network Monitoring",
+        "Situational Awareness",
+        "Feature Engineering"
+      ],
+      "KeyClaims": [
+        "47-dimensional state vector provides comprehensive network awareness",
+        "Includes SNR, battery levels, buffer occupancy, bandwidth allocations",
+        "Categorizes traffic by priority: emergency, real-time, best-effort",
+        "Enables informed decisions across heterogeneous architecture"
+      ],
+      "QuestionsRaised": [
+        "Which state features have the highest impact on decision quality?",
+        "How to handle missing or noisy state information in real deployments?"
+      ],
+      "EvidenceStrength": 0.87,
+      "StartPos": 19600,
+      "EndPos": 20580,
+      "ChunkIndex": 43,
+      "HasMore": true,
+      "OverlapLength": 140,
+      "NodeId": "detail-state-representation001"
+    },
+    {
+      "Id": "evidence-action-space-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-045",
+      "Text": "The action space consists of 32 discrete bandwidth allocation policies, each representing a different distribution strategy across the three-tier SAGIN architecture. This discrete formulation balances learning efficiency with practical allocation granularity, enabling the DRL agent to explore diverse resource distribution patterns while maintaining tractable learning complexity in the high-dimensional optimization space.",
+      "Page": 8,
+      "Confidence": 0.88,
+      "CreatedAt": "2025-01-15T09:30:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > AI Optimization > DRL > DQN Architecture > Action Space",
+      "Concepts": [
+        "Action Space",
+        "Discrete Optimization",
+        "Bandwidth Allocation",
+        "Learning Efficiency"
+      ],
+      "KeyClaims": [
+        "32 discrete bandwidth allocation policies",
+        "Balances learning efficiency with allocation granularity",
+        "Enables exploration of diverse distribution patterns",
+        "Maintains tractable learning complexity"
+      ],
+      "QuestionsRaised": [
+        "How does action space size affect convergence time?",
+        "Could continuous action spaces provide better performance?"
+      ],
+      "EvidenceStrength": 0.86,
+      "StartPos": 20900,
+      "EndPos": 21750,
+      "ChunkIndex": 45,
+      "HasMore": true,
+      "OverlapLength": 125,
+      "NodeId": "detail-action-space001"
+    },
+    {
+      "Id": "evidence-marl-decentralized-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-052",
-      "Text": "Centralized control becomes impractical in large-scale SAGIN deployments due to communication delays (satellite-ground RTT: 25-40 ms), bandwidth constraints, and single-point-of-failure risks. Multi-Agent Reinforcement Learning (MARL) offers a compelling alternative through distributed intelligence. We investigate three MARL paradigms: (1) Independent learners where each agent treats others as part of the environment, (2) Centralized training with decentralized execution (CTDE) where agents share information during training but operate independently at deployment, (3) Fully cooperative approaches with explicit coordination mechanisms. Our analysis focuses on independent DQN as it requires minimal communication infrastructure and naturally handles agent heterogeneity (satellites vs UAVs have different capabilities and constraints). Scalability experiments demonstrate that IDQN maintains stable performance up to 20 agents, whereas centralized approaches suffer exponential action space growth. The key challenge in MARL for SAGIN is non-stationarity: from each agent's perspective, the environment dynamics change as other agents simultaneously learn and update their policies.",
+      "Text": "Centralized control becomes impractical in large-scale SAGIN deployments due to communication delays (satellite-ground RTT: 25-40 ms), bandwidth constraints, and single-point-of-failure risks. Multi-Agent Reinforcement Learning (MARL) offers a compelling alternative through distributed intelligence. We investigate three MARL paradigms: (1) Independent learners where each agent treats others as part of the environment, (2) Centralized training with decentralized execution (CTDE) where agents share information during training but operate independently at deployment, (3) Fully cooperative approaches with explicit coordination mechanisms. Our analysis focuses on independent DQN as it requires minimal communication infrastructure and naturally handles agent heterogeneity (satellites vs UAVs have different capabilities and constraints).",
       "Page": 9,
-      "Confidence": 0.88,
+      "Confidence": 0.89,
       "CreatedAt": "2025-01-15T10:00:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
@@ -454,14 +466,14 @@
       "Concepts": [
         "Multi-Agent RL",
         "Decentralized Control",
-        "Scalability",
-        "Non-Stationarity"
+        "Communication Delays",
+        "Agent Heterogeneity"
       ],
       "KeyClaims": [
         "Centralized control impractical due to 25-40ms satellite-ground RTT",
         "Three MARL paradigms evaluated: independent, CTDE, fully cooperative",
-        "IDQN scales to 20 agents with stable performance",
-        "Non-stationarity is key challenge as all agents learn concurrently"
+        "Independent DQN requires minimal communication infrastructure",
+        "Naturally handles agent heterogeneity (satellites vs UAVs)"
       ],
       "QuestionsRaised": [
         "How to quantify the degree of non-stationarity in SAGIN MARL?",
@@ -473,239 +485,269 @@
       "ChunkIndex": 52,
       "HasMore": true,
       "OverlapLength": 165,
-      "NodeId": "concept-marl001"
+      "NodeId": "concept-marl-decentralized001"
     },
     {
-      "Id": "evidence-idqn-en001",
+      "Id": "evidence-idqn-implementation-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-056",
-      "Text": "To address scalability challenges in large-scale SAGIN, we propose a decentralized multi-agent approach using Independent DQN (IDQN). Each satellite (6 LEO agents) and UAV (8 aerial agents) operates as an autonomous learning agent with its own neural network. The local observation space for each satellite agent includes: (i) its own residual energy and solar panel status, (ii) visible ground stations and their signal strengths, (iii) onboard buffer status for different traffic classes, (iv) current time slot and predicted visibility windows. UAV agents observe similar features plus their 3D position, heading, and battery depletion rate. All agents share a common global reward signal computed as R_t = α·throughput + β·fairness - γ·energy_cost, with weights α=0.5, β=0.3, γ=0.2. Despite non-stationarity from concurrent learning of multiple agents, we achieve convergence by employing target networks updated every 2000 steps and gradual ε-decay from 1.0 to 0.01 over 50,000 training episodes. Communication overhead analysis shows IDQN requires only 3.2 KB/s control signaling compared to 9.8 KB/s for centralized DQN with 14 agents, representing a 67% reduction. Performance metrics indicate IDQN achieves 94% of centralized optimal throughput while enabling truly distributed operation.",
+      "Text": "To address scalability challenges in large-scale SAGIN, we propose a decentralized multi-agent approach using Independent DQN (IDQN). Each satellite (6 LEO agents) and UAV (8 aerial agents) operates as an autonomous learning agent with its own neural network. The local observation space for each satellite agent includes: (i) its own residual energy and solar panel status, (ii) visible ground stations and their signal strengths, (iii) onboard buffer status for different traffic classes, (iv) current time slot and predicted visibility windows. UAV agents observe similar features plus their 3D position, heading, and battery depletion rate. All agents share a common global reward signal computed as R_t = α·throughput + β·fairness - γ·energy_cost.",
       "Page": 9,
       "Confidence": 0.87,
       "CreatedAt": "2025-01-15T10:15:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
-      "HierarchyPath": "SAGIN > AI Optimization > MARL > IDQN",
+      "HierarchyPath": "SAGIN > AI Optimization > MARL > IDQN Implementation",
       "Concepts": [
         "Independent DQN",
-        "Decentralized Learning",
-        "Multi-Agent Systems",
-        "Communication Overhead"
+        "Autonomous Agents",
+        "Local Observations",
+        "Global Reward"
       ],
       "KeyClaims": [
         "Each satellite and UAV operates as autonomous learning agent",
         "Local observations include energy, visibility, buffer, timing info",
-        "Global reward balances throughput, fairness, and energy cost",
-        "67% communication overhead reduction vs centralized approach",
-        "Achieves 94% of centralized optimal performance",
-        "Target network updates every 2000 steps enable convergence"
+        "UAVs additionally observe 3D position, heading, battery depletion",
+        "Global reward balances throughput, fairness, and energy cost"
       ],
       "QuestionsRaised": [
         "How to handle credit assignment in cooperative multi-agent scenarios?",
         "Can value decomposition methods (QMIX, QTRAN) improve coordination?"
       ],
-      "EvidenceStrength": 0.86,
+      "EvidenceStrength": 0.85,
       "StartPos": 23680,
       "EndPos": 25210,
       "ChunkIndex": 56,
       "HasMore": true,
       "OverlapLength": 175,
-      "NodeId": "subconcept-idqn001"
+      "NodeId": "subconcept-idqn-implementation001"
     },
     {
-      "Id": "evidence-energy-intro-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-008",
-      "Text": "SAGIN에서 에너지 관리는 시스템 지속 가능성의 핵심이다. 위성은 제한된 배터리 용량과 간헐적 태양 에너지 수확에 의존한다. LEO 위성은 96분 궤도 주기 중 약 60분은 햇빛을 받고 35분은 지구 그림자에 있다. UAV는 더욱 제한적이며 일반적으로 4-6시간 체공 시간을 가진다. 에너지 소비는 전송 전력, 데이터 속도, 회로 전력에 의해 결정된다. 위성 전송은 패킷당 0.8-1.5W를 소비하며, UAV는 이동과 호버링에도 상당한 전력(평균 150W)을 사용한다. 에너지 인식 최적화는 다음 목표를 추구한다: (1) 전송 기회 최대화 - 에너지 제약 내에서, (2) 임무 수명 연장 - 장기 에너지 균형 유지, (3) QoS 보장 - 우선순위 트래픽의 적시 전송. 기존 연구는 주로 단기 에너지 최소화에 집중했지만, 우리는 장기 에너지-성능 trade-off를 다루는 심층 강화학습 접근법을 제시한다.",
-      "Page": 2,
-      "Confidence": 0.91,
-      "CreatedAt": "2025-01-15T11:00:00Z",
+      "Id": "evidence-communication-efficiency-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-058",
+      "Text": "Communication overhead analysis shows IDQN requires only 3.2 KB/s control signaling compared to 9.8 KB/s for centralized DQN with 14 agents, representing a 67% reduction. Performance metrics indicate IDQN achieves 94% of centralized optimal throughput while enabling truly distributed operation. This efficiency makes MARL approaches particularly suitable for bandwidth-constrained SAGIN environments where minimizing control plane overhead is critical for operational scalability.",
+      "Page": 10,
+      "Confidence": 0.86,
+      "CreatedAt": "2025-01-15T10:20:00Z",
       "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN > Energy Management",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > AI Optimization > MARL > Communication Efficiency",
       "Concepts": [
-        "Energy Sustainability",
-        "Battery Constraints",
-        "Solar Harvesting",
-        "Energy-Performance Tradeoff"
+        "Communication Overhead",
+        "Control Signaling",
+        "Bandwidth Efficiency",
+        "Scalability"
       ],
       "KeyClaims": [
-        "LEO satellites: 60-min sunlight, 35-min shadow in 96-min orbit",
-        "UAVs: 4-6 hour endurance, average 150W for mobility and hovering",
-        "Satellite transmission: 0.8-1.5W per packet",
-        "Three objectives: maximize transmission opportunities, extend mission lifetime, guarantee QoS",
-        "DRL addresses long-term energy-performance trade-offs vs short-term minimization"
+        "67% communication overhead reduction vs centralized approach",
+        "3.2 KB/s control signaling for IDQN vs 9.8 KB/s for centralized",
+        "Achieves 94% of centralized optimal performance",
+        "Suitable for bandwidth-constrained SAGIN environments"
       ],
       "QuestionsRaised": [
-        "How to model energy harvesting uncertainty in RL reward design?",
-        "What is the optimal exploration strategy to avoid energy-critical states?"
+        "How does overhead scale with increasing number of agents?",
+        "What are the latency implications of distributed decision-making?"
       ],
-      "EvidenceStrength": 0.9,
-      "StartPos": 3180,
-      "EndPos": 4825,
-      "ChunkIndex": 8,
+      "EvidenceStrength": 0.84,
+      "StartPos": 25500,
+      "EndPos": 26580,
+      "ChunkIndex": 58,
       "HasMore": true,
       "OverlapLength": 145,
-      "NodeId": "category-energy001"
+      "NodeId": "subconcept-communication-efficiency001"
     },
     {
-      "Id": "evidence-energy-intro-en001",
+      "Id": "evidence-energy-management-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-062",
-      "Text": "Energy efficiency is paramount in SAGIN due to the reliance on battery-powered satellites and UAVs with limited energy replenishment opportunities. Our work addresses energy management through two complementary approaches: (1) energy-efficient routing that selects paths minimizing total transmission energy while meeting delay constraints, (2) adaptive power control that adjusts transmission power based on channel conditions and energy availability. We model energy consumption using realistic power models: satellite transmission power P_tx = 0.5-10W (depending on distance and data rate), circuit power P_circuit = 2W, solar panel harvesting rate = 40-50W (in sunlight), battery capacity C_bat = 5000-7000 Wh. For UAVs: propulsion power P_prop = 100-200W (speed-dependent), hovering power P_hover = 150W, transmission power P_tx = 0.5-5W, battery capacity C_bat = 300-500 Wh. The challenge is balancing immediate performance needs (throughput, latency) against long-term energy sustainability. DRL agents learn value functions that implicitly capture this trade-off through appropriately designed reward structures.",
+      "Text": "Energy efficiency is paramount in SAGIN due to the reliance on battery-powered satellites and UAVs with limited energy replenishment opportunities. Our work addresses energy management through two complementary approaches: (1) energy-efficient routing that selects paths minimizing total transmission energy while meeting delay constraints, (2) adaptive power control that adjusts transmission power based on channel conditions and energy availability. We model energy consumption using realistic power models: satellite transmission power P_tx = 0.5-10W (depending on distance and data rate), circuit power P_circuit = 2W, solar panel harvesting rate = 40-50W (in sunlight), battery capacity C_bat = 5000-7000 Wh. For UAVs: propulsion power P_prop = 100-200W (speed-dependent), hovering power P_hover = 150W, transmission power P_tx = 0.5-5W, battery capacity C_bat = 300-500 Wh.",
       "Page": 10,
-      "Confidence": 0.88,
-      "CreatedAt": "2025-01-15T11:05:00Z",
+      "Confidence": 0.92,
+      "CreatedAt": "2025-01-15T11:00:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
       "HierarchyPath": "SAGIN > Energy Management",
       "Concepts": [
         "Energy Efficiency",
-        "Routing Optimization",
         "Power Models",
-        "Energy-Performance Trade-off"
+        "Battery Constraints",
+        "Solar Harvesting"
       ],
       "KeyClaims": [
         "Two approaches: energy-efficient routing and adaptive power control",
         "Satellite: 0.5-10W transmission, 2W circuit, 40-50W harvesting, 5000-7000 Wh battery",
         "UAV: 100-200W propulsion, 150W hovering, 0.5-5W transmission, 300-500 Wh battery",
-        "DRL learns implicit energy-performance trade-off through reward design"
+        "Addresses limited energy replenishment in space and aerial nodes"
       ],
       "QuestionsRaised": [
-        "How to incorporate battery degradation models in long-term RL planning?",
+        "How to incorporate battery degradation models in long-term planning?",
         "Can meta-learning enable fast adaptation to varying energy availability patterns?"
       ],
-      "EvidenceStrength": 0.87,
+      "EvidenceStrength": 0.90,
       "StartPos": 26340,
       "EndPos": 27895,
       "ChunkIndex": 62,
       "HasMore": true,
       "OverlapLength": 160,
-      "NodeId": "category-energy001"
+      "NodeId": "category-energy-management001"
     },
     {
-      "Id": "evidence-battery-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-041",
-      "Text": "위성과 UAV의 배터리 용량은 제한적이다. LEO 위성은 일반적으로 5000-7000 Wh 배터리를 탑재하며, 지구 그림자 구간(약 35분)에는 태양 에너지 수확이 불가능하다. UAV는 더 제한적으로 200-500 Wh 배터리로 4-6시간 체공한다. 배터리 인식 스케줄링은 즉각적 전송 수요와 미래 에너지 필요 사이의 균형을 맞춘다. 우리의 접근법은 세 가지 전략을 사용한다: (1) 예측 기반 지연 - 태양 에너지 수확 예측을 사용하여 비긴급 이미지 전송을 에너지 풍부 기간으로 연기 (2) 동적 전력 제어 - 배터리 수준에 따라 전송 전력 조정 (배터리 > 70%: 최대 전력, 30-70%: 중간 전력, < 30%: 긴급 전송만), (3) 협력적 오프로딩 - 에너지 부족 위성은 인근 UAV나 다른 위성에 전송 작업 위임. 겨울 시나리오 시뮬레이션 (태양 복사 감소 30%)에서 배터리 인식 스케줄링은 기준선 대비 임무 수명을 34% 연장했다.",
-      "Page": 7,
-      "Confidence": 0.89,
-      "CreatedAt": "2025-01-15T11:15:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN > Energy Management > Battery-Aware Scheduling",
-      "Concepts": [
-        "Battery Management",
-        "Energy Prediction",
-        "Dynamic Power Control",
-        "Task Offloading"
-      ],
-      "KeyClaims": [
-        "LEO satellites: 5000-7000 Wh battery, 35-min shadow period with no harvesting",
-        "UAVs: 200-500 Wh battery, 4-6 hour endurance",
-        "Three strategies: predictive deferral, dynamic power control, cooperative offloading",
-        "Power levels adjusted based on battery: >70% max, 30-70% medium, <30% emergency only",
-        "34% mission lifetime extension in winter scenarios with 30% reduced solar radiation"
-      ],
-      "QuestionsRaised": [
-        "How to coordinate offloading decisions among multiple energy-constrained nodes?",
-        "What is the impact of battery degradation over mission lifetime on scheduling?"
-      ],
-      "EvidenceStrength": 0.88,
-      "StartPos": 17640,
-      "EndPos": 19085,
-      "ChunkIndex": 41,
-      "HasMore": true,
-      "OverlapLength": 165,
-      "NodeId": "concept-battery001"
-    },
-    {
-      "Id": "evidence-solarpred-kr001",
-      "SourceId": "pdf-energy-aware-sagin",
-      "SourceName": "Energy Aware Scheduling and Optimization for Image Delivery in Space-Air-Ground Integrated Networks",
-      "ChunkId": "chunk-045",
-      "Text": "태양 에너지 수확 예측은 사전 스케줄링의 핵심이다. 우리는 LSTM 기반 예측 모델을 제안한다. 입력 특징은 다음을 포함한다: (i) 위성의 현재 궤도 위치 (경도, 위도, 고도), (ii) 태양 전지판 방향 각도 (α, β), (iii) 지구 그림자 진입/탈출 예상 시간, (iv) 계절별 태양 복사 강도 (겨울: 평균 850 W/m², 여름: 평균 1100 W/m²), (v) 과거 30분간 실제 수확 에너지. LSTM 네트워크는 2개 레이어 (hidden size: 128)로 구성되며, 30분 앞선 에너지 수확량을 예측한다. 6개월 궤도 데이터 (총 432,000개 시간 스텝)로 학습한 결과, 30분 예측의 평균 절대 오차(MAE)는 8.2%, 2시간 예측은 22.1%였다. 예측 정확도는 에너지 인식 스케줄러의 성능에 직접적 영향을 미친다. 정확한 예측 시 불필요한 전송 지연을 34% 감소시키고, 에너지 고갈로 인한 전송 실패를 67% 줄였다.",
-      "Page": 8,
-      "Confidence": 0.87,
-      "CreatedAt": "2025-01-15T11:30:00Z",
-      "Language": "ENG",
-      "SourceLanguage": "KOR",
-      "HierarchyPath": "SAGIN > Energy Management > Battery-Aware Scheduling > Solar Prediction",
-      "Concepts": [
-        "LSTM",
-        "Energy Harvesting",
-        "Time Series Prediction",
-        "Orbital Mechanics"
-      ],
-      "KeyClaims": [
-        "LSTM predictor uses orbital position, panel angle, shadow periods, seasonal variations",
-        "2-layer LSTM with hidden size 128 trained on 432k timesteps",
-        "30-min prediction MAE: 8.2%, 2-hour prediction MAE: 22.1%",
-        "Accurate prediction reduces unnecessary delays by 34%",
-        "Transmission failures due to energy depletion reduced by 67%"
-      ],
-      "QuestionsRaised": [
-        "How to adapt predictions during unexpected solar storms?",
-        "Can transfer learning improve predictions for newly deployed satellites?"
-      ],
-      "EvidenceStrength": 0.85,
-      "StartPos": 19320,
-      "EndPos": 20785,
-      "ChunkIndex": 45,
-      "HasMore": true,
-      "OverlapLength": 170,
-      "NodeId": "subconcept-energypred001"
-    },
-    {
-      "Id": "evidence-powerctrl-en001",
+      "Id": "evidence-power-control-en001",
       "SourceId": "pdf-optimizing-sagin-ai",
       "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
       "ChunkId": "chunk-068",
-      "Text": "Adaptive power control is essential for energy-efficient SAGIN operation. We formulate power control as part of the DRL action space, allowing agents to jointly optimize transmission power and resource allocation. The power action space consists of 5 discrete levels: P ∈ {0.5, 1, 2, 5, 10} Watts. State features include: (i) instantaneous channel gain h(t) measured via pilot signals, (ii) interference levels from co-channel transmissions, (iii) residual energy E_residual, (iv) buffer occupancy and traffic urgency, (v) link budget requirements for target SNR. The reward function incorporates an energy penalty term: R_t = throughput(t) - λ·P(t), where λ=0.15 is the energy cost coefficient calibrated to satellite solar panel capacity (50W average). Our DQN agent learns to reduce power during favorable channel conditions (high h(t)) and increase power only when necessary to maintain QoS. Experimental results across 10,000 orbital periods demonstrate 41% average energy reduction compared to fixed maximum power baseline, with throughput degradation limited to 3.2%. Power level distribution analysis reveals the agent predominantly selects 1-2W (68% of decisions) with occasional boosts to 5-10W during deep fading (12% of decisions).",
+      "Text": "Adaptive power control is essential for energy-efficient SAGIN operation. We formulate power control as part of the DRL action space, allowing agents to jointly optimize transmission power and resource allocation. The power action space consists of 5 discrete levels: P ∈ {0.5, 1, 2, 5, 10} Watts. State features include: (i) instantaneous channel gain h(t) measured via pilot signals, (ii) interference levels from co-channel transmissions, (iii) residual energy E_residual, (iv) buffer occupancy and traffic urgency, (v) link budget requirements for target SNR.",
       "Page": 11,
-      "Confidence": 0.86,
+      "Confidence": 0.90,
       "CreatedAt": "2025-01-15T12:00:00Z",
       "Language": "ENG",
       "SourceLanguage": "ENG",
-      "HierarchyPath": "SAGIN > Energy Management > Adaptive Power Control",
+      "HierarchyPath": "SAGIN > Energy Management > Power Control",
       "Concepts": [
         "Power Control",
-        "Energy Efficiency",
-        "Channel-Aware Transmission",
+        "Action Space",
+        "Channel Gain",
         "Joint Optimization"
       ],
       "KeyClaims": [
         "5 discrete power levels: 0.5W, 1W, 2W, 5W, 10W",
         "State includes channel gain, interference, residual energy, buffer, link budget",
-        "Reward includes energy penalty: R = throughput - 0.15·P",
-        "41% energy reduction with only 3.2% throughput degradation",
-        "Agent selects 1-2W for 68% of decisions, 5-10W for deep fading 12%"
+        "Joint optimization of transmission power and resource allocation",
+        "Formulated as part of DRL action space"
       ],
       "QuestionsRaised": [
-        "How to extend to continuous power control with DDPG or SAC?",
-        "What is the optimal energy cost coefficient λ for different satellite types?"
+        "How to extend to continuous power control with actor-critic methods?",
+        "What is the optimal granularity for power level discretization?"
       ],
-      "EvidenceStrength": 0.85,
+      "EvidenceStrength": 0.88,
       "StartPos": 28950,
       "EndPos": 30620,
       "ChunkIndex": 68,
       "HasMore": true,
       "OverlapLength": 185,
-      "NodeId": "concept-powercontrol001"
+      "NodeId": "concept-power-control001"
+    },
+    {
+      "Id": "evidence-power-reward-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-069",
+      "Text": "The reward function for power control incorporates an energy penalty term: R_t = throughput(t) - λ·P(t), where λ=0.15 is the energy cost coefficient calibrated to satellite solar panel capacity (50W average). Experimental results across 10,000 orbital periods demonstrate 41% average energy reduction compared to fixed maximum power baseline, with throughput degradation limited to 3.2%. This reward formulation effectively balances the trade-off between communication performance and energy consumption in power-constrained SAGIN environments.",
+      "Page": 11,
+      "Confidence": 0.88,
+      "CreatedAt": "2025-01-15T12:10:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > Energy Management > Power Control > Reward Design",
+      "Concepts": [
+        "Reward Function",
+        "Energy Penalty",
+        "Performance Trade-off",
+        "Energy Reduction"
+      ],
+      "KeyClaims": [
+        "Reward function: R = throughput - 0.15·power",
+        "Energy cost coefficient λ=0.15 calibrated to solar capacity",
+        "41% energy reduction with 3.2% throughput degradation",
+        "Effective balance between performance and energy consumption"
+      ],
+      "QuestionsRaised": [
+        "How to adapt λ for different satellite types and missions?",
+        "Could multi-objective optimization provide better trade-off control?"
+      ],
+      "EvidenceStrength": 0.86,
+      "StartPos": 30650,
+      "EndPos": 31780,
+      "ChunkIndex": 69,
+      "HasMore": true,
+      "OverlapLength": 135,
+      "NodeId": "subconcept-power-reward-design001"
+    },
+    {
+      "Id": "evidence-power-analysis-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-070",
+      "Text": "Power level distribution analysis reveals the agent predominantly selects 1-2W power levels (68% of decisions) for routine operations, with occasional boosts to 5-10W (12% of decisions) during deep fading conditions to maintain link reliability. This intelligent power allocation strategy demonstrates effective adaptation to varying channel conditions while minimizing energy consumption. The learned policy shows sophisticated understanding of when to conserve energy versus when to expend additional power to maintain quality of service.",
+      "Page": 11,
+      "Confidence": 0.87,
+      "CreatedAt": "2025-01-15T12:15:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > Energy Management > Power Control > Action Analysis",
+      "Concepts": [
+        "Power Distribution",
+        "Learned Policy",
+        "Channel Adaptation",
+        "Energy Conservation"
+      ],
+      "KeyClaims": [
+        "68% of decisions use 1-2W power levels for routine operations",
+        "12% of decisions use 5-10W during deep fading conditions",
+        "Intelligent adaptation to varying channel conditions",
+        "Sophisticated balance between energy conservation and QoS maintenance"
+      ],
+      "QuestionsRaised": [
+        "How does the policy generalize to unseen channel conditions?",
+        "What is the robustness to sensor noise in channel state information?"
+      ],
+      "EvidenceStrength": 0.85,
+      "StartPos": 31800,
+      "EndPos": 32850,
+      "ChunkIndex": 70,
+      "HasMore": true,
+      "OverlapLength": 140,
+      "NodeId": "subconcept-power-action-analysis001"
+    },
+    {
+      "Id": "evidence-channel-aware-en001",
+      "SourceId": "pdf-optimizing-sagin-ai",
+      "SourceName": "Optimizing Space-Air-Ground Integrated Networks by Artificial Intelligence",
+      "ChunkId": "chunk-071",
+      "Text": "The comprehensive state representation for power control includes instantaneous channel gain measured via pilot signals, interference levels, residual energy, buffer occupancy, traffic urgency, and link budget requirements. This multi-faceted state information enables context-aware power decisions that maximize energy efficiency while meeting quality of service requirements across diverse network conditions. The DRL agent learns to reduce power during favorable channel conditions and increase power only when necessary to maintain reliable communication links.",
+      "Page": 12,
+      "Confidence": 0.86,
+      "CreatedAt": "2025-01-15T12:20:00Z",
+      "Language": "ENG",
+      "SourceLanguage": "ENG",
+      "HierarchyPath": "SAGIN > Energy Management > Power Control > Reward Design > Channel Awareness",
+      "Concepts": [
+        "Channel Awareness",
+        "Context-Aware Decisions",
+        "State Representation",
+        "QoS Requirements"
+      ],
+      "KeyClaims": [
+        "State includes channel gain, interference, energy, buffer, traffic urgency",
+        "Enables context-aware power decisions",
+        "Agent learns to reduce power in favorable conditions",
+        "Increases power only when necessary for reliability"
+      ],
+      "QuestionsRaised": [
+        "How to handle delayed or outdated channel state information?",
+        "What is the impact of prediction errors on power control performance?"
+      ],
+      "EvidenceStrength": 0.84,
+      "StartPos": 32900,
+      "EndPos": 33920,
+      "ChunkIndex": 71,
+      "HasMore": true,
+      "OverlapLength": 130,
+      "NodeId": "detail-channel-aware001"
     }
   ],
   "gapSuggestions": [
     {
       "Id": "gap-dqn-rainbow001",
-      "SuggestionText": "Consider investigating Rainbow DQN extensions (combining Double DQN, Dueling DQN, Noisy Nets, and Distributional RL) for improved performance in highly stochastic satellite link conditions",
+      "SuggestionText": "Investigate Rainbow DQN extensions combining Double DQN, Dueling DQN, Noisy Nets, and Distributional RL for improved performance in highly stochastic satellite link conditions",
       "TargetNodeId": "https://arxiv.org/abs/1710.02298",
       "TargetFileId": "",
       "SimilarityScore": 0.87,
-      "NodeId": "subconcept-dqn001"
+      "NodeId": "detail-state-representation001"
     },
     {
       "Id": "gap-dqn-continuous001",
@@ -713,39 +755,31 @@
       "TargetNodeId": "https://arxiv.org/abs/1802.09477",
       "TargetFileId": "",
       "SimilarityScore": 0.82,
-      "NodeId": "subconcept-dqn001"
+      "NodeId": "detail-action-space001"
     },
     {
-      "Id": "gap-dueling-multiobj001",
-      "SuggestionText": "Investigate multi-objective optimization formulations to explicitly balance energy consumption, latency, and throughput using Pareto-based approaches",
-      "TargetNodeId": "https://ieeexplore.ieee.org/document/9234567",
+      "Id": "gap-training-adaptive001",
+      "SuggestionText": "Develop adaptive experience replay strategies that dynamically adjust sampling priorities based on network condition volatility",
+      "TargetNodeId": "https://arxiv.org/abs/2007.06743",
       "TargetFileId": "",
-      "SimilarityScore": 0.84,
-      "NodeId": "subconcept-dueling001"
+      "SimilarityScore": 0.79,
+      "NodeId": "subconcept-training-stability001"
     },
     {
       "Id": "gap-marl-comm001",
       "SuggestionText": "Explore CommNet or TarMAC architectures to enable learned communication protocols between SAGIN agents for improved coordination",
       "TargetNodeId": "https://arxiv.org/abs/1605.07736",
       "TargetFileId": "",
-      "SimilarityScore": 0.79,
-      "NodeId": "subconcept-idqn001"
-    },
-    {
-      "Id": "gap-marl-qmix001",
-      "SuggestionText": "Investigate QMIX or QTRAN for credit assignment in cooperative satellite-UAV task completion scenarios",
-      "TargetNodeId": "https://arxiv.org/abs/1803.11485",
-      "TargetFileId": "",
       "SimilarityScore": 0.81,
-      "NodeId": "subconcept-idqn001"
+      "NodeId": "subconcept-idqn-implementation001"
     },
     {
-      "Id": "gap-energy-transformer001",
-      "SuggestionText": "Explore Transformer-based models with attention mechanisms for better capturing long-term seasonal patterns in solar energy harvesting",
-      "TargetNodeId": "https://arxiv.org/abs/2012.07436",
+      "Id": "gap-marl-scalability001",
+      "SuggestionText": "Investigate hierarchical MARL approaches for scaling to hundreds of agents in mega-constellation SAGIN deployments",
+      "TargetNodeId": "https://arxiv.org/abs/1909.12268",
       "TargetFileId": "",
-      "SimilarityScore": 0.76,
-      "NodeId": "subconcept-energypred001"
+      "SimilarityScore": 0.78,
+      "NodeId": "subconcept-communication-efficiency001"
     },
     {
       "Id": "gap-power-continuous001",
@@ -753,7 +787,7 @@
       "TargetNodeId": "https://arxiv.org/abs/1509.02971",
       "TargetFileId": "",
       "SimilarityScore": 0.83,
-      "NodeId": "concept-powercontrol001"
+      "NodeId": "subconcept-power-reward-design001"
     },
     {
       "Id": "gap-power-robust001",
@@ -761,7 +795,15 @@
       "TargetNodeId": "https://arxiv.org/abs/1707.06887",
       "TargetFileId": "",
       "SimilarityScore": 0.77,
-      "NodeId": "concept-powercontrol001"
+      "NodeId": "subconcept-power-action-analysis001"
+    },
+    {
+      "Id": "gap-channel-prediction001",
+      "SuggestionText": "Integrate channel prediction models with DRL to enable proactive power control decisions in fast-varying satellite channels",
+      "TargetNodeId": "https://arxiv.org/abs/2104.11235",
+      "TargetFileId": "",
+      "SimilarityScore": 0.80,
+      "NodeId": "detail-channel-aware001"
     }
   ]
 }

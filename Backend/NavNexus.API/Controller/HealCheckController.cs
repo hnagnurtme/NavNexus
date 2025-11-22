@@ -5,7 +5,6 @@ namespace NavNexus.API.Controller;
 
 [ApiController]
 [Route("api")]
-[Authorize(Roles = "ADMIN, ORGANIZER, USER")]
 public class HealCheckController : ControllerBase
 {
     [HttpGet("health")]

@@ -49,6 +49,10 @@ from src.pipeline.llm_analysis import (
     SYSTEM_MESSAGE
 )
 
+# Recursive expansion imports
+from src.recursive_expander import RecursiveExpander, NodeData
+from src.pipeline.position_extraction import split_text_to_paragraphs
+
 # Models
 from src.model.KnowledgeNode import KnowledgeNode
 from src.model.Evidence import Evidence
@@ -76,7 +80,7 @@ RABBITMQ_CONFIG = {
     "VirtualHost": os.getenv("RABBITMQ_VHOST", "odgfvgev")
 }
 
-QUEUE_NAME = os.getenv("QUEUE_NAME", "pdf_jobs_queue")
+QUEUE_NAME = os.getenv("QUEUE_NAME", "PDF_JOBS_QUEUE")
 
 # Neo4j Configuration
 NEO4J_URL = os.getenv("NEO4J_URL", "neo4j+s://daa013e6.databases.neo4j.io")
@@ -303,6 +307,48 @@ Return ONLY the JSON object."""
 # ================================
 # HELPER FUNCTIONS
 # ================================
+
+def extract_paragraphs_from_pdf(pdf_text: str) -> List[str]:
+    """
+    Convert PDF text into paragraph array for position-based extraction
+
+    Args:
+        pdf_text: Raw text from PDF
+
+    Returns:
+        List of paragraph strings
+    """
+    return split_text_to_paragraphs(pdf_text)
+
+
+async def async_llm_caller(prompt: str, system_message: str, max_tokens: int = 2000) -> Dict:
+    """
+    Async wrapper for LLM calls (for RecursiveExpander)
+
+    Args:
+        prompt: The prompt to send to LLM
+        system_message: System message for LLM
+        max_tokens: Maximum tokens to generate
+
+    Returns:
+        Parsed JSON response from LLM
+    """
+    import asyncio
+
+    # Run synchronous LLM call in executor to make it async
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: call_llm_sync(
+            prompt=prompt,
+            max_tokens=max_tokens,
+            system_message=system_message,
+            clova_api_key=CLOVA_API_KEY,
+            clova_api_url=CLOVA_API_URL
+        )
+    )
+    return result
+
 
 def get_existing_nodes_from_workspace(neo4j_driver, workspace_id: str) -> List[Dict]:
     """
@@ -584,7 +630,355 @@ def get_all_concepts_from_structure(structure: Dict) -> List[Dict]:
 
 
 # ================================
-# PDF PROCESSING & DATA GENERATION
+# RECURSIVE EXPANSION INTEGRATION
+# ================================
+
+async def process_pdf_with_recursive_expansion(
+    workspace_id: str,
+    pdf_url: str,
+    file_name: str,
+    neo4j_driver,
+    job_id: str
+) -> Dict[str, Any]:
+    """
+    Process PDF using RECURSIVE EXPANSION with POSITION-BASED extraction
+
+    NEW PIPELINE (5-level deep hierarchy):
+    1. Extract PDF → paragraphs array
+    2. Create initial domain node with LLM
+    3. Use RecursiveExpander to build 5-level hierarchy recursively
+    4. Insert into Neo4j with position-based evidence
+    5. Create Gap Suggestions for leaf nodes
+
+    This replaces the old 3-stage pipeline with a cleaner recursive approach.
+    """
+    logger.info(f"📄 Processing PDF with Recursive Expansion: {file_name}")
+
+    try:
+        # ========================================
+        # STEP 1: Extract PDF and create paragraph array
+        # ========================================
+        logger.info("  [1/5] Extracting PDF content...")
+        pdf_text, language, metadata = extract_pdf_enhanced(pdf_url, max_pages=25, timeout=30)
+
+        if not pdf_text or len(pdf_text) < 100:
+            raise ValueError(f"PDF extraction failed or too short: {len(pdf_text)} chars")
+
+        logger.info(f"  ✓ Extracted {len(pdf_text)} characters")
+        logger.info(f"  ✓ Language: {language}")
+        logger.info(f"  ✓ Pages: {metadata.get('extracted_pages', 0)}/{metadata.get('total_pages', 0)}")
+
+        # Convert to paragraph array
+        paragraphs = extract_paragraphs_from_pdf(pdf_text)
+        logger.info(f"  ✓ Split into {len(paragraphs)} paragraphs")
+
+        # ========================================
+        # STEP 2: Create initial domain node (LLM Call 1)
+        # ========================================
+        logger.info("  [2/5] Creating initial domain node...")
+
+        domain_prompt = f"""Extract the MAIN DOMAIN and TOP-LEVEL EVIDENCE from this document.
+
+DOCUMENT: {file_name}
+LANGUAGE: {language}
+TOTAL PARAGRAPHS: {len(paragraphs)}
+
+CONTENT (first 3000 chars):
+---
+{pdf_text[:3000]}
+---
+
+TASK: Create the root domain node with evidence positions.
+
+EVIDENCE POSITIONS: Use paragraph indices [start, end] relative to the full document.
+Example: [[0, 10], [15, 25]] means paragraphs 0-10 and 15-25 contain domain-level evidence.
+
+OUTPUT (strict JSON):
+{{
+  "domain": {{
+    "name": "Document's main subject (concise, 3-7 words)",
+    "synthesis": "Comprehensive 120-150 char overview of the entire document",
+    "evidence_positions": [[start1, end1], [start2, end2]],
+    "key_claims_positions": [idx1, idx2, idx3],
+    "questions_positions": [idx1, idx2]
+  }}
+}}
+
+REQUIREMENTS:
+✓ Name: Concise (3-7 words), describes the OVERALL domain
+✓ Synthesis: 120-150 chars, comprehensive overview
+✓ Evidence positions: 2-4 ranges covering key sections of the document
+✓ Key claims: 3-5 paragraph indices with major claims
+✓ Questions: 2-3 paragraph indices with important questions
+✓ All positions must be valid [0, {len(paragraphs) - 1}]
+
+Return ONLY the JSON object."""
+
+        domain_result = await async_llm_caller(
+            prompt=domain_prompt,
+            system_message="You are an expert at identifying document domains and extracting position-based evidence.",
+            max_tokens=1000
+        )
+
+        # ❌ NO FALLBACK - fail if LLM doesn't return valid result
+        if not domain_result or not domain_result.get('domain'):
+            raise ValueError("❌ LLM domain extraction failed - no valid domain returned. Aborting processing.")
+
+        domain_data = domain_result['domain']
+
+        # ✅ Validate domain data quality
+        domain_name = domain_data.get('name', '')
+        domain_synthesis = domain_data.get('synthesis', '')
+        domain_positions = domain_data.get('evidence_positions', [])
+
+        if not domain_name or len(domain_name) < 5:
+            raise ValueError(f"❌ Invalid domain name: '{domain_name}' - too short (<5 chars) or empty")
+
+        if not domain_synthesis or len(domain_synthesis) < 50:
+            raise ValueError(f"❌ Invalid domain synthesis: '{domain_synthesis[:50]}...' - too short (<50 chars)")
+
+        if not domain_positions or len(domain_positions) == 0:
+            raise ValueError("❌ No evidence positions provided by LLM for domain")
+
+        logger.info(f"  ✓ Domain validation passed: '{domain_name}' ({len(domain_synthesis)} chars synthesis)")
+
+        # Create root NodeData
+        root_node = NodeData(
+            id=f"domain-{uuid.uuid4().hex[:8]}",
+            name=domain_name,
+            synthesis=domain_synthesis,
+            level=0,
+            type='domain',
+            evidence_positions=domain_positions,
+            key_claims_positions=domain_data.get('key_claims_positions', []),
+            questions_positions=domain_data.get('questions_positions', [])
+        )
+
+        logger.info(f"  ✓ Created domain node: '{root_node.name}'")
+        logger.info(f"  ✓ Evidence positions: {root_node.evidence_positions}")
+
+        # ========================================
+        # STEP 3: Recursive expansion (LLM Calls 2-N)
+        # ========================================
+        logger.info("  [3/5] Recursive expansion (LIMITED DEPTH)...")
+
+        # ✅ STRICTER LIMITS to prevent over-expansion
+        MAX_DEPTH = 3  # 0=domain, 1=category, 2=concept, 3=subconcept (NO detail level)
+        MAX_CHILDREN = 3  # Max 3 children per node
+        MIN_CONTENT = 800  # Higher threshold to stop expansion earlier
+
+        expander = RecursiveExpander(
+            paragraphs=paragraphs,
+            llm_caller=async_llm_caller,
+            max_depth=MAX_DEPTH,
+            children_per_level=MAX_CHILDREN,
+            min_content_length=MIN_CONTENT
+        )
+
+        logger.info(f"  ✓ Recursion limits: max_depth={MAX_DEPTH}, children={MAX_CHILDREN}, min_content={MIN_CONTENT}")
+
+        await expander.expand_node_recursively(
+            node=root_node,
+            current_depth=0,
+            target_depth=MAX_DEPTH
+        )
+
+        stats = expander.get_stats()
+        logger.info(f"  ✓ Recursive expansion complete")
+        logger.info(f"    - Total nodes: {stats['total_nodes'] + 1}")  # +1 for root
+        logger.info(f"    - LLM calls: {stats['llm_calls'] + 1}")  # +1 for domain extraction
+        logger.info(f"    - Expansions stopped: {stats['expansions_stopped']}")
+        logger.info(f"    - Errors: {stats['errors']}")
+
+        # ========================================
+        # STEP 4: Filter and Insert into Neo4j (QUALITY CONTROL)
+        # ========================================
+        logger.info("  [4/5] Filtering nodes and inserting into Neo4j...")
+
+        source_id = pdf_url
+        nodes_created = 0
+        nodes_filtered = 0
+        evidences_created = 0
+
+        # Get all nodes in flat list (depth-first traversal)
+        all_nodes = expander.get_all_nodes_flat(root_node)
+
+        # ✅ QUALITY FILTER: Remove low-quality nodes
+        def is_valid_node(node: NodeData) -> bool:
+            """
+            Validate node quality before inserting to Neo4j
+
+            Returns:
+                True if node meets quality standards, False otherwise
+            """
+            # Rule 1: Name must be meaningful (not generic)
+            if not node.name or len(node.name) < 3:
+                logger.debug(f"  ❌ Filtered '{node.name}': name too short")
+                return False
+
+            # Rule 2: Synthesis must have substance
+            min_synthesis_length = {
+                0: 50,   # domain: 50+ chars
+                1: 40,   # category: 40+ chars
+                2: 30,   # concept: 30+ chars
+                3: 20,   # subconcept: 20+ chars
+            }
+            required_length = min_synthesis_length.get(node.level, 20)
+            if not node.synthesis or len(node.synthesis) < required_length:
+                logger.debug(f"  ❌ Filtered '{node.name}': synthesis too short ({len(node.synthesis)} < {required_length})")
+                return False
+
+            # Rule 3: Must have evidence positions (except root domain)
+            if node.level > 0 and (not node.evidence_positions or len(node.evidence_positions) == 0):
+                logger.debug(f"  ❌ Filtered '{node.name}': no evidence positions")
+                return False
+
+            # Rule 4: Must have evidence content extracted
+            if node.level > 0 and (not node.evidence_content or len(node.evidence_content) == 0):
+                logger.debug(f"  ❌ Filtered '{node.name}': no evidence content extracted")
+                return False
+
+            # Rule 5: Avoid generic/templated names
+            generic_keywords = ['child', 'node', 'item', 'concept 1', 'category 1', 'unknown', 'untitled']
+            if any(keyword in node.name.lower() for keyword in generic_keywords):
+                logger.debug(f"  ❌ Filtered '{node.name}': generic name")
+                return False
+
+            return True
+
+        # Filter nodes
+        filtered_nodes = [node for node in all_nodes if is_valid_node(node)]
+        nodes_filtered = len(all_nodes) - len(filtered_nodes)
+
+        logger.info(f"  ✓ Quality filter: {len(filtered_nodes)}/{len(all_nodes)} nodes passed ({nodes_filtered} filtered out)")
+
+        if len(filtered_nodes) == 0:
+            raise ValueError("❌ All nodes were filtered out due to quality issues. Aborting.")
+
+        with neo4j_driver.session() as session:
+            for node in filtered_nodes:
+                # Create KnowledgeNode
+                knowledge_node = KnowledgeNode(
+                    Id=node.id,
+                    Type=node.type,
+                    Name=node.name,
+                    Synthesis=node.synthesis,
+                    WorkspaceId=workspace_id,
+                    Level=node.level,
+                    SourceCount=1,
+                    TotalConfidence=0.92 - (node.level * 0.02),  # Decreasing confidence by level
+                    CreatedAt=node.created_at,
+                    UpdatedAt=node.created_at
+                )
+                create_knowledge_node(session, knowledge_node)
+                nodes_created += 1
+
+                # Create parent-child relationship (if not root)
+                if node.parent_id:
+                    rel_type = determine_relationship_type(
+                        parent_level=node.level - 1,
+                        child_level=node.level
+                    )
+                    create_parent_child_relationship(session, node.parent_id, node.id, rel_type)
+
+                # Create Evidence from evidence_content
+                if node.evidence_content:
+                    for evidence_item in node.evidence_content[:2]:  # Max 2 evidence per node
+                        # Extract key claims text from content items
+                        key_claims = []
+                        if hasattr(node, 'key_claims_content') and node.key_claims_content:
+                            key_claims = [item.get('text', '') for item in node.key_claims_content[:3] if isinstance(item, dict)]
+                            if not key_claims:
+                                key_claims = [f"Evidence from {file_name}"]
+                        else:
+                            key_claims = [f"Evidence from {file_name}"]
+
+                        # Extract questions text from content items
+                        questions = []
+                        if hasattr(node, 'questions_content') and node.questions_content:
+                            questions = [item.get('text', '') for item in node.questions_content[:2] if isinstance(item, dict)]
+
+                        evidence = Evidence(
+                            Id=f"evidence-{uuid.uuid4().hex[:8]}",
+                            SourceId=source_id,
+                            SourceName=file_name,
+                            ChunkId=f"para-{evidence_item.get('position_range', [0, 0])[0]:04d}",
+                            Text=evidence_item.get('text', '')[:1500],
+                            Page=evidence_item.get('position_range', [0, 0])[0] // 10 + 1,  # Approximate page
+                            Confidence=0.90 - (node.level * 0.02),
+                            CreatedAt=node.created_at,
+                            Language="ENG" if language == "en" else "KOR",
+                            SourceLanguage="ENG" if language == "en" else "KOR",
+                            HierarchyPath=node.name,
+                            Concepts=[node.name],
+                            KeyClaims=key_claims,
+                            QuestionsRaised=questions,
+                            EvidenceStrength=0.88 - (node.level * 0.02)
+                        )
+                        create_evidence_node(session, evidence, node.id)
+                        evidences_created += 1
+
+        logger.info(f"  ✓ Created {nodes_created} nodes")
+        logger.info(f"  ✓ Created {evidences_created} evidence")
+
+        # ========================================
+        # STEP 5: Create Gap Suggestions for leaf nodes
+        # ========================================
+        logger.info("  [5/5] Creating Gap Suggestions for leaf nodes...")
+
+        leaf_nodes = identify_leaf_nodes(neo4j_driver, workspace_id)
+        gaps_created = 0
+
+        with neo4j_driver.session() as session:
+            for leaf_node_id in leaf_nodes:
+                gap_suggestion = GapSuggestion(
+                    Id=f"gap-{uuid.uuid4().hex[:8]}",
+                    SuggestionText=f"Consider exploring related research areas to deepen understanding",
+                    TargetNodeId="https://arxiv.org/search",
+                    TargetFileId="",
+                    SimilarityScore=0.78
+                )
+                create_gap_suggestion_node(session, gap_suggestion, leaf_node_id)
+                gaps_created += 1
+
+        logger.info(f"  ✓ Created {gaps_created} gap suggestions")
+        logger.info("  ✅ Processing complete")
+
+        return {
+            "status": "success",
+            "file_name": file_name,
+            "pdf_url": pdf_url,
+            "processing_mode": "RECURSIVE_EXPANSION",
+            "nodes_created": nodes_created,
+            "evidences_created": evidences_created,
+            "gaps_created": gaps_created,
+            "leaf_nodes": len(leaf_nodes),
+            "language": language,
+            "source_id": source_id,
+            "quality_metrics": {
+                "total_nodes": stats['total_nodes'] + 1,
+                "llm_calls": stats['llm_calls'] + 1,
+                "expansions_stopped": stats['expansions_stopped'],
+                "errors": stats['errors'],
+                "max_depth_achieved": max(node.level for node in all_nodes) if all_nodes else 0,
+                "paragraphs_processed": len(paragraphs)
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error processing {file_name}: {e}")
+        logger.error(traceback.format_exc())
+        return {
+            "status": "failed",
+            "file_name": file_name,
+            "pdf_url": pdf_url,
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+
+
+# ================================
+# PDF PROCESSING & DATA GENERATION (OLD - Keep for backward compatibility)
 # ================================
 
 def process_pdf_to_knowledge_graph(
@@ -1217,7 +1611,7 @@ def process_pdf_to_knowledge_graph(
         logger.info("  ✅ Processing complete")
 
         return {
-            "status": "completed",
+            "status": "success",
             "file_name": file_name,
             "pdf_url": pdf_url,
             "processing_mode": processing_mode,
@@ -1450,7 +1844,7 @@ def create_fallback_structure(file_name: str, workspace_id: str) -> Dict:
 # BATCH PROCESSING
 # ================================
 
-def process_files_batch(
+async def process_files_batch_async(
     workspace_id: str,
     file_paths: List[str],
     job_id: str,
@@ -1458,12 +1852,12 @@ def process_files_batch(
     firebase_client: FirebaseClient
 ) -> Dict[str, Any]:
     """
-    Process multiple files and update Firebase in real-time
+    Process multiple files using recursive expansion and update Firebase in real-time
     """
     start_time = datetime.now()
 
     logger.info(f"\n{'='*80}")
-    logger.info(f"🚀 BATCH PROCESSING STARTED")
+    logger.info(f"🚀 BATCH PROCESSING STARTED (RECURSIVE EXPANSION)")
     logger.info(f"📦 Job ID: {job_id}")
     logger.info(f"🔖 Workspace: {workspace_id}")
     logger.info(f"📄 Files: {len(file_paths)}")
@@ -1488,7 +1882,7 @@ def process_files_batch(
         file_name = pdf_url.split('/')[-1]
         logger.info(f"Processing file {idx + 1}/{len(file_paths)}: {file_name}")
 
-        result = process_pdf_to_knowledge_graph(
+        result = await process_pdf_with_recursive_expansion(
             workspace_id=workspace_id,
             pdf_url=pdf_url,
             file_name=file_name,
@@ -1498,7 +1892,7 @@ def process_files_batch(
 
         results.append(result)
 
-        if result.get('status') == 'completed':
+        if result.get('status') == 'success':
             successful += 1
         else:
             failed += 1
@@ -1541,6 +1935,37 @@ def process_files_batch(
     return final_result
 
 
+def process_files_batch(
+    workspace_id: str,
+    file_paths: List[str],
+    job_id: str,
+    neo4j_driver,
+    firebase_client: FirebaseClient
+) -> Dict[str, Any]:
+    """
+    Sync wrapper for async batch processing
+    """
+    import asyncio
+
+    # Get or create event loop
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+    # Run async batch processing
+    return loop.run_until_complete(
+        process_files_batch_async(
+            workspace_id=workspace_id,
+            file_paths=file_paths,
+            job_id=job_id,
+            neo4j_driver=neo4j_driver,
+            firebase_client=firebase_client
+        )
+    )
+
+
 # ================================
 # MESSAGE HANDLER
 # ================================
@@ -1548,17 +1973,36 @@ def process_files_batch(
 def handle_job_message(message: Dict[str, Any], neo4j_driver, firebase_client):
     """
     Handle incoming job message from RabbitMQ
+
+    Expected message format (from C# backend - PascalCase):
+    {
+        "JobId": "guid-string",
+        "WorkspaceId": "workspace-id",
+        "FilePaths": ["url1", "url2", ...],
+        "CreatedAt": "iso-timestamp",
+        "RequestId": "guid-string"
+    }
+
+    Also supports legacy camelCase format for backward compatibility.
     """
     try:
         logger.info(f"\n📥 Received job message")
+        logger.debug(f"Raw message: {message}")
 
-        # Extract message fields
-        workspace_id = message.get("workspaceId") or message.get("WorkspaceId")
-        file_paths = message.get("filePaths") or message.get("FilePaths", [])
-        job_id = message.get("jobId") or message.get("JobId") or f"job_{uuid.uuid4().hex[:8]}"
+        # Extract message fields - handle both camelCase and PascalCase from C# backend
+        workspace_id = message.get("WorkspaceId") or message.get("workspaceId")
+        file_paths = message.get("FilePaths") or message.get("filePaths") or []
+        job_id = message.get("JobId") or message.get("jobId") or f"job_{uuid.uuid4().hex[:8]}"
 
-        if not workspace_id or not file_paths:
-            raise ValueError("Missing workspaceId or filePaths in message")
+        logger.info(f"Extracted - WorkspaceId: {workspace_id}, FilePaths count: {len(file_paths) if file_paths else 0}, JobId: {job_id}")
+
+        if not workspace_id:
+            logger.error(f"Missing workspaceId in message. Available keys: {list(message.keys())}")
+            raise ValueError(f"Missing workspaceId in message. Available keys: {list(message.keys())}")
+
+        if not file_paths:
+            logger.error(f"Missing or empty filePaths in message. Available keys: {list(message.keys())}")
+            raise ValueError(f"Missing or empty filePaths in message. Available keys: {list(message.keys())}")
 
         logger.info(f"✓ Processing job {job_id} with {len(file_paths)} files")
 

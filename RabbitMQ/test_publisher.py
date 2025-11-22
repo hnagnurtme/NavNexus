@@ -27,7 +27,7 @@ RABBITMQ_CONFIG = {
     "VirtualHost": os.getenv("RABBITMQ_VHOST", "odgfvgev")
 }
 
-QUEUE_NAME = os.getenv("QUEUE_NAME", "pdf_jobs_queue")
+QUEUE_NAME = os.getenv("QUEUE_NAME", "PDF_JOBS_QUEUE")
 
 
 def publish_test_message(workspace_id: str, file_paths: list, job_id: str = None):
@@ -42,12 +42,13 @@ def publish_test_message(workspace_id: str, file_paths: list, job_id: str = None
     if not job_id:
         job_id = f"test_job_{uuid.uuid4().hex[:8]}"
 
-    # Create test message matching new_worker.py expected format
+    # Create test message matching C# backend format (PascalCase)
     message = {
-        "jobId": job_id,
-        "workspaceId": workspace_id,
-        "filePaths": file_paths,
-        "timestamp": datetime.now().isoformat()
+        "JobId": job_id,
+        "WorkspaceId": workspace_id,
+        "FilePaths": file_paths,
+        "CreatedAt": datetime.now().isoformat(),
+        "RequestId": str(uuid.uuid4())
     }
 
     print("\n" + "="*80)
@@ -91,9 +92,9 @@ def publish_single_file_test():
     """Test with a single PDF file"""
     print("\n🧪 TEST 1: Single PDF File")
     publish_test_message(
-        workspace_id="test_workspace_001",
+        workspace_id="test_workspace_008",
         file_paths=[
-            "https://sg.object.ncloudstorage.com/navnexus/KOREA.pdf"
+            
         ],
         job_id="single_file_test"
     )

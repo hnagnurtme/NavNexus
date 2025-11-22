@@ -63,7 +63,7 @@ public class KnowledgeTreeRepository : IKnowledgetreeRepository
             await using var session = _neo4jConnection.GetAsyncSession();
             
             var result = await session.RunAsync(@"
-                MATCH (n:KnowledgeNode {workspace_id: $workspaceId, level: 0, type: 'domain'})
+                MATCH (n:KnowledgeNode {workspace_id: $workspaceId, leve:0})
                 OPTIONAL MATCH (n)-[:HAS_EVIDENCE]->(e:Evidence)
                 OPTIONAL MATCH (n)-[:HAS_SUBCATEGORY]->(c:KnowledgeNode)
                 RETURN n, 
@@ -228,7 +228,7 @@ public class KnowledgeTreeRepository : IKnowledgetreeRepository
                     newNode.source_count = newNode.source_count + 1,
                     newNode.synthesis = CASE
                         WHEN newNode.synthesis <> originalNode.synthesis
-                        THEN newNode.synthesis + '\n\n---\n\n' + originalNode.synthesis
+                        THEN newNode.synthesis 
                         ELSE newNode.synthesis
                     END,
                     newNode.updated_at = datetime()
