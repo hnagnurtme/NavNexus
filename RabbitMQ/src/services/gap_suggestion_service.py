@@ -5,6 +5,7 @@ This service generates intelligent gap suggestions for leaf nodes in the knowled
 using LLM analysis, similar to the Backend's GapSuggestionService.cs
 """
 
+import asyncio
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime
@@ -270,7 +271,6 @@ class GapSuggestionService:
         
         For now, wraps the sync version. Can be enhanced with async LLM calls later.
         """
-        import asyncio
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(
             None,

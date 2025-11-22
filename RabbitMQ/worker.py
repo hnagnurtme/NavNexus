@@ -1096,7 +1096,7 @@ Return ONLY the JSON object."""
             "source_id": source_id,
             "quality_metrics": {
                 "total_nodes": stats['total_nodes'] + 1,
-                "llm_calls": stats['llm_calls'] + 1 + gaps_created,  # Include LLM calls for gap suggestions
+                "llm_calls": stats['llm_calls'] + 1 + len(leaf_node_ids),  # +1 for domain, +1 per leaf node for gap suggestions
                 "expansions_stopped": stats['expansions_stopped'],
                 "errors": stats['errors'],
                 "max_depth_achieved": max(node.level for node in all_nodes) if all_nodes else 0,
