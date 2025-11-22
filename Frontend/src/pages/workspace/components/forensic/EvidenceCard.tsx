@@ -1,5 +1,6 @@
 import { useState } from "react";
 import clsx from "clsx";
+import { motion } from "framer-motion";
 import { ChevronDown, ChevronUp, FileText } from "lucide-react";
 import type { Evidence } from "@/types";
 
@@ -19,7 +20,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 	const [isExpanded, setIsExpanded] = useState(false);
 
 	return (
-		<article
+		<motion.article
 			className={clsx(
 				"group relative rounded-xl border transition-all duration-200",
 				selected
@@ -33,10 +34,20 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 					onToggle();
 				}
 			}}
+			initial={{ opacity: 0, y: 20 }}
+			animate={{ opacity: 1, y: 0 }}
+			whileHover={!disabled ? { scale: 1.02, y: -2 } : {}}
+			whileTap={!disabled ? { scale: 0.98 } : {}}
+			transition={{ duration: 0.2 }}
 		>
 			{/* Selection Indicator */}
 			{selected && (
-				<div className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-400/90 shadow-lg">
+				<motion.div 
+					className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-400/90 shadow-lg"
+					initial={{ scale: 0, rotate: -180 }}
+					animate={{ scale: 1, rotate: 0 }}
+					transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+				>
 					<svg
 						width="14"
 						height="14"
@@ -52,7 +63,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 							strokeLinejoin="round"
 						/>
 					</svg>
-				</div>
+				</motion.div>
 			)}
 
 			<div className="p-4">
@@ -93,13 +104,15 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 
 				{/* Expand Toggle */}
 				{(evidence.text?.length ?? 0) > 200 && (
-					<button
+					<motion.button
 						type="button"
 						onClick={(e) => {
 							e.stopPropagation();
 							setIsExpanded(!isExpanded);
 						}}
 						className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-cyan-300/80 hover:text-cyan-300 transition-colors"
+						whileHover={{ x: 5 }}
+						whileTap={{ scale: 0.95 }}
 					>
 						{isExpanded ? (
 							<>
@@ -112,12 +125,18 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 								More
 							</>
 						)}
-					</button>
+					</motion.button>
 				)}
 
 				{/* Additional Metadata - Only When Expanded */}
 				{isExpanded && (
-					<div className="mt-4 pt-3 border-t border-white/10 space-y-3">
+					<motion.div 
+						className="mt-4 pt-3 border-t border-white/10 space-y-3"
+						initial={{ opacity: 0, height: 0 }}
+						animate={{ opacity: 1, height: 'auto' }}
+						exit={{ opacity: 0, height: 0 }}
+						transition={{ duration: 0.3 }}
+					>
 						{/* Key Claims */}
 						{evidence.keyClaims &&
 							evidence.keyClaims.length > 0 && (
@@ -188,7 +207,7 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 								</p>
 							)}
 						</div>
-					</div>
+					</motion.div>
 				)}
 			</div>
 
@@ -196,6 +215,6 @@ export const EvidenceCard: React.FC<EvidenceCardProps> = ({
 			{!selected && !disabled && (
 				<div className="absolute inset-0 rounded-xl border border-cyan-400/0 group-hover:border-cyan-400/20 transition-colors pointer-events-none" />
 			)}
-		</article>
+		</motion.article>
 	);
 };

@@ -27,6 +27,7 @@ export interface MindmapNodeData {
 	isSelected?: boolean;
 	isHighlighted?: boolean;
 	isLoading?: boolean;
+	isDimmed?: boolean; // For dimming non-related nodes
 	view?: "galaxy" | "query";
 	onToggle?: (nodeId: string) => void;
 	onSelect?: (nodeId: string) => void;
@@ -59,6 +60,7 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 		isLoading,
 		isSelected,
 		isHighlighted,
+		isDimmed,
 		onToggle,
 		onSelect,
 		onClearSelection,
@@ -136,11 +138,12 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 			initial={false}
 			animate={{
 				scale: selected || isCurrentJourneyNode || isSelected ? 1.08 : 1,
-				opacity: 1,
+				opacity: isDimmed ? 0.3 : 1,
+				filter: isDimmed ? 'blur(2px)' : 'blur(0px)',
 			}}
-			whileHover={{ scale: 1.02 }}
+			whileHover={{ scale: isDimmed ? 1 : 1.02 }}
 			transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-			onMouseEnter={() => setIsHovered(true)}
+			onMouseEnter={() => !isDimmed && setIsHovered(true)}
 			onMouseLeave={() => {
 				setIsHovered(false);
 				setShowEvidenceTooltip(false);
