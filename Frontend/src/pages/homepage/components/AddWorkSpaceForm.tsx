@@ -21,7 +21,7 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
   const [description, setDescription] = useState("");
   const [visibility, setVisibility] =useState<WorkspacePayload["visibility"]>("team");
   const [color, setColor] = useState("#03C75A"); // Naver green default
-  const [files, setFiles] = useState<File[]>([]);
+  const [files] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<{ name?: string } | null>(null);
   const { handleCreateWorkSpace } = useContext(WorkSpaceContext);
