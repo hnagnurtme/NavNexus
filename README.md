@@ -4,8 +4,9 @@
   <img src="https://papago.naver.com/static/img/papago_og.png" height="55" style="border-radius:10px;" title="Papago API" />
   <img src="https://ssl.pstatic.net/static/clovax/open-graph/og.png" height="55" style="border-radius:10px;" title="HyperCLOVA" />
   <img src="https://upload.wikimedia.org/wikipedia/commons/e/e5/Neo4j-logo_color.png" height="55" title="Neo4j" />
-  <img src="https://media.blog.wisen.co.kr/wp-content/uploads/2017/12/11115340/ncp-2.png" height="55" title="Naver Cloud" />
+ <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS9FZGcOId8e2tvMiw57wbiDRBO0luIyp2atw&s" height="55" style="border-radius:5px;" title="RabbitMQ" />
   <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR2EGgiYPL-lhYXGy8f3x5_H7Bl6D-uvGg9Vm0DVK6853Ldw9geSjuHOAyDjjYtfYp5EQg&usqp=CAU" height="50" style="background:white; padding:5px; border-radius:10px;" title="Qdrant" />
+ 
 </p>
 
 # NavNexus — Multilingual Knowledge Graph Navigator
