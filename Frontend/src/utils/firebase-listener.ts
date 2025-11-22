@@ -19,6 +19,7 @@ import { database } from '../config/firebase';
 
 export interface JobStatus {
   status: 'pending' | 'completed' | 'failed' | 'partial';
+  jobId?: string;
   workspaceId?: string;
   totalFiles?: number;
   successful?: number;
@@ -26,6 +27,7 @@ export interface JobStatus {
   currentFile?: number;
   processingTimeMs?: number;
   timestamp?: string;
+  updatedAt?: number;
   error?: string;
   results?: any[];
 }
@@ -47,12 +49,30 @@ export function listenToJobStatus(
   
   onValue(jobRef, (snapshot) => {
     const data = snapshot.val();
-    
+
     if (data) {
-      onStatusChange(data);
-      
+      // Handle nested result structure from Firebase
+      // Firebase structure: { jobId, result: { status, ... } }
+      const jobData = data.result || data;
+      const status = jobData.status;
+
+      console.log('📦 Firebase data received:', {
+        hasResult: !!data.result,
+        status,
+        fullData: data
+      });
+
+      // Flatten structure for callback
+      const flattenedData = {
+        ...jobData,
+        jobId: data.jobId,
+        updatedAt: data.updatedAt
+      };
+
+      onStatusChange(flattenedData);
+
       // Auto-cleanup listener if job is in final state
-      if (data.status === 'completed' || data.status === 'failed' || data.status === 'partial') {
+      if (status === 'completed' || status === 'failed' || status === 'partial') {
         // Delay cleanup to ensure callback completes
         setTimeout(() => {
           off(jobRef);
