@@ -49,17 +49,24 @@ RELATIVE POSITION RULES:
    - Example: [4, 6, 12]
    - Must be within [0, {parent_paragraph_count_minus_1}]
 
-SYNTHESIS GUIDELINES (Character Limits by Level):
-- Level 2 (Concept): 80-120 chars - Specific idea, method, or approach
+SYNTHESIS GUIDELINES (STRICT Character Limits by Level):
+- Level 1 (Category): 100-150 chars - Major theme or area with context
+- Level 2 (Concept): 80-120 chars - Specific idea, method, or approach with details
 - Level 3 (Subconcept): 60-100 chars - Detailed aspect, component, or technique
 - Level 4 (Detail): 40-80 chars - Implementation detail, example, or specific instance
 
+⚠️ CRITICAL: Synthesis MUST include:
+  - Numbers, percentages, or quantitative data when available
+  - Specific technical terms (not generic descriptions)
+  - Clear relationship to parent concept
+  - Actual content summary (not meta-descriptions like "discusses X")
+
 STRUCTURAL RULES:
-✓ Minimum {children_count} children (maximum {children_count})
-✓ Each child must have evidence positions
-✓ Each child should have 2-4 key claims positions
-✓ Each child should have 1-3 questions positions
-✓ Synthesis must be SPECIFIC (include numbers/details when available)
+✓ MANDATORY: Minimum {children_count} children (maximum {children_count})
+✓ MANDATORY: Each child must have evidence positions
+✓ MANDATORY: Each child must have 3-5 key claims (actual text, not just positions)
+✓ MANDATORY: Each child must have 2-3 questions raised (actual text, not just positions)
+✓ MANDATORY: Synthesis must be SPECIFIC and meet minimum length
 ✓ Stop if parent content < 500 characters
 
 OUTPUT FORMAT (strict JSON):
@@ -71,26 +78,54 @@ OUTPUT FORMAT (strict JSON):
   "stop_reason": "",
   "children": [
     {{
-      "name": "First Child Name",
-      "synthesis": "Detailed description (length depends on level) - must be SPECIFIC",
+      "name": "First Child Name (3-7 words, specific)",
+      "synthesis": "DETAILED synthesis meeting minimum char requirement with specific facts, numbers, and technical terms - NOT generic",
       "evidence_positions": [[2, 8], [12, 18]],
+      "key_claims": [
+        "Specific claim with data: System achieves 95% accuracy using X method",
+        "Another claim: Component Y reduces latency by 40% compared to baseline",
+        "Third claim: Approach Z enables real-time processing with <10ms delay"
+      ],
       "key_claims_positions": [4, 6, 14],
+      "questions_raised": [
+        "How does this approach scale to datasets larger than 1M samples?",
+        "What are the trade-offs between accuracy and computational cost?",
+        "Can this method adapt to non-stationary environments?"
+      ],
       "questions_positions": [7, 16],
       "relative_to_parent": true
     }},
     {{
       "name": "Second Child Name",
-      "synthesis": "Detailed description (length depends on level) - must be SPECIFIC",
+      "synthesis": "Another DETAILED synthesis with specifics and minimum required length",
       "evidence_positions": [[20, 28]],
-      "key_claims_positions": [22, 25],
-      "questions_positions": [24],
+      "key_claims": [
+        "Claim 1 with specific details",
+        "Claim 2 with numbers or facts",
+        "Claim 3 with technical insight"
+      ],
+      "key_claims_positions": [22, 25, 27],
+      "questions_raised": [
+        "Analytical question about limitations or implications?",
+        "Question about scalability or trade-offs?"
+      ],
+      "questions_positions": [24, 26],
       "relative_to_parent": true
     }},
     {{
       "name": "Third Child Name",
-      "synthesis": "Detailed description (length depends on level) - must be SPECIFIC",
+      "synthesis": "Third DETAILED synthesis meeting all requirements with substance",
       "evidence_positions": [[30, 40]],
+      "key_claims": [
+        "Specific claim with evidence",
+        "Another claim with details",
+        "Third claim with context"
+      ],
       "key_claims_positions": [32, 36, 38],
+      "questions_raised": [
+        "Deep question about the approach?",
+        "Question exploring extensions or alternatives?"
+      ],
       "questions_positions": [34, 39],
       "relative_to_parent": true
     }}
@@ -107,26 +142,53 @@ EXAMPLE OUTPUT (Level 1 → Level 2):
   "children": [
     {{
       "name": "Value Stream Design",
-      "synthesis": "Neural network stream estimating state value function V(s) with 3 fully connected layers (256-128-64 neurons)",
+      "synthesis": "Neural network stream estimating state value function V(s) with 3 fully connected layers (256-128-64 neurons) using ReLU activation",
       "evidence_positions": [[2, 8]],
-      "key_claims_positions": [4, 6],
-      "questions_positions": [7],
+      "key_claims": [
+        "Value stream uses dense layers with 256, 128, and 64 neurons respectively for hierarchical feature extraction",
+        "ReLU activation functions enable non-linear value function approximation with faster convergence",
+        "Batch normalization between layers reduces training time by 40% compared to standard DQN"
+      ],
+      "key_claims_positions": [4, 6, 7],
+      "questions_raised": [
+        "How does the value stream handle high-dimensional state spaces with >1000 features?",
+        "What is the optimal layer size ratio for different problem complexities?"
+      ],
+      "questions_positions": [5, 8],
       "relative_to_parent": true
     }},
     {{
       "name": "Advantage Stream Design",
-      "synthesis": "Parallel stream computing advantage function A(s,a) for each action with identical architecture to value stream",
+      "synthesis": "Parallel stream computing advantage function A(s,a) for each action with identical 3-layer architecture enabling direct action comparison",
       "evidence_positions": [[9, 15]],
-      "key_claims_positions": [11, 13],
-      "questions_positions": [12],
+      "key_claims": [
+        "Advantage stream outputs one value per action, enabling direct comparison of action quality",
+        "Shared feature extraction with value stream reduces parameters by 30% while maintaining performance",
+        "Mean advantage subtraction ensures zero-mean advantages for stable learning"
+      ],
+      "key_claims_positions": [11, 13, 14],
+      "questions_raised": [
+        "Can advantage stream architecture be asymmetric to value stream for better action differentiation?",
+        "How does this design scale to continuous action spaces?"
+      ],
+      "questions_positions": [12, 15],
       "relative_to_parent": true
     }},
     {{
-      "name": "Q-Value Aggregation",
-      "synthesis": "Combines value and advantage streams: Q(s,a) = V(s) + A(s,a) - mean(A) ensuring identifiability constraint",
+      "name": "Q-Value Aggregation Layer",
+      "synthesis": "Combines value and advantage streams using Q(s,a) = V(s) + A(s,a) - mean(A) formula ensuring unique decomposition and stable gradients",
       "evidence_positions": [[16, 22]],
-      "key_claims_positions": [18, 20],
-      "questions_positions": [19],
+      "key_claims": [
+        "Aggregation formula ensures identifiability: subtracting mean(A) makes V and A uniquely determined",
+        "This architecture improves learning stability by 25% compared to standard Q-networks in benchmark tests",
+        "Gradient flow is balanced between value and advantage streams preventing optimization bias"
+      ],
+      "key_claims_positions": [18, 20, 21],
+      "questions_raised": [
+        "Would using max(A) instead of mean(A) provide better worst-case action identification?",
+        "How sensitive is performance to the specific aggregation formula used?"
+      ],
+      "questions_positions": [19, 22],
       "relative_to_parent": true
     }}
   ]

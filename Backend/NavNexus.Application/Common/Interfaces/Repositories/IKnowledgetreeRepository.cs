@@ -19,4 +19,36 @@ public interface IKnowledgetreeRepository
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of newly created nodes</returns>
     Task<List<KnowledgeNode>> CopyNodesAsync(string evidenceSourceId, string newWorkspaceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get all leaf nodes (nodes without children) in a workspace
+    /// </summary>
+    /// <param name="workspaceId">The workspace ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of leaf nodes</returns>
+    Task<List<KnowledgeNode>> GetLeafNodesAsync(string workspaceId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Check if a node has gap suggestions
+    /// </summary>
+    /// <param name="nodeId">The node ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if node has gap suggestions, false otherwise</returns>
+    Task<bool> HasGapSuggestionsAsync(string nodeId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Save gap suggestions for a node
+    /// </summary>
+    /// <param name="nodeId">The node ID</param>
+    /// <param name="suggestions">List of gap suggestions to save</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    Task SaveGapSuggestionsAsync(string nodeId, List<GapSuggestion> suggestions, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Get all nodes in a workspace (includes evidences)
+    /// </summary>
+    /// <param name="workspaceId">The workspace ID</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>List of all nodes in workspace</returns>
+    Task<List<KnowledgeNode>> GetAllNodesInWorkspaceAsync(string workspaceId, CancellationToken cancellationToken = default);
 }

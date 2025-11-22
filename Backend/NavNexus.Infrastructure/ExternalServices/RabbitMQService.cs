@@ -175,28 +175,18 @@ namespace NavNexus.Infrastructure.ExternalServices
 
             try
             {
-                // 1. Generate a unique JobId
-                var jobId = Guid.NewGuid().ToString();
-                _logger.LogDebug("Generated JobId: {JobId} for queue: {QueueName}", jobId, queueName);
-
-                // 2. Build payload
-                var payload = new
-                {
-                    JobId = jobId,
-                    Data = message,
-                    Timestamp = DateTime.UtcNow
-                };
-                
+                // The message object from the handler already contains the necessary JobId.
+                // We serialize the message directly without an extra wrapper to match the worker's expectations.
                 var jsonOptions = new JsonSerializerOptions
                 {
                     WriteIndented = false
                 };
-                var json = JsonSerializer.Serialize(payload, jsonOptions);
+                var json = JsonSerializer.Serialize(message, jsonOptions);
                 var body = Encoding.UTF8.GetBytes(json);
 
-                _logger.LogDebug("Message payload size: {Size} bytes", body.Length);
+                _logger.LogDebug("Message payload size: {Size} bytes. Payload: {Payload}", body.Length, json);
 
-                // 3. Declare queue (durable)
+                // Declare queue (durable)
                 _logger.LogDebug("Declaring queue: {QueueName}", queueName);
                 var queueDeclareOk = _channel.QueueDeclare(
                     queue: queueName,
@@ -209,16 +199,18 @@ namespace NavNexus.Infrastructure.ExternalServices
                 _logger.LogDebug("Queue declared - Name: {QueueName}, MessageCount: {MessageCount}, ConsumerCount: {ConsumerCount}", 
                     queueDeclareOk.QueueName, queueDeclareOk.MessageCount, queueDeclareOk.ConsumerCount);
 
-                // 4. Set message properties
+                // Set message properties. We generate a new Guid for the transport-level MessageId.
+                // The logical JobId is expected to be inside the message body.
+                var transportMessageId = Guid.NewGuid().ToString();
                 var properties = _channel.CreateBasicProperties();
                 properties.Persistent = true;
-                properties.MessageId = jobId;
+                properties.MessageId = transportMessageId;
                 properties.ContentType = "application/json";
                 properties.DeliveryMode = 2; // Persistent
                 properties.Timestamp = new AmqpTimestamp(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
 
-                // 5. Publish message
-                _logger.LogInformation("Publishing message to queue '{QueueName}' with JobId: {JobId}", queueName, jobId);
+                // Publish message
+                _logger.LogInformation("Publishing message to queue '{QueueName}' with transport MessageId: {MessageId}", queueName, transportMessageId);
                 
                 _channel.BasicPublish(
                     exchange: "",
@@ -227,9 +219,10 @@ namespace NavNexus.Infrastructure.ExternalServices
                     body: body
                 );
 
-                _logger.LogInformation("Message successfully sent to queue '{QueueName}', JobId: {JobId}", queueName, jobId);
+                _logger.LogInformation("Message successfully sent to queue '{QueueName}'", queueName);
 
-                return Task.FromResult(jobId);
+                // Return a value to satisfy the interface. The handler uses its own JobId, so this return value is not critical for the caller's logic.
+                return Task.FromResult(transportMessageId);
             }
             catch (AlreadyClosedException ex)
             {

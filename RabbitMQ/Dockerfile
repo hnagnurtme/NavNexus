@@ -21,8 +21,10 @@ COPY . .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV HEALTHCHECK_HOST=0.0.0.0
 
+# Expose default port (Render will override with PORT env var)
 EXPOSE 8000
 
-# Run the worker
-CMD ["python", "worker.py"]
+# Run both worker and health check API using shell
+CMD python healthcheck_api.py & python worker.py

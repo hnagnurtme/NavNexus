@@ -291,7 +291,7 @@ def main():
     NEO4J_PASSWORD = "DTG0IyhifivaD2GwRoyIz4VPapRF0JdjoVsMfT9ggiY"
     
     # JSON file path - bạn có thể thay đổi file ở đây
-    JSON_FILE_PATH = "mock/data3.json"  # Thay đổi thành data2.json hoặc data3.json tùy ý
+    JSON_FILE_PATH = "mock/data4.json"  # Thay đổi thành data2.json hoặc data3.json tùy ý
     
     print("🔌 Testing Neo4j Aura connection...")
     

@@ -118,7 +118,10 @@ public static class DependencyInjection
 
         services.Configure<HyperClovaSettings>(configuration.GetSection("HyperClova"));
         services.AddHttpClient<ILlmService, HyperClovaService>();
-        
+
+        // Gap Suggestion Service
+        services.AddScoped<IGapSuggestionService, GapSuggestionService>();
+
         // RabbitMQ Service với error handling
         AddRabbitMq(services, configuration);
     }

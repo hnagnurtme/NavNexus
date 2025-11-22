@@ -7,7 +7,7 @@ deep hierarchical knowledge graphs using position-based extraction.
 
 import asyncio
 import logging
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, cast
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
@@ -44,6 +44,10 @@ class NodeData:
     evidence_content: List[Dict] = field(default_factory=list)
     key_claims_content: List[Dict] = field(default_factory=list)
     questions_content: List[Dict] = field(default_factory=list)
+
+    # Direct text from LLM (NEW - higher quality than position extraction)
+    key_claims_text: List[str] = field(default_factory=list)  # Actual claims from LLM
+    questions_raised_text: List[str] = field(default_factory=list)  # Actual questions from LLM
     
     # Parent tracking
     parent_id: Optional[str] = None
@@ -145,7 +149,7 @@ class RecursiveExpander:
             logger.info(f"  Expanding '{node.name}' (Level {current_depth} → {current_depth + 1})")
             
             parent_content_list = extract_content_from_positions(
-                node.evidence_positions,
+                cast(List[List[int] | int], node.evidence_positions),
                 self.paragraphs,
                 parent_range=node.parent_range
             )
@@ -223,6 +227,10 @@ class RecursiveExpander:
                 child_parent_range = node.evidence_positions[0] if node.evidence_positions else [0, 0]
             
             for idx, child_data in enumerate(children_data):
+                # Extract actual text content from LLM (NEW)
+                child_key_claims_text = child_data.get('key_claims', [])  # List of actual claim texts
+                child_questions_text = child_data.get('questions_raised', [])  # List of actual question texts
+
                 # Validate and clamp positions
                 child_evidence_positions = child_data.get('evidence_positions', [])
                 child_claims_positions = child_data.get('key_claims_positions', [])
@@ -248,12 +256,12 @@ class RecursiveExpander:
                 )
                 
                 abs_claims_positions = convert_relative_to_absolute(
-                    child_claims_positions,
+                    [[pos] for pos in child_claims_positions],
                     child_parent_range
                 )
                 
                 abs_questions_positions = convert_relative_to_absolute(
-                    child_questions_positions,
+                    [[q] for q in child_questions_positions],
                     child_parent_range
                 )
                 
@@ -279,13 +287,16 @@ class RecursiveExpander:
                     synthesis=child_data.get('synthesis', ''),
                     level=current_depth + 1,
                     type=child_type,
-                    evidence_positions=abs_evidence_positions,
-                    key_claims_positions=abs_claims_positions,
-                    questions_positions=abs_questions_positions,
+                    evidence_positions=[pos if isinstance(pos, list) else [pos] for pos in abs_evidence_positions],
+                    key_claims_positions=[pos[0] for pos in abs_claims_positions if isinstance(pos, list)],
+                    questions_positions=[pos[0] if isinstance(pos, list) else pos for pos in abs_questions_positions],
                     parent_id=node.id,
-                    parent_range=child_parent_range
+                    parent_range=child_parent_range,
+                    # ✅ NEW: Store actual text from LLM (higher quality)
+                    key_claims_text=child_key_claims_text if isinstance(child_key_claims_text, list) else [],
+                    questions_raised_text=child_questions_text if isinstance(child_questions_text, list) else []
                 )
-                
+
                 # Extract child content immediately
                 child_evidence_content = extract_content_from_positions(
                     child_evidence_positions,
@@ -293,8 +304,8 @@ class RecursiveExpander:
                     parent_range=None  # Already relative
                 )
                 child_node.evidence_content = child_evidence_content
-                
-                # Extract key claims
+
+                # Extract key claims (for backup/positions only - prefer key_claims_text)
                 if child_claims_positions:
                     child_claims_content = extract_content_from_positions(
                         [[p, p] for p in child_claims_positions],
@@ -302,8 +313,8 @@ class RecursiveExpander:
                         parent_range=None
                     )
                     child_node.key_claims_content = child_claims_content
-                
-                # Extract questions
+
+                # Extract questions (for backup/positions only - prefer questions_raised_text)
                 if child_questions_positions:
                     child_questions_content = extract_content_from_positions(
                         [[q, q] for q in child_questions_positions],

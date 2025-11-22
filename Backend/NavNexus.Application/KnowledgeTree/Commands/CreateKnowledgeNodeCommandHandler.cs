@@ -13,6 +13,7 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
         private readonly IRabbitMQService _rabbitMQService;
         private readonly IKnowledgetreeRepository _knowledgeTreeRepository;
         private readonly IJobRepository _jobRepository;
+        private readonly IGapSuggestionService _gapSuggestionService;
         private readonly ILogger<CreateKnowledgeTreeCommandHandler> _logger;
 
         private const string PDF_JOBS_QUEUE = "PDF_JOBS_QUEUE";
@@ -21,11 +22,13 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
             IRabbitMQService rabbitMQService,
             IKnowledgetreeRepository knowledgeTreeRepository,
             IJobRepository jobRepository,
+            IGapSuggestionService gapSuggestionService,
             ILogger<CreateKnowledgeTreeCommandHandler> logger)
         {
             _rabbitMQService = rabbitMQService ?? throw new ArgumentNullException(nameof(rabbitMQService));
             _knowledgeTreeRepository = knowledgeTreeRepository ?? throw new ArgumentNullException(nameof(knowledgeTreeRepository));
             _jobRepository = jobRepository ?? throw new ArgumentNullException(nameof(jobRepository));
+            _gapSuggestionService = gapSuggestionService ?? throw new ArgumentNullException(nameof(gapSuggestionService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -70,6 +73,7 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                 // Bước 1: Copy nodes từ workspace khác nếu URL đã tồn tại
                 var totalCopiedNodes = 0;
                 var successfullyCopiedFiles = new List<string>();
+                var allCopiedNodes = new List<Domain.Entities.KnowledgeNode>();
 
                 foreach (var filePath in request.FilePaths)
                 {
@@ -88,6 +92,7 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                         {
                             totalCopiedNodes += copiedNodes.Count;
                             successfullyCopiedFiles.Add(filePath);
+                            allCopiedNodes.AddRange(copiedNodes);
 
                             _logger.LogInformation(
                                 "Successfully copied {Count} nodes from other workspaces for URL: {FilePath}",
@@ -122,10 +127,20 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                     _logger.LogInformation(
                         "All {Count} files already exist in other workspaces. " +
                         "Total {NodeCount} nodes copied to workspace {WorkspaceId}. " +
-                        "No need to process files via RabbitMQ.",
+                        "No need to process files via RabbitMQ. " +
+                        "Generating gap suggestions for copied nodes in parallel.",
                         successfullyCopiedFiles.Count,
                         totalCopiedNodes,
                         request.WorkspaceId);
+
+                    // CHỈ generate gap suggestions khi TẤT CẢ files đều đã copy thành công
+                    if (allCopiedNodes.Count > 0)
+                    {
+                        await ProcessGapSuggestionsForCopiedNodesAsync(
+                            allCopiedNodes,
+                            request.WorkspaceId,
+                            cancellationToken);
+                    }
 
                     var successResult = new RabbitMqSendingResult(
                         messageId: Guid.NewGuid().ToString(), // Generate ID for tracking
@@ -253,6 +268,122 @@ namespace NavNexus.Application.KnowledgeTree.Handlers
                 return Error.Failure(
                     code: "KnowledgeTree.UnexpectedError",
                     description: $"Failed to send message to RabbitMQ: {ex.Message}");
+            }
+        }
+
+        private async Task ProcessGapSuggestionsForCopiedNodesAsync(
+            List<Domain.Entities.KnowledgeNode> copiedNodes,
+            string workspaceId,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                _logger.LogInformation(
+                    "Checking gap suggestions for {Count} copied nodes in workspace {WorkspaceId}",
+                    copiedNodes.Count,
+                    workspaceId);
+
+                // Get all leaf nodes from copied nodes
+                var leafNodes = copiedNodes.Where(n => n.IsLeafNode()).ToList();
+
+                if (leafNodes.Count == 0)
+                {
+                    _logger.LogDebug("No leaf nodes found among copied nodes");
+                    return;
+                }
+
+                _logger.LogInformation(
+                    "Found {LeafCount} leaf nodes out of {TotalCount} copied nodes",
+                    leafNodes.Count,
+                    copiedNodes.Count);
+
+                // Get all nodes in workspace for context
+                var allNodesInWorkspace = await _knowledgeTreeRepository.GetAllNodesInWorkspaceAsync(
+                    workspaceId,
+                    cancellationToken);
+
+                var nodesNeedingSuggestions = new List<Domain.Entities.KnowledgeNode>();
+
+                // Check which leaf nodes don't have gap suggestions
+                foreach (var leafNode in leafNodes)
+                {
+                    var hasSuggestions = await _knowledgeTreeRepository.HasGapSuggestionsAsync(
+                        leafNode.Id,
+                        cancellationToken);
+
+                    if (!hasSuggestions)
+                    {
+                        nodesNeedingSuggestions.Add(leafNode);
+                    }
+                }
+
+                if (nodesNeedingSuggestions.Count == 0)
+                {
+                    _logger.LogInformation(
+                        "All {Count} leaf nodes already have gap suggestions",
+                        leafNodes.Count);
+                    return;
+                }
+
+                _logger.LogInformation(
+                    "Generating gap suggestions for {Count} leaf nodes without suggestions in parallel",
+                    nodesNeedingSuggestions.Count);
+
+                // Generate gap suggestions for ALL nodes in parallel
+                var gapSuggestionTasks = nodesNeedingSuggestions.Select(async leafNode =>
+                {
+                    try
+                    {
+                        _logger.LogDebug(
+                            "Generating gap suggestions for node: {NodeId} - {NodeName}",
+                            leafNode.Id,
+                            leafNode.Name);
+
+                        var suggestions = await _gapSuggestionService.GenerateGapSuggestionsAsync(
+                            leafNode,
+                            allNodesInWorkspace,
+                            cancellationToken);
+
+                        if (suggestions.Count > 0)
+                        {
+                            await _knowledgeTreeRepository.SaveGapSuggestionsAsync(
+                                leafNode.Id,
+                                suggestions,
+                                cancellationToken);
+
+                            _logger.LogInformation(
+                                "Saved {Count} gap suggestions for node: {NodeId}",
+                                suggestions.Count,
+                                leafNode.Id);
+                        }
+                        else
+                        {
+                            _logger.LogWarning(
+                                "No gap suggestions generated for node: {NodeId}",
+                                leafNode.Id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex,
+                            "Failed to generate gap suggestions for node: {NodeId}. Continuing with other nodes.",
+                            leafNode.Id);
+                    }
+                }).ToList();
+
+                // Wait for all gap suggestion tasks to complete
+                await Task.WhenAll(gapSuggestionTasks);
+
+                _logger.LogInformation(
+                    "Completed gap suggestion generation for workspace {WorkspaceId}",
+                    workspaceId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex,
+                    "Error processing gap suggestions for copied nodes in workspace {WorkspaceId}",
+                    workspaceId);
+                // Don't throw - this is a non-critical enhancement
             }
         }
     }
