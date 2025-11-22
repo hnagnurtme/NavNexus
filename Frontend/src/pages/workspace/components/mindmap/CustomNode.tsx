@@ -77,7 +77,8 @@ const CustomNode: React.FC<NodeProps<MindmapNodeData>> = ({
 		new Set(evidence.map((e) => e.sourceTitle)).size > 1;
 	
 	// Collect all evidence questions
-	const allQuestions = questionsRaised || [];
+	const evidenceQuestions = evidence?.flatMap(e => e.questionsRaised || []) || [];
+	const allQuestions = [...evidenceQuestions, ...(questionsRaised || [])];
 
 	// Determine handle positions based on view
 	// const isQueryView = view === "query";

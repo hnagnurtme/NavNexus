@@ -275,7 +275,7 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 
 				<style>{`
 				@media (prefers-reduced-motion: reduce) {
-					* {
+					.motion-reduce {
 						animation-duration: 0.01ms !important;
 						animation-iteration-count: 1 !important;
 						transition-duration: 0.01ms !important;
