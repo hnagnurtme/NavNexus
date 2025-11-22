@@ -1,3 +1,4 @@
+import { UploadCloudinaryContext } from "@/contexts/UploadCloudinaryContext";
 import { WorkSpaceContext } from "@/contexts/WorkSpaceContext";
 import { useState, useRef, ChangeEvent, FormEvent, useContext } from "react";
 
@@ -24,6 +25,7 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [errors, setErrors] = useState<{ name?: string } | null>(null);
+  const { changeRawCloudinary } = useContext(UploadCloudinaryContext);
   const { handleCreateWorkSpace } = useContext(WorkSpaceContext);
   function handleFilesChange(e: ChangeEvent<HTMLInputElement>) {
     const list = e.target.files;
@@ -67,32 +69,7 @@ export default function AddWorkSpaceForm({ onCreate, onCancel }: Props) {
       setIsSubmitting(false);
     }
   }
-  const uploadToCloudinary = async (file: File) => {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", "navnexus_workspace_preset"); 
 
-    const response = await fetch(
-      "https://api.cloudinary.com/v1_1/dnxjlsyp4/upload",
-      {
-        method: "POST",
-        body: formData,
-      }
-    );
-
-    if (!response.ok) {
-      throw new Error(`Cloudinary upload failed: ${response.status}`);
-    }
-
-    return await response.json();
-  };
-  const changeRawCloudinary = async (files: File[]) => {
-    const uploadPromises = files.map((file) => uploadToCloudinary(file));
-    const uploadResults = await Promise.all(uploadPromises);
-    const urls = uploadResults.map((result) => result.url);
-    console.log(urls);
-    return urls;
-  }
   return (
     <form
       onSubmit={submit}
