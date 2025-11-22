@@ -419,6 +419,12 @@ public class ChatbotQueryHandler : IRequestHandler<ChatbotQuery, ErrorOr<Chatbot
         sb.AppendLine("- Maintain conversation context");
         sb.AppendLine("- Be clear and professional");
         sb.AppendLine();
+        sb.AppendLine("IMPORTANT FORMATTING RULES:");
+        sb.AppendLine("- DO NOT use markdown formatting (no **, __, *, #, etc.)");
+        sb.AppendLine("- Write in plain text only");
+        sb.AppendLine("- Use simple paragraphs separated by line breaks");
+        sb.AppendLine("- For lists, use simple dash (-) or numbers without special formatting");
+        sb.AppendLine();
 
         // Add knowledge base context
         if (!string.IsNullOrWhiteSpace(nodeDataContextString))
