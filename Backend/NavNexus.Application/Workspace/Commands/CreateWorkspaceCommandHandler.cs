@@ -6,23 +6,24 @@ using NavNexus.Application.Workspace.Results;
 using NavNexus.Application.Common.Interfaces.Repositories;
 using NavNexus.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
+using NavNexus.Application.KnowledgeTree.Commands;
 
 public class CreateWorkspaceCommandHandler : IRequestHandler<CreateWorkspaceCommand, ErrorOr<GetWorkspaceDetailsResult>>
 {
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUserService _currentUserService;
-    private readonly IKnowledgetreeRepository _knowledgetreeRepository;
+    private readonly IMediator _mediator;
     private readonly ILogger<CreateWorkspaceCommandHandler> _logger;
 
     public CreateWorkspaceCommandHandler(
-        IUserRepository userRepository, 
+        IUserRepository userRepository,
         ICurrentUserService currentUserService,
-        IKnowledgetreeRepository knowledgetreeRepository,
+        IMediator mediator,
         ILogger<CreateWorkspaceCommandHandler> logger)
     {
         _userRepository = userRepository;
         _currentUserService = currentUserService;
-        _knowledgetreeRepository = knowledgetreeRepository;
+        _mediator = mediator;
         _logger = logger;
     }
     public async Task<ErrorOr<GetWorkspaceDetailsResult>> Handle(CreateWorkspaceCommand request, CancellationToken cancellationToken)
@@ -51,23 +52,44 @@ public class CreateWorkspaceCommandHandler : IRequestHandler<CreateWorkspaceComm
         user.Workspaces.Add(workspace);
         await _userRepository.UpdateAsync(user, cancellationToken);
 
-        // 4. Nếu có fileIds, sao chép các nodes từ workspaces khác có evidence với source_id trùng
+        // 4. Nếu có fileIds, delegate sang CreateKnowledgeNodeCommand để xử lý
         if (request.FileIds != null && request.FileIds.Count > 0)
         {
             try
             {
-                foreach (var fileId in request.FileIds)
+                _logger.LogInformation(
+                    "Detected {Count} FileIds for workspace {WorkspaceId}. Delegating to CreateKnowledgeNodeCommand.",
+                    request.FileIds.Count,
+                    workspace.Id);
+
+                var createKnowledgeNodeCommand = new CreateKnowledgeNodeCommand(
+                    WorkspaceId: workspace.Id,
+                    FilePaths: request.FileIds
+                );
+
+                var knowledgeNodeResult = await _mediator.Send(createKnowledgeNodeCommand, cancellationToken);
+
+                if (knowledgeNodeResult.IsError)
                 {
-                    // Sao chép tất cả nodes từ workspaces khác có evidence với source_id này
-                    await _knowledgetreeRepository.CopyNodesAsync(fileId, workspace.Id, cancellationToken);
+                    _logger.LogWarning(
+                        "Failed to process FileIds for workspace {WorkspaceId}. Errors: {Errors}",
+                        workspace.Id,
+                        string.Join(", ", knowledgeNodeResult.Errors.Select(e => e.Description)));
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Successfully delegated FileIds processing to CreateKnowledgeNodeCommand for workspace {WorkspaceId}. Status: {Status}",
+                        workspace.Id,
+                        knowledgeNodeResult.Value.Status);
                 }
             }
             catch (Exception ex)
             {
-                // Log lỗi nhưng vẫn tiếp tục tạo workspace
-                // Workspace đã được tạo, chỉ việc copy nodes bị lỗi
-                _logger.LogWarning(ex, "Failed to copy nodes for workspace {WorkspaceId} with fileIds: {FileIds}", 
-                    workspace.Id, string.Join(", ", request.FileIds));
+                _logger.LogWarning(ex,
+                    "Failed to delegate FileIds processing for workspace {WorkspaceId} with fileIds: {FileIds}",
+                    workspace.Id,
+                    string.Join(", ", request.FileIds));
             }
         }
 
