@@ -53,6 +53,24 @@ jspm_packages/
 /Backend/package-lock.json
 /Backend/.env
 
+# Sensitive configuration files - DO NOT COMMIT!
+appsettings.json
+appsettings.Development.json
+appsettings.Production.json
+!appsettings.Template.json
+**/Keys/*.json
+**/Keys/*.pem
+serviceAccountKey.json
+
+# RabbitMQ Worker specific
+RabbitMQ/.env
+RabbitMQ/serviceAccountKey.json
+RabbitMQ/**/*.log
+RabbitMQ/.venv/
+RabbitMQ/__pycache__/
+RabbitMQ/**/__pycache__/
+RabbitMQ/**/*.pyc
+
 # .NET specific
 [Bb]in/
 [Oo]bj/

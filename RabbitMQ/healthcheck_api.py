@@ -80,10 +80,10 @@ async def detailed_health_check():
         from src.rabbitmq_client import RabbitMQClient
 
         rabbitmq_config = {
-            "Host": os.getenv("RABBITMQ_HOST", "chameleon-01.lmq.cloudamqp.com"),
-            "Username": os.getenv("RABBITMQ_USERNAME", "odgfvgev"),
-            "Password": os.getenv("RABBITMQ_PASSWORD", "ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg"),
-            "VirtualHost": os.getenv("RABBITMQ_VHOST", "odgfvgev")
+            "Host": os.getenv("RABBITMQ_HOST"),
+            "Username": os.getenv("RABBITMQ_USERNAME"),
+            "Password": os.getenv("RABBITMQ_PASSWORD"),
+            "VirtualHost": os.getenv("RABBITMQ_VHOST")
         }
 
         client = RabbitMQClient(rabbitmq_config)
@@ -104,9 +104,9 @@ async def detailed_health_check():
     try:
         from neo4j import GraphDatabase
 
-        neo4j_url = os.getenv("NEO4J_URL", "neo4j+s://daa013e6.databases.neo4j.io")
+        neo4j_url = os.getenv("NEO4J_URL")
         neo4j_user = os.getenv("NEO4J_USER", "neo4j")
-        neo4j_password = os.getenv("NEO4J_PASSWORD", "DTG0IyhifivaD2GwRoyIz4VPapRF0JdjoVsMfT9ggiY")
+        neo4j_password = os.getenv("NEO4J_PASSWORD")
 
         driver = GraphDatabase.driver(neo4j_url, auth=(neo4j_user, neo4j_password))
         driver.verify_connectivity()
@@ -127,7 +127,7 @@ async def detailed_health_check():
         from src.handler.firebase import FirebaseClient
 
         firebase_service_account = os.getenv("FIREBASE_SERVICE_ACCOUNT", "serviceAccountKey.json")
-        firebase_database_url = os.getenv("FIREBASE_DATABASE_URL", "https://navnexus-default-rtdb.firebaseio.com/")
+        firebase_database_url = os.getenv("FIREBASE_DATABASE_URL")
 
         firebase_client = FirebaseClient(firebase_service_account, firebase_database_url)
         health_status["checks"]["firebase"] = {
