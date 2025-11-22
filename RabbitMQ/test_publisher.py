@@ -19,12 +19,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.rabbitmq_client import RabbitMQClient
 
-# RabbitMQ Configuration (same as new_worker.py)
+# RabbitMQ Configuration (same as worker.py)
 RABBITMQ_CONFIG = {
-    "Host": os.getenv("RABBITMQ_HOST", "chameleon-01.lmq.cloudamqp.com"),
-    "Username": os.getenv("RABBITMQ_USERNAME", "odgfvgev"),
-    "Password": os.getenv("RABBITMQ_PASSWORD", "ElA8Lhgv15r8Y0IR6n0S5bMLxGRmUmgg"),
-    "VirtualHost": os.getenv("RABBITMQ_VHOST", "odgfvgev")
+    "Host": os.getenv("RABBITMQ_HOST"),
+    "Username": os.getenv("RABBITMQ_USERNAME"),
+    "Password": os.getenv("RABBITMQ_PASSWORD"),
+    "VirtualHost": os.getenv("RABBITMQ_VHOST")
 }
 
 QUEUE_NAME = os.getenv("QUEUE_NAME", "PDF_JOBS_QUEUE")
