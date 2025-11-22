@@ -105,12 +105,29 @@ useEffect(() => {
 			})),
 		[nodes, onNodeSelect, onToggleNode, onClearSelection, selectedNodeId]
 	);
+	
+	const enrichedEdges = useMemo(
+		() =>
+			edges.map((edge) => ({
+				...edge,
+				type: 'smoothstep',
+				animated: edge.data?.isOnJourneyPath || false,
+				style: {
+					stroke: edge.data?.isOnJourneyPath 
+						? '#10b981' 
+						: edge.data?.color || '#4ade80',
+					strokeWidth: edge.data?.isOnJourneyPath ? 3 : 2,
+					opacity: edge.data?.isOnJourneyPath ? 1 : 0.6,
+				},
+			})),
+		[edges]
+	);
 
 	return (
 		<div className="relative h-full rounded-3xl border border-white/10 bg-slate-950/90 p-4">
 			<ReactFlow
 				nodes={enrichedNodes}
-				edges={edges}
+				edges={enrichedEdges}
 				nodeTypes={nodeTypes}
 				fitView // Initial fitView on mount
 				panOnDrag

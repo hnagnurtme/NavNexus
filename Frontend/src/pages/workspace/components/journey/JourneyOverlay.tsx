@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { ArrowLeft, ArrowRight, GitBranch, MapPin, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, GitBranch, MapPin, X, Sparkles } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { JourneyState } from "../../hooks/useWorkspaceExperience";
 import type { WorkspaceNode } from "../../utils/treeUtils";
 
@@ -38,18 +39,46 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 			: 0;
 
 	return (
-		<>
-			<div className="pointer-events-auto fixed bottom-6 left-1/2 z-20 w-full max-w-3xl -translate-x-1/2 px-4">
-				<div className="rounded-3xl border border-emerald-500/30 bg-slate-900/90 p-5 text-white shadow-2xl backdrop-blur">
+		<AnimatePresence>
+			{journey.isActive && (
+				<motion.div 
+					className="pointer-events-auto fixed bottom-6 left-1/2 z-20 w-full max-w-3xl -translate-x-1/2 px-4"
+					initial={{ y: 100, opacity: 0, scale: 0.95 }}
+					animate={{ y: 0, opacity: 1, scale: 1 }}
+					exit={{ y: 100, opacity: 0, scale: 0.95 }}
+					transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
+				>
+					<motion.div 
+						className="rounded-3xl border border-emerald-500/30 bg-slate-900/90 p-5 text-white shadow-2xl backdrop-blur"
+						initial={{ boxShadow: '0 0 0 rgba(16, 185, 129, 0)' }}
+						animate={{ boxShadow: '0 20px 40px rgba(16, 185, 129, 0.15)' }}
+						transition={{ duration: 0.5 }}
+					>
 					{/* Branch Selection View */}
 					{journey.awaitingBranch ? (
-						<div className="animate-fadeIn">
+						<motion.div
+							key="branch-selection"
+							initial={{ opacity: 0, y: 20 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: -20 }}
+							transition={{ duration: 0.3 }}
+						>
 							<header className="mb-4 flex items-center justify-between gap-4">
-								<div className="flex items-center gap-3">
-									<GitBranch
-										size={24}
-										className="text-cyan-300"
-									/>
+								<motion.div 
+									className="flex items-center gap-3"
+									initial={{ x: -20, opacity: 0 }}
+									animate={{ x: 0, opacity: 1 }}
+									transition={{ delay: 0.1 }}
+								>
+									<motion.div
+										animate={{ rotate: [0, 15, -15, 0] }}
+										transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+									>
+										<GitBranch
+											size={24}
+											className="text-cyan-300"
+										/>
+									</motion.div>
 									<div>
 										<p className="text-xs uppercase tracking-[0.4em] text-cyan-300">
 											Branch Selection
@@ -58,15 +87,17 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 											Choose your path
 										</h3>
 									</div>
-								</div>
-								<button
+								</motion.div>
+								<motion.button
 									type="button"
 									onClick={onCancel}
 									className="rounded-full border border-white/10 p-2 text-white/60 transition hover:text-white"
 									aria-label="Exit journey mode"
+									whileHover={{ scale: 1.1, rotate: 90 }}
+									whileTap={{ scale: 0.9 }}
 								>
 									<X size={18} />
-								</button>
+								</motion.button>
 							</header>
 
 							<p className="text-sm text-white/70 mb-4">
@@ -74,8 +105,8 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 							</p>
 
 							<div className="flex w-full flex-nowrap gap-3 overflow-x-auto p-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20">
-								{journey.branchOptions.map((option) => (
-									<button
+								{journey.branchOptions.map((option, index) => (
+									<motion.button
 										type="button"
 										key={option.nodeId}
 										onClick={() =>
@@ -84,38 +115,49 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 										className="
                 rounded-2xl border border-white/10 bg-white/5 p-3 text-left 
                 transition hover:border-emerald-400/60 hover:bg-emerald-500/10 
-                hover:scale-[1.02] 
                 flex-shrink-0 
-                min-w-[200px] max-w-[200px]     /* 👈 ADDED */
-                break-words                      /* 👈 prevents overflow */
-            "
+                min-w-[200px] max-w-[200px]
+                break-words
+              "
+										initial={{ opacity: 0, y: 20 }}
+										animate={{ opacity: 1, y: 0 }}
+										transition={{ delay: index * 0.1 }}
+										whileHover={{ scale: 1.05, y: -5 }}
+										whileTap={{ scale: 0.98 }}
 									>
-										{/* <p className="text-xs uppercase tracking-[0.3em] text-white/50">
-											{option.type}
-										</p> */}
 										<h5 className="mt-1 text-base font-semibold">
 											{option.nodeName}
 										</h5>
-										{/* <p className="mt-2 text-xs text-white/60">
-											{option.childrenLoaded
-												? `${
-														option.children
-															?.length ?? 0
-												  } further leads`
-												: "Expand this branch"}
-										</p> */}
-									</button>
+									</motion.button>
 								))}
 							</div>
-						</div>
+						</motion.div>
 					) : (
-						<div className="animate-fadeIn ">
+						<motion.div
+							key="journey-progress"
+							initial={{ opacity: 0, y: 20 }}
+							animate={{ opacity: 1, y: 0 }}
+							exit={{ opacity: 0, y: -20 }}
+							transition={{ duration: 0.3 }}
+						>
 							{/* Normal Journey View */}
 							<header className="mb-4 flex items-center justify-between gap-4">
-								<div>
-									<p className="text-xs uppercase tracking-[0.4em] text-emerald-300">
-										Journey Mode
-									</p>
+								<motion.div
+									initial={{ x: -20, opacity: 0 }}
+									animate={{ x: 0, opacity: 1 }}
+									transition={{ delay: 0.1 }}
+								>
+									<div className="flex items-center gap-2">
+										<p className="text-xs uppercase tracking-[0.4em] text-emerald-300">
+											Journey Mode
+										</p>
+										<motion.div
+											animate={{ scale: [1, 1.2, 1], opacity: [0.7, 1, 0.7] }}
+											transition={{ duration: 2, repeat: Infinity }}
+										>
+											<Sparkles size={12} className="text-emerald-300" />
+										</motion.div>
+									</div>
 									<h3 className="text-2xl font-semibold">
 										{currentNode
 											? currentNode.nodeName
@@ -123,28 +165,38 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 									</h3>
 									{currentNode?.tags &&
 										currentNode.tags.length > 0 && (
-											<div className="mt-1 flex flex-wrap gap-1">
+											<motion.div 
+												className="mt-1 flex flex-wrap gap-1"
+												initial={{ opacity: 0 }}
+												animate={{ opacity: 1 }}
+												transition={{ delay: 0.2 }}
+											>
 												{currentNode.tags.map(
 													(tag, idx) => (
-														<span
+														<motion.span
 															key={idx}
 															className="rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/70"
+															initial={{ scale: 0 }}
+															animate={{ scale: 1 }}
+															transition={{ delay: 0.3 + idx * 0.05 }}
 														>
 															{tag}
-														</span>
+														</motion.span>
 													)
 												)}
-											</div>
+											</motion.div>
 										)}
-								</div>
-								<button
+								</motion.div>
+								<motion.button
 									type="button"
 									onClick={onCancel}
 									className="rounded-full border border-white/10 p-2 text-white/60 transition hover:text-white"
 									aria-label="Exit journey mode"
+									whileHover={{ scale: 1.1, rotate: 90 }}
+									whileTap={{ scale: 0.9 }}
 								>
 									<X size={18} />
-								</button>
+								</motion.button>
 							</header>
 
 							<div className="mb-4">
@@ -155,10 +207,12 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 									</span>
 									<span>{progress}% complete</span>
 								</div>
-								<div className="mt-2 h-2 w-full rounded-full bg-white/10">
-									<div
-										className="h-2 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500 transition-all"
-										style={{ width: `${progress}%` }}
+								<div className="mt-2 h-2 w-full rounded-full bg-white/10 overflow-hidden">
+									<motion.div
+										className="h-2 rounded-full bg-gradient-to-r from-emerald-500 to-cyan-500"
+										initial={{ width: 0 }}
+										animate={{ width: `${progress}%` }}
+										transition={{ duration: 0.5, ease: 'easeOut' }}
 									/>
 								</div>
 							</div>
@@ -180,53 +234,56 @@ export const JourneyOverlay: React.FC<JourneyOverlayProps> = ({
 							</div>
 
 							<div className="mt-5 flex flex-wrap gap-3">
-								<button
+								<motion.button
 									type="button"
 									onClick={onBack}
 									className="flex items-center gap-2 rounded-2xl border border-white/10 px-4 py-2 text-sm font-semibold text-white/70 transition hover:border-white/40"
+									whileHover={{ scale: 1.05, x: -5 }}
+									whileTap={{ scale: 0.95 }}
 								>
 									<ArrowLeft size={16} />
 									Back
-								</button>
+								</motion.button>
 								{!journey.completed ? (
-									<button
+									<motion.button
 										type="button"
 										onClick={onNext}
 										className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-6 py-2 text-sm font-semibold text-white shadow-lg transition hover:brightness-110"
+										whileHover={{ scale: 1.05 }}
+										whileTap={{ scale: 0.95 }}
+										animate={{ boxShadow: ['0 4px 14px 0 rgba(16, 185, 129, 0.4)', '0 4px 20px 0 rgba(16, 185, 129, 0.6)', '0 4px 14px 0 rgba(16, 185, 129, 0.4)'] }}
+										transition={{ duration: 2, repeat: Infinity }}
 									>
 										Next Step
 										<ArrowRight size={16} />
-									</button>
+									</motion.button>
 								) : (
-									<button
+									<motion.button
 										type="button"
 										onClick={onRestart}
 										className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-emerald-500/40 px-6 py-2 text-sm font-semibold text-emerald-200 hover:border-emerald-400"
+										whileHover={{ scale: 1.05 }}
+										whileTap={{ scale: 0.95 }}
 									>
 										Restart
-									</button>
+									</motion.button>
 								)}
 							</div>
-						</div>
+						</motion.div>
 					)}
-				</div>
+				</motion.div>
 
 				<style>{`
-				@keyframes fadeIn {
-					from {
-						opacity: 0;
-						transform: translateY(10px);
+				@media (prefers-reduced-motion: reduce) {
+					.motion-reduce {
+						animation-duration: 0.01ms !important;
+						animation-iteration-count: 1 !important;
+						transition-duration: 0.01ms !important;
 					}
-					to {
-						opacity: 1;
-						transform: translateY(0);
-					}
-				}
-				.animate-fadeIn {
-					animation: fadeIn 0.3s ease-out;
 				}
 			`}</style>
-			</div>
-		</>
+			</motion.div>
+		)}
+	</AnimatePresence>
 	);
 };
